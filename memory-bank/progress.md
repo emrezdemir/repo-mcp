@@ -182,6 +182,7 @@ Not bugs — consequences of decisions, recorded so nobody rediscovers them.
 | `deploy/docker-compose.yml` did not parse: unquoted `${VAR:-default}` in a flow mapping, and a duplicate `ENVIRONMENT` key | Running `docker compose config` while adding a service | Quoted, deduplicated, and `make test` validates the file now |
 | Migration 0001 built the schema from the live models, so it created 0002's tables and 0002 then failed | Adding the second migration | 0001 transcribed explicitly, plus a test comparing the migrated schema to the models |
 | Four administrator-editable `indexer.*` settings were read by nothing | Checking which chart values were still real | The indexer reads them from the store, re-reading the rescan interval each pass |
+| The Pages site 404'd while the build job was green: the `github-pages` environment admits the default branch only, and the workflow published from `main` while the default is `dev` | The maintainer reporting the URL, twice | Publish from whichever branch is the default; other branches skip visibly instead of failing with no steps and no message |
 
 ## Never verified in this environment
 
