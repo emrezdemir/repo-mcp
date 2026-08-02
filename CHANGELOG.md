@@ -19,7 +19,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   assembles `site/` and `docs/images/` into `_site/`, so the screenshots have
   one copy in git and a local preview is exactly what is published;
   `make site --serve` previews it. The workflow fails if any page references a
-  file that is not there.
+  file that is not there, and turns Pages on for the repository itself rather
+  than relying on a settings change nobody remembers to make.
 - **An Ask tab.** `ask_codebase` is the thing this platform has that a local
   graph viewer does not, and it had no interface. It runs `get_architecture`
   and `search_graph` first and answers from what they returned, citing
@@ -29,6 +30,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`GET /api/ui-config`**, backed by a new `ui.language` setting, so an
   installation can pin the interface's language instead of following the
   browser. The interface asked for this endpoint on every load and got a 404.
+
+### Added
+
+- **`dev` no longer falls behind `main`.** Merging through a pull request
+  leaves one commit on `main` that `dev` never gets — the merge commit GitHub
+  writes — so the content stayed identical while the history diverged by one
+  commit per release, and every comparison afterwards reported a difference
+  that was not one. `.github/workflows/sync-dev.yml` fast-forwards `dev` to
+  `main` on every push to `main`.
+
+  It does not force, so if `dev` moved on since the merge the push is refused
+  and the job fails with the offending commits printed rather than discarding
+  them. Rehearsed against a throwaway repository first: the normal flow, a
+  second run, and the case where `dev` has diverged.
 
 ### Changed
 
