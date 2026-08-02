@@ -46,11 +46,50 @@ export const table = (columns, rows) => {
   const body = el('tbody');
   for (const row of rows) {
     const tr = el('tr');
-    for (const cell of row) tr.append(el('td', { className: 'mono', textContent: cell ?? '' }));
+    for (const cell of row) {
+      // A cell is usually text, but an actions column is a couple of buttons.
+      tr.append(cell instanceof Node
+        ? el('td', {}, cell)
+        : el('td', { className: 'mono', textContent: cell ?? '' }));
+    }
     body.append(tr);
   }
   return el('table', {}, el('thead', {}, head), body);
 };
+
+/* A labelled control. `spec.kind` picks the element; everything else is set
+ * on it directly, so a caller can pass `value`, `placeholder`, `checked` or
+ * anything else an input takes without this having to know about it. */
+export function field(spec) {
+  const { label, kind = 'text', options, hint, ...rest } = spec;
+  let input;
+  if (kind === 'select') {
+    input = el('select', rest);
+    for (const option of options || []) {
+      const [value, text] = Array.isArray(option) ? option : [option, option];
+      input.append(el('option', { value, textContent: text, selected: value === rest.value }));
+    }
+  } else if (kind === 'checkbox') {
+    input = el('input', { type: 'checkbox', ...rest });
+  } else {
+    input = el('input', { type: kind, ...rest });
+  }
+
+  const wrap = kind === 'checkbox'
+    ? el('label', { className: 'filter' }, input, el('span', { textContent: label }))
+    : el('label', { className: 'field' }, el('span', { textContent: label }), input);
+  if (hint) wrap.append(el('span', { className: 'muted small', textContent: hint }));
+  return { wrap, input, read: () => (kind === 'checkbox' ? input.checked : input.value) };
+}
+
+/* A comma-or-newline separated list. Squads, groups and globs are all lists,
+ * and a text box people can paste into beats a widget nobody asked for. */
+export const asList = (text) =>
+  String(text || '').split(/[\n,]/).map((item) => item.trim()).filter(Boolean);
+
+export function panel(title, ...children) {
+  return el('section', { className: 'panel' }, el('h3', { textContent: title }), ...children);
+}
 
 // ── talking to the platform ──────────────────────────────────────────
 

@@ -29,24 +29,13 @@ from .roles import TOOL_CAPABILITY
 
 log = logging.getLogger(__name__)
 
-UI_DIR = Path(__file__).parent / "ui"
+UI_DIR = Path(__file__).parent.resolve() / "ui"
 
-#: Served without authentication, because they are the login screen. Nothing
-#: under here reveals anything about a codebase.
-PUBLIC_FILES = {
-    "index.html",
-    "style.css",
-    "app.js",
-    "core.js",
-    "graph.js",
-    "pages/overview.js",
-    "pages/search.js",
-    "pages/map.js",
-    "pages/admin.js",
-    "vendor/sigma.min.js",
-    "vendor/graphology.umd.min.js",
-    "vendor/graphology-library.min.js",
-}
+#: What the interface is made of. Everything under `ui/` is served without
+#: authentication — it is the login screen and the code behind it, and none of
+#: it reveals anything about a codebase. The extension list is what keeps a
+#: stray file in that directory from becoming a download.
+SERVED_SUFFIXES = {".html", ".css", ".js", ".svg", ".map"}
 
 
 def build_router(current_config, ready) -> APIRouter:
@@ -118,10 +107,18 @@ def build_router(current_config, ready) -> APIRouter:
 
     @router.get("/ui/{path:path}", include_in_schema=False)
     async def ui_files(path: str) -> Response:
-        name = path or "index.html"
-        if name not in PUBLIC_FILES:
+        """Serve a file from `ui/`, and nothing outside it.
+
+        The resolved path is compared against the resolved directory, so
+        `../` and a symlink out are both refused — checking the string the
+        client sent would only catch the first.
+        """
+        target = (UI_DIR / (path or "index.html")).resolve()
+        if not target.is_relative_to(UI_DIR):
             return JSONResponse({"error": "not found"}, status_code=404)
-        return FileResponse(UI_DIR / name)
+        if target.suffix not in SERVED_SUFFIXES or not target.is_file():
+            return JSONResponse({"error": "not found"}, status_code=404)
+        return FileResponse(target)
 
     @router.get("/ui", include_in_schema=False)
     async def ui_root() -> Response:
