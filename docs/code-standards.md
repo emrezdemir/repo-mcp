@@ -173,6 +173,12 @@ test_roles_2                                  useless
    `README.en.md` carries the English. Both are updated together — a
    change to one that skips the other is an incomplete change. Everything
    under `docs/` stays English.
+9. **Both READMEs are written plainly.** Short sentences, ordinary words, no
+   literary register. In the Turkish one, keep the English terms developers
+   actually say — gateway, indexer, repo, webhook, graph, connector, token,
+   commit — instead of translating them into words nobody uses. No
+   circumflexes (`â`, `î`, `û`). A README is the first thing a stranger reads;
+   it should not read like a specification.
 9. Claims about engine behaviour cite the engine's source. Documentation is
    not evidence; source is.
 10. Status language is exact. "Works" means run and verified. Anything else
