@@ -30,6 +30,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   installation can pin the interface's language instead of following the
   browser. The interface asked for this endpoint on every load and got a 404.
 
+### Added
+
+- **`dev` no longer falls behind `main`.** Merging through a pull request
+  leaves one commit on `main` that `dev` never gets — the merge commit GitHub
+  writes — so the content stayed identical while the history diverged by one
+  commit per release, and every comparison afterwards reported a difference
+  that was not one. `.github/workflows/sync-dev.yml` fast-forwards `dev` to
+  `main` on every push to `main`.
+
+  It does not force, so if `dev` moved on since the merge the push is refused
+  and the job fails with the offending commits printed rather than discarding
+  them. Rehearsed against a throwaway repository first: the normal flow, a
+  second run, and the case where `dev` has diverged.
+
 ### Changed
 
 - **Both READMEs are a landing page, not a manual.** 699 lines each became
