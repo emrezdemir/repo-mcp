@@ -60,6 +60,19 @@ make setup      # generates POSTGRES_PASSWORD, SECRETS_KEY and the rest
 make up         # PostgreSQL, migrations, the first administrator, both services
 ```
 
+`make setup` only prepares: it writes `deploy/.env`, the two seed YAML files and
+the secrets, and — unless `--config-only` — the virtualenvs. Nothing is running
+yet, and there is no system service to install. `make up` starts the Docker
+containers; `make down` stops them. Once it is up, the **web interface is at
+http://localhost:8080/ui** — from another machine, replace `localhost` with the
+server's address and open port 8080.
+
+Signing in to the interface goes through your identity provider, so it is usable
+once Keycloak or your own OIDC is configured — see
+[Keycloak and LDAP](#keycloak-and-ldap). Until then, the admin API and
+`repo-mcp-admin` configure the platform, and `make debug` reports what is up and
+what is not.
+
 ### On a server, where you only want the stack
 
 `make setup` also builds three virtualenvs, because that is what running the
@@ -88,6 +101,7 @@ docker compose logs init
 
 | Service | URL |
 | --- | --- |
+| Web interface | http://localhost:8080/ui |
 | Gateway (MCP) | http://localhost:8080/mcp |
 | Gateway (admin API) | http://localhost:8080/admin |
 | Indexer | http://localhost:8082 |

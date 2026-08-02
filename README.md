@@ -2,17 +2,26 @@
 
 # repo-mcp
 
-**Şirketin bütün kodu tek bir graph'ta.**
+### Bütün repo'larınız, tek bir kod graph'ında.
 
-GitHub, GitLab ve Bitbucket repository'lerinizi tek yerden indeksler; ortaya
-çıkan kod graph'ını MCP üzerinden coding agent'lara, chatbot'lara ve CI'a açar.
+repo-mcp; GitHub, GitLab ve Bitbucket'taki repo'larınızı merkezî olarak
+indeksler ve çıkan kod graph'ını **MCP** üzerinden coding agent'lara,
+chatbot'lara ve CI'a açar. Kendi sunucunuzda çalışır, takım bazlı izolasyon
+sağlar.
 
-[**Site**](https://emrezdemir.github.io/repo-mcp/) ·
-[**Belgeler**](https://emrezdemir.github.io/repo-mcp/docs/) ·
+[![License](https://img.shields.io/badge/license-MIT-1da27e.svg)](LICENSE)
+[![Sürüm](https://img.shields.io/badge/s%C3%BCr%C3%BCm-0.3.0-1c8585.svg)](CHANGELOG.md)
+[![CI](https://img.shields.io/github/actions/workflow/status/emrezdemir/repo-mcp/ci.yml?branch=dev&label=CI&color=1da27e)](https://github.com/emrezdemir/repo-mcp/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.11+-1c8585.svg)](https://www.python.org/)
+[![MCP](https://img.shields.io/badge/MCP-JSON--RPC-1da27e.svg)](https://modelcontextprotocol.io/)
+[![Self-hosted](https://img.shields.io/badge/self--hosted-evet-1c8585.svg)](#beş-dakikada-kurulum)
+[![Stars](https://img.shields.io/github/stars/emrezdemir/repo-mcp?style=social)](https://github.com/emrezdemir/repo-mcp)
+
+**[Site](https://emrezdemir.github.io/repo-mcp/)** ·
+**[Belgeler](https://emrezdemir.github.io/repo-mcp/docs/)** ·
+[Kurulum](#beş-dakikada-kurulum) ·
 [English](README.en.md) ·
 [Değişiklikler](CHANGELOG.md)
-
-Sürüm 0.3.0 · MIT
 
 </div>
 
@@ -20,22 +29,36 @@ Sürüm 0.3.0 · MIT
 
 ---
 
-## Ne işe yarar
+## Nedir
+
+Kod indeksleme araçları tek kişilik çalışmaya göre tasarlanmış: herkes aynı
+repo'yu kendi makinesinde indeksler, çıkan graph kimseyle paylaşılmaz ve sonuca
+ne CI'dan ne de bir chatbot'tan erişilebilir. repo-mcp bunu tersine çevirir.
 
 Bir GitHub organizasyonunu, GitLab grubunu veya Bitbucket workspace'ini
-connector olarak tanımlarsınız; kapsamdaki repository'ler bulunur, klonlanır ve
-indekslenir. Çıkan graph'a **MCP** ile erişilir (HTTP üzerinde JSON-RPC). Gelen
-istek **OIDC** token'ıyla doğrulanır, kullanıcının **LDAP** grupları bir role ve
-bir takıma çevrilir.
+**connector** olarak tanımlarsınız; kapsamdaki repo'lar bulunur, klonlanır ve
+merkezde indekslenir. Çıkan graph'a **MCP** ile erişilir (HTTP üzerinde
+JSON-RPC). Gelen istek bir **OIDC** token'ıyla doğrulanır; kullanıcının **LDAP**
+grupları bir role ve bir takıma çevrilir.
 
-|  |  |
-| --- | --- |
-| **Bir kez indekslenir** | Aynı repository herkesin makinesinde yeniden indekslenmez |
-| **Takım bazlı izolasyon** | Her takım kendi kodunu ayrıntısıyla, diğerlerini yalnızca yapı olarak görür |
-| **Üç bağımsız yetki katmanı** | Rolün yetkileri ∩ proje listesi ∩ motorun tool profili; üstüne takıma özel kök dizin |
-| **Restart yok** | Yapılandırma PostgreSQL'de; değişiklik bir sayaç üzerinden servislere ulaşır |
-| **Cevap graph'tan** | `ask_codebase` önce graph sorgusu çalıştırır, modelden tahmin istenmez |
-| **İki yönetim yüzeyi** | Terminal ve web konsolu aynı fonksiyonları çağırır, aynı audit kaydını bırakır |
+## Neden repo-mcp
+
+- **Bir kez indekslenir, herkes kullanır.** Aynı repo herkesin makinesinde
+  yeniden indekslenmez. Connector kapsamındaki repo'lar merkezde indekslenir;
+  sonradan açılanlar bir sonraki taramada kendiliğinden katılır.
+- **Takım bazlı izolasyon.** Her takım kendi kodunu tam ayrıntısıyla, diğer
+  takımların servislerini yalnızca topoloji olarak görür. Bunu tek bir ACL
+  değil, **üç bağımsız yetki katmanı** güvence altına alır: rolün yetkileri ∩
+  takımın proje listesi ∩ motorun tool profili, üstüne takıma özel kök dizin.
+- **Graph'tan cevap, tahminden değil.** `ask_codebase` önce deterministik graph
+  sorgusunu çalıştırır, modele yalnızca dönen kanıtı yorumlatır ve adı geçen
+  sembolleri kaynağıyla gösterir.
+- **Restart yok.** Takımlar, roller, connector'lar ve şifreli token'lar
+  PostgreSQL'de tutulur. Her değişiklik bir generation sayacını artırır;
+  servisler onu izleyip kendini günceller.
+- **Tek yönetim yüzeyi değil, iki.** `repo-mcp-admin` terminali ve web konsolu
+  aynı fonksiyonları çağırır, aynı doğrulamadan geçer ve aynı audit kaydını
+  bırakır. İkisinin ayrışmasını bir test engeller.
 
 ## Beş dakikada kurulum
 
@@ -64,6 +87,20 @@ repo-mcp-admin connector check acme-github
 `check`, provider'a sorup connector'ın gerçekten ne göreceğini söyler; bir şey
 yanlışsa hangisi olduğunu yazar. Docker'sız geliştirmek için `make dev`.
 
+## Bağlanmak
+
+Kod hakkındaki her soru, çağıranın kendi token'ıyla `POST /mcp` adresine gider:
+
+```bash
+curl -s http://localhost:8080/mcp \
+  -H "Authorization: Bearer $OIDC_TOKEN" \
+  -H "X-Tenant: payments" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+`tools/list` çıktısı çağırana göre değişir: rolün yetkisi olmayan ya da takımın
+tool profilinde bulunmayan bir tool listeye girmez.
+
 ## Arayüz
 
 <table>
@@ -89,39 +126,26 @@ Arayüz sıfırdan yazılmadı: motorun kendi arayüzü (React + Three.js, MIT) 
 bu platforma bağlandı. Gerekçesi
 [ADR-0011](docs/adr/0011-adopt-the-upstream-interface.md) içinde.
 
-## Bağlanmak
-
-```bash
-curl -s http://localhost:8080/mcp \
-  -H "Authorization: Bearer $OIDC_TOKEN" \
-  -H "X-Tenant: payments" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
-```
-
-`tools/list` çıktısı çağırana göre değişir: rolün yetkisi olmayan ya da takımın
-tool profilinde bulunmayan bir tool listeye girmez.
-
 ## Belgeler
 
-Sistemin bütün belgeleri sitede — nasıl kullanılır, senaryolar, ekran
-görüntüleri ve kararların gerekçesi:
+Sistemin bütün belgeleri sitede — mimarisi, kurulumu, rolleri, ölçeklenmesi ve
+her kararın gerekçesi:
 **[emrezdemir.github.io/repo-mcp/docs](https://emrezdemir.github.io/repo-mcp/docs/)**
 
-| | |
+| Belge | İçerik |
 | --- | --- |
-| [Mimari](https://emrezdemir.github.io/repo-mcp/docs/architecture.html) | İki servis, bir motor, paylaşılan graph dizini |
-| [Web arayüzü](https://emrezdemir.github.io/repo-mcp/docs/web-interface.html) | Nasıl kurulu, giriş nasıl çalışıyor, ne yapmıyor |
-| [Yönetim](https://emrezdemir.github.io/repo-mcp/docs/administration.html) | Terminal ve konsol, yan yana |
-| [Roller ve yetkiler](https://emrezdemir.github.io/repo-mcp/docs/roles-and-permissions.html) | Rol ne yapar, takım neye erişir |
-| [Kurulum](https://emrezdemir.github.io/repo-mcp/docs/deployment.html) | Compose, Kubernetes, Keycloak ve LDAP |
-| [Ortamlar](https://emrezdemir.github.io/repo-mcp/docs/environments.html) | Branch'ten artifact'e, artifact'ten ortama |
-| [Ölçekleme](https://emrezdemir.github.io/repo-mcp/docs/scaling.html) | Replika, kuyruk ve depolama |
-| [Kararlar](https://emrezdemir.github.io/repo-mcp/docs/adr/0001-wrap-dont-fork.html) | Neden fork edilmedi, neden veritabanı, neden bu arayüz |
-| [Geliştirme](https://emrezdemir.github.io/repo-mcp/docs/development.html) | Yerel kurulum, testler, katkı akışı |
+| [Mimari](https://emrezdemir.github.io/repo-mcp/docs/architecture/) | İki servis, bir motor, paylaşılan graph dizini |
+| [Web arayüzü](https://emrezdemir.github.io/repo-mcp/docs/web-interface/) | Nasıl kurulu, giriş nasıl çalışıyor, ne yapmıyor |
+| [Yönetim](https://emrezdemir.github.io/repo-mcp/docs/administration/) | Terminal ve konsol, yan yana |
+| [Roller ve yetkiler](https://emrezdemir.github.io/repo-mcp/docs/roles-and-permissions/) | Rol ne yapar, takım neye erişir |
+| [Kurulum](https://emrezdemir.github.io/repo-mcp/docs/deployment/) | Compose, Kubernetes, Keycloak ve LDAP |
+| [Ölçekleme](https://emrezdemir.github.io/repo-mcp/docs/scaling/) | Replika, kuyruk ve depolama |
+| [Kararlar (ADR)](https://emrezdemir.github.io/repo-mcp/docs/adr/0001-wrap-dont-fork/) | Neden fork edilmedi, neden veritabanı, neden bu arayüz |
+| [Geliştirme](https://emrezdemir.github.io/repo-mcp/docs/development/) | Yerel kurulum, testler, katkı akışı |
 
 Belgelerin kaynağı [`docs/`](docs/) altındaki markdown dosyaları; site onlardan
 üretiliyor, yani iki kopya arasında fark oluşmuyor. Referans belgeleri
-İngilizce, tanıtım sayfaları Türkçe.
+İngilizce, tanıtım sayfaları (site ve README) Türkçe.
 
 ## Katkı ve güvenlik
 

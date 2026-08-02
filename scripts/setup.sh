@@ -91,6 +91,24 @@ else
       make_venv "$service"
       ./.venv/bin/pip install --quiet --upgrade pip \
         || die "could not upgrade pip in $service/.venv"
+      # gateway and indexer depend on repo-mcp-common, a sibling package that is
+      # not published to any index. The path is declared in [tool.uv.sources],
+      # which only uv reads — pip ignores it, looks for repo-mcp-common on PyPI
+      # and fails with "No matching distribution found". Installing the local
+      # copy into this venv first means the dependency is already satisfied when
+      # the service itself is installed, and editable so a change to common is
+      # picked up here too.
+      if [[ "$service" != common ]]; then
+        # Pass the path with a single leading slash. On hosts where pwd reports
+        # the tree as //home/... — VirtualBox shared folders and some bind
+        # mounts do — an absolute path beginning with // makes pip read the //
+        # as a URL authority and fail with "file:// scheme is supported only on
+        # localhost". Collapsing the leading slash avoids it; on Linux //x and
+        # /x are the same directory.
+        common_dir="/$(printf '%s' "$REPO_ROOT/common" | sed 's#^/*##')"
+        ./.venv/bin/pip install --quiet -e "$common_dir" \
+          || die "could not install repo-mcp-common into $service/.venv"
+      fi
       ./.venv/bin/pip install --quiet -e '.[dev]' \
         || die "could not install $service dependencies"
       ok "$service dependencies installed in $service/.venv"
@@ -184,19 +202,22 @@ EOF
 # packages would be a broken instruction, so the list follows the mode.
 if (( CONFIG_ONLY )); then
   cat <<EOF
-  ${C_DIM}make up${C_RESET}                  bring up the full Docker stack
+  ${C_DIM}make up${C_RESET}                  bring up the stack, then open ${C_BLUE}http://localhost:8080/ui${C_RESET}
   ${C_DIM}make smoke${C_RESET}               check it end to end
 
+${C_DIM}'make up' starts Docker containers; there is no system service to install.${C_RESET}
 ${C_DIM}Run 'make setup' without --config-only if you also want to develop or${C_RESET}
 ${C_DIM}test here; that is what the virtualenvs are for.${C_RESET}
 EOF
 else
   cat <<EOF
-  ${C_DIM}scripts/test.sh${C_RESET}          run tests and linting
+  ${C_DIM}make up${C_RESET}                  bring up the stack, then open ${C_BLUE}http://localhost:8080/ui${C_RESET}
   ${C_DIM}scripts/dev.sh${C_RESET}           run both services locally, no Docker
-  ${C_DIM}scripts/stack.sh up${C_RESET}      bring up the full Docker stack
+  ${C_DIM}scripts/test.sh${C_RESET}          run tests and linting
   ${C_DIM}scripts/debug.sh${C_RESET}         diagnose a running or broken setup
 
-${C_DIM}Branching: develop on ${C_RESET}dev${C_DIM}. See docs/development.md.${C_RESET}
+${C_DIM}Nothing is running yet — 'make setup' only wrote the config and built the${C_RESET}
+${C_DIM}virtualenvs. 'make up' starts Docker containers; there is no system service${C_RESET}
+${C_DIM}to install. Signing in to the interface needs OIDC — see docs/deployment.md.${C_RESET}
 EOF
 fi

@@ -1,6 +1,6 @@
 # Active context
 
-**Last updated:** 2026-08-02
+**Last updated:** 2026-08-03
 **Branch:** `dev`
 
 ## Where things stand
@@ -16,9 +16,9 @@ than written here (ADR-0011). It signs in with OIDC, picks a squad, draws the
 graph, asks questions, and administers squads/roles/connectors/secrets/
 settings/audit — the same functions `repo-mcp-admin` calls.
 
-The **project site** is live at `emrezdemir.github.io/repo-mcp/`, and the whole
-reference documentation is rendered onto it from `docs/` by
-`scripts/render-docs.py`.
+The **project site** is live at `emrezdemir.github.io/repo-mcp/`: a hand-written
+landing at the root, and the whole reference documentation under `/docs/` built
+by **Docusaurus** (`docs-site/`) from the same `docs/` markdown.
 
 Deployment has a shape: branches produce images, images are promoted to
 environments, and configuration is never promoted. CI publishes `:dev-<sha>`
@@ -43,6 +43,39 @@ Do not start translating without that answer: two hand-maintained copies drift,
 which `AGENTS.md` forbids.
 
 ## What the last sessions did
+
+**Session 14 — the READMEs, the docs site on Docusaurus, and setup on a real
+server.** The READMEs were reshaped to what a reader expects of a landing page:
+a header with badges and quick links, and a "why" in flowing sentences rather
+than a terse table. The landing's captions, which read as internal notes ("860
+lines, better to use as-is than rewrite"), were rewritten as captions.
+
+The reference documentation moved from the hand-rolled `render-docs.py` to
+**Docusaurus** in `docs-site/`, for a real docs site — a sidebar, breadcrumbs,
+prev/next, and a structure search can sit on. `docs/` stays the single English
+source; `docs-site/scripts/sync-docs.mjs` copies it in on every build, rewrites
+the links that point outside `docs/` to GitHub, and fails the build if a
+document is missing from `sidebars.js`. `build-site.sh` and `pages.yml` build it
+with Node; `render-docs.py` and `.site-venv` are gone. The ADR URLs keep their
+numbers (`numberPrefixParser: false`), so the links the READMEs and landing
+already used still resolve — now as clean `/docs/architecture/` URLs.
+
+`make setup` was fixed for the maintainer's Ubuntu server, the same class as
+session 13's venv bug. gateway and indexer could not resolve `repo-mcp-common`
+— its path is in `[tool.uv.sources]`, which pip ignores — so the local `common`
+is installed into their venvs first. Then, on a VirtualBox shared folder where
+`pwd` reports `//home/...`, the leading `//` broke pip (read as a URL host) and
+also pytest (its summary's `relative_to()` raised on `//home` vs `/home`,
+crashing a run whose tests had passed). The general fix is in `lib.sh`, which
+collapses `REPO_ROOT` to one leading slash for every script.
+
+Two onboarding gaps from the same server run: the setup "Next" message and
+`deployment.md` said nothing about the web interface, so it was unclear what
+had been installed. Both now point at `http://localhost:8080/ui`, say `make up`
+starts containers rather than a system service, and note sign-in needs OIDC.
+And the landing was trimmed to a showcase — the per-role scenarios and the
+four-step install it duplicated from the now-real docs are gone; hero, the 3D
+graph, four reasons, the screenshots, a three-line quickstart, then `/docs`.
 
 **Session 13 — the site, the connector check, and four things that were
 quietly broken.** A long session; grouped by subject rather than by order.

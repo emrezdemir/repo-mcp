@@ -163,12 +163,16 @@ index_checked=0
 while IFS= read -r target; do
   [[ -z "$target" ]] && continue
   index_checked=$(( index_checked + 1 ))
-  [[ -e "$target" ]] || index_missing+=("$target")
+  # The site now serves each document at a clean URL — .../docs/architecture/ —
+  # so a stripped link is docs/architecture, whose source is docs/architecture.md.
+  # A relative docs/x.md link and the bare docs/ index both still resolve as-is.
+  [[ -e "$target" || -e "$target.md" ]] || index_missing+=("$target")
 done <<< "$(grep -ohE '\]\((docs/[^)]+|https://emrezdemir\.github\.io/repo-mcp/docs/[^)]*)\)' \
               README.md README.en.md \
             | sed -e 's/^](//' -e 's/)$//' \
                   -e 's#^https://emrezdemir\.github\.io/repo-mcp/##' \
-                  -e 's#\.html$#.md#' \
+                  -e 's#\.html$##' \
+                  -e 's#/$##' \
             | sort -u)"
 
 if [[ $index_checked -lt 5 ]]; then

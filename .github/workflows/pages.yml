@@ -1,8 +1,9 @@
 name: Pages
 
-# The project site: site/ for the pages, docs/images/ for the screenshots.
-# Assembled by the same script a person runs locally, so what is published is
-# what was previewed.
+# The project site: site/ for the landing pages, docs-site/ (Docusaurus) for
+# the reference documentation built from docs/*.md, docs/images/ for the
+# screenshots. Assembled by the same script a person runs locally, so what is
+# published is what was previewed.
 
 # Published from the default branch, and only from it. GitHub creates the
 # `github-pages` deployment environment with a branch policy that admits the
@@ -16,11 +17,12 @@ on:
     branches: [dev, main]
     paths:
       - "site/**"
-      # The reference documentation is rendered onto the site, so a change to
-      # any of it has to republish.
+      # The reference documentation is built onto the site, so a change to any
+      # of it — the markdown, the Docusaurus project, or the build script — has
+      # to republish.
       - "docs/**"
+      - "docs-site/**"
       - "scripts/build-site.sh"
-      - "scripts/render-docs.py"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -44,17 +46,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: docs-site/package-lock.json
+
       - name: Assemble
         run: scripts/build-site.sh
 
-      # Every page, including the rendered documentation, and resolved
-      # relative to the page rather than to the site root — docs/adr/ sits two
-      # levels down and its links are written accordingly.
+      # Every page and asset it references exists. Docusaurus writes internal
+      # links as absolute paths under the site's baseUrl (/repo-mcp/…), so those
+      # resolve from _site/; the hand-written landing pages use relative links,
+      # which resolve from the page. Docusaurus already fails its own build on a
+      # broken doc link — this is the belt for the whole assembled artifact.
       - name: Every page and asset it references exists
         run: |
           python3 - <<'PY'
           import pathlib, re, sys
           root = pathlib.Path("_site")
+          base = "/repo-mcp/"
           missing, checked = [], 0
           for page in sorted(root.rglob("*.html")):
               text = page.read_text(encoding="utf-8")
@@ -62,7 +73,12 @@ jobs:
                   if not ref or ref.startswith(("http", "mailto", "//")):
                       continue
                   checked += 1
-                  target = (page.parent / ref).resolve()
+                  if ref.startswith(base):
+                      target = root / ref[len(base):]
+                  elif ref.startswith("/"):
+                      target = root / ref.lstrip("/")
+                  else:
+                      target = (page.parent / ref).resolve()
                   if target.is_dir():
                       target = target / "index.html"
                   if not target.exists():

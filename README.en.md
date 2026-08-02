@@ -2,17 +2,25 @@
 
 # repo-mcp
 
-**Every repository you own, as one graph.**
+### Every repository you own, as one code graph.
 
-Indexes GitHub, GitLab and Bitbucket repositories centrally and exposes the
-code graph over MCP to coding agents, chatbots and CI.
+repo-mcp indexes your GitHub, GitLab and Bitbucket repositories centrally and
+exposes the resulting code graph over **MCP** to coding agents, chatbots and
+CI. It is self-hosted and enforces squad-level isolation.
 
-[**Site**](https://emrezdemir.github.io/repo-mcp/en.html) ·
-[**Docs**](https://emrezdemir.github.io/repo-mcp/docs/) ·
+[![License](https://img.shields.io/badge/license-MIT-1da27e.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.3.0-1c8585.svg)](CHANGELOG.md)
+[![CI](https://img.shields.io/github/actions/workflow/status/emrezdemir/repo-mcp/ci.yml?branch=dev&label=CI&color=1da27e)](https://github.com/emrezdemir/repo-mcp/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.11+-1c8585.svg)](https://www.python.org/)
+[![MCP](https://img.shields.io/badge/MCP-JSON--RPC-1da27e.svg)](https://modelcontextprotocol.io/)
+[![Self-hosted](https://img.shields.io/badge/self--hosted-yes-1c8585.svg)](#install-in-five-minutes)
+[![Stars](https://img.shields.io/github/stars/emrezdemir/repo-mcp?style=social)](https://github.com/emrezdemir/repo-mcp)
+
+**[Site](https://emrezdemir.github.io/repo-mcp/en.html)** ·
+**[Docs](https://emrezdemir.github.io/repo-mcp/docs/)** ·
+[Install](#install-in-five-minutes) ·
 [Türkçe](README.md) (primary) ·
 [Changelog](CHANGELOG.md)
-
-Version 0.3.0 · MIT
 
 </div>
 
@@ -20,22 +28,36 @@ Version 0.3.0 · MIT
 
 ---
 
-## What it does
+## What it is
 
-A GitHub organisation, GitLab group or Bitbucket workspace is defined as a
-connector; the repositories in scope are discovered, cloned and indexed.
-Access to the resulting graph goes over **MCP** — JSON-RPC on HTTP.
-Requests are authenticated with an **OIDC** token and mapped to a role and a
-squad from **LDAP** group membership.
+Code intelligence tooling is built for one developer on one laptop: everyone
+indexes the same repository locally, no graph is ever shared, and the result is
+reachable from neither CI nor a chatbot. repo-mcp inverts that.
 
-|  |  |
-| --- | --- |
-| **Index once** | The same repository is not reindexed on everyone's machine |
-| **Squad isolation** | A squad sees its own code in detail and other squads' only as topology |
-| **Three independent layers** | Role capabilities ∩ project allowlist ∩ engine tool profile, plus a filesystem root per squad |
-| **No restart** | Configuration lives in PostgreSQL; changes reach the services through a generation counter |
-| **Answers from the graph** | `ask_codebase` runs the graph query first; the model is never asked to guess |
-| **Two administrative surfaces** | The terminal and the web console call the same functions and produce the same audit entry |
+You define a GitHub organisation, GitLab group or Bitbucket workspace as a
+**connector**; the repositories in scope are discovered, cloned and indexed
+centrally. Access to the resulting graph goes over **MCP** — JSON-RPC on HTTP.
+Each request is authenticated with an **OIDC** token, and the caller's **LDAP**
+groups are mapped to a role and a squad.
+
+## Why repo-mcp
+
+- **Index once, everyone uses it.** The same repository is not reindexed on
+  everyone's machine. Repositories in a connector's scope are indexed centrally,
+  and ones added later join on the next scan.
+- **Squad-level isolation.** A squad sees its own code in full detail and other
+  squads' services only as topology. This is guaranteed by **three independent
+  authorization layers**, not one ACL: role capabilities ∩ project allowlist ∩
+  engine tool profile, plus a filesystem root per squad.
+- **Answers from the graph, not from guesses.** `ask_codebase` runs the
+  deterministic graph query first and lets the model interpret only the evidence
+  it returns, citing the symbols it names.
+- **No restart.** Squads, roles, connectors and encrypted tokens live in
+  PostgreSQL. Every change bumps a generation counter; the services watch it and
+  update themselves.
+- **Two administrative surfaces, not one.** The `repo-mcp-admin` terminal and
+  the web console call the same functions, pass the same validation and produce
+  the same audit entry. A test fails if the two ever diverge.
 
 ## Install in five minutes
 
@@ -63,6 +85,20 @@ repo-mcp-admin connector check acme-github
 `check` asks the provider what the connector can actually see, and names what
 is wrong when something is. For development without Docker, `make dev`.
 
+## Connecting
+
+Every question about the code goes to `POST /mcp` with the caller's own token:
+
+```bash
+curl -s http://localhost:8080/mcp \
+  -H "Authorization: Bearer $OIDC_TOKEN" \
+  -H "X-Tenant: payments" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+What `tools/list` returns depends on the caller: a tool the role has no
+capability for, or that is outside the squad's tool profile, is not in it.
+
 ## The interface
 
 <table>
@@ -88,45 +124,33 @@ The interface was not written from scratch: the engine project's own interface
 (React and Three.js, MIT) was adopted and pointed at this platform. The
 reasoning is in [ADR-0011](docs/adr/0011-adopt-the-upstream-interface.md).
 
-## Connecting
-
-```bash
-curl -s http://localhost:8080/mcp \
-  -H "Authorization: Bearer $OIDC_TOKEN" \
-  -H "X-Tenant: payments" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
-```
-
-What `tools/list` returns depends on the caller: a tool the role has no
-capability for, or that is outside the squad's tool profile, is not in it.
-
 ## Documentation
 
-All of it is on the site — how it is used, the scenarios, the screenshots and
-the reasoning behind each decision:
+All of it is on the site — the architecture, the deployment, the roles, the
+scaling and the reasoning behind each decision:
 **[emrezdemir.github.io/repo-mcp/docs](https://emrezdemir.github.io/repo-mcp/docs/)**
 
-| | |
+| Document | Contents |
 | --- | --- |
-| [Architecture](https://emrezdemir.github.io/repo-mcp/docs/architecture.html) | Two services, one engine, a shared graph directory |
-| [Web interface](https://emrezdemir.github.io/repo-mcp/docs/web-interface.html) | How it is built, how sign-in works, what it does not do |
-| [Administration](https://emrezdemir.github.io/repo-mcp/docs/administration.html) | The terminal and the console, side by side |
-| [Roles and permissions](https://emrezdemir.github.io/repo-mcp/docs/roles-and-permissions.html) | What a role may do, what a squad may reach |
-| [Deployment](https://emrezdemir.github.io/repo-mcp/docs/deployment.html) | Compose, Kubernetes, Keycloak and LDAP |
-| [Environments](https://emrezdemir.github.io/repo-mcp/docs/environments.html) | Branches produce artifacts, artifacts promote |
-| [Scaling](https://emrezdemir.github.io/repo-mcp/docs/scaling.html) | Replicas, the queue and storage |
-| [Decisions](https://emrezdemir.github.io/repo-mcp/docs/adr/0001-wrap-dont-fork.html) | Why not a fork, why a database, why this interface |
-| [Development](https://emrezdemir.github.io/repo-mcp/docs/development.html) | Local setup, the tests, the contribution flow |
+| [Architecture](https://emrezdemir.github.io/repo-mcp/docs/architecture/) | Two services, one engine, a shared graph directory |
+| [Web interface](https://emrezdemir.github.io/repo-mcp/docs/web-interface/) | How it is built, how sign-in works, what it does not do |
+| [Administration](https://emrezdemir.github.io/repo-mcp/docs/administration/) | The terminal and the console, side by side |
+| [Roles and permissions](https://emrezdemir.github.io/repo-mcp/docs/roles-and-permissions/) | What a role may do, what a squad may reach |
+| [Deployment](https://emrezdemir.github.io/repo-mcp/docs/deployment/) | Compose, Kubernetes, Keycloak and LDAP |
+| [Scaling](https://emrezdemir.github.io/repo-mcp/docs/scaling/) | Replicas, the queue and storage |
+| [Decisions (ADR)](https://emrezdemir.github.io/repo-mcp/docs/adr/0001-wrap-dont-fork/) | Why not a fork, why a database, why this interface |
+| [Development](https://emrezdemir.github.io/repo-mcp/docs/development/) | Local setup, the tests, the contribution flow |
 
-The source is the markdown under [`docs/`](docs/); the site is rendered from
-it, so there is no second copy to drift.
+The source is the markdown under [`docs/`](docs/); the site is rendered from it,
+so there is no second copy to drift. The reference docs are English; the landing
+pages (site and README) are Turkish.
 
 ## Contributing and security
 
 The contribution flow is in [CONTRIBUTING.md](CONTRIBUTING.md) and reporting a
 vulnerability is in [SECURITY.md](SECURITY.md). Branch names begin with
-`feature/`, `bugfix/`, `hotfix/`, `chore/` or `docs/`; `make verify` is the
-gate before a merge.
+`feature/`, `bugfix/`, `hotfix/`, `chore/` or `docs/`; `make verify` is the gate
+before a merge.
 
 ## Licence
 

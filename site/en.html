@@ -14,10 +14,9 @@
   <div class="wrap">
     <a class="brand" href="./"><span class="dot"></span> repo-mcp</a>
     <nav class="top">
-      <a href="#what">What it does</a>
+      <a href="#features">Features</a>
       <a href="#interface">Interface</a>
-      <a href="#cases">Use cases</a>
-      <a href="#install">Install</a>
+      <a href="#start">Get started</a>
       <a href="docs/">Docs</a>
     </nav>
     <span class="spacer"></span>
@@ -27,13 +26,11 @@
 
 <div class="hero">
   <div class="wrap">
-    <h1>Every repository you own, as <em>one graph</em>.</h1>
+    <h1>Every repository you own, as <em>one code graph</em>.</h1>
     <p class="lede">
-      repo-mcp indexes GitHub, GitLab and Bitbucket repositories centrally and
-      exposes the resulting code graph over MCP. Coding agents, internal
-      chatbots and CI pipelines connect to the same endpoint; requests are
-      authenticated with OIDC and mapped to a role and a squad from LDAP group
-      membership.
+      repo-mcp indexes your GitHub, GitLab and Bitbucket repositories centrally
+      and exposes the resulting code graph over MCP to coding agents, chatbots
+      and CI. It is self-hosted and enforces squad-level isolation.
     </p>
     <div class="badges">
       <span class="badge">self-hosted</span>
@@ -43,64 +40,49 @@
       <span class="badge">MIT</span>
     </div>
     <div class="cta">
-      <a class="button solid" href="#install">Install in five minutes</a>
-      <a class="button ghost" href="docs/">Read the docs</a>
+      <a class="button solid" href="docs/">Read the docs</a>
+      <a class="button ghost" href="https://github.com/emrezdemir/repo-mcp">GitHub</a>
     </div>
   </div>
 </div>
 
-<section id="what">
+<section class="showcase">
   <div class="wrap">
-    <p class="eyebrow">The problem</p>
-    <h2>Code intelligence tooling is built for one developer on one laptop</h2>
-    <p>
-      Where several teams work across the same repositories that breaks three
-      ways: the same repository is reindexed on every machine, one team's graph
-      is unreachable to another, and none of it can be queried from CI or a
-      chatbot because the data lives on somebody's disk.
-    </p>
+    <figure>
+      <img class="shot" src="images/ui-graph.png" alt="A 3D view of a code graph with 854 nodes and 4,454 edges">
+      <figcaption>The 3D code graph of an indexed project — nodes are symbols, edges are the relationships between them.</figcaption>
+    </figure>
+  </div>
+</section>
 
+<section id="features">
+  <div class="wrap">
+    <p class="eyebrow">Why repo-mcp</p>
+    <h2>Code intelligence at organisation scale, not one laptop</h2>
     <div class="grid">
       <div class="card">
         <span class="mark">CENTRAL INDEXING</span>
-        <h3>Index once, everyone reads it</h3>
-        <p>A connector covers one GitHub organisation, GitLab group or
-        Bitbucket workspace. A newly created repository is picked up on the
-        next scan with no configuration change.</p>
+        <h3>Index once, everyone uses it</h3>
+        <p>One connector covers a whole organisation; repositories added later
+        join on the next scan, with no configuration change.</p>
       </div>
       <div class="card">
-        <span class="mark">THREE INDEPENDENT LAYERS</span>
-        <h3>Authorization is not one gate</h3>
-        <p>Role capabilities and the project allowlist in the gateway, a tool
-        profile in the engine, a separate filesystem root per squad. A mistake
-        in one layer does not open the others.</p>
-      </div>
-      <div class="card">
-        <span class="mark">NO RESTART</span>
-        <h3>Configuration that changes while it runs</h3>
-        <p>Squads, roles, connectors and encrypted tokens live in PostgreSQL.
-        Every change advances a generation counter that both services
-        watch.</p>
+        <span class="mark">SQUAD ISOLATION</span>
+        <h3>Three independent layers</h3>
+        <p>A squad sees its own code in detail and other squads' only as
+        topology. A gap in one layer does not open the others.</p>
       </div>
       <div class="card">
         <span class="mark">ANSWERS FROM THE GRAPH</span>
-        <h3>The model is never asked to guess</h3>
-        <p><code>ask_codebase</code> runs <code>get_architecture</code> and
-        <code>search_graph</code> first and answers only from what they
-        returned, citing the qualified name of every symbol.</p>
+        <h3>Evidence, not a guess</h3>
+        <p><code>ask_codebase</code> runs the graph query first and lets the
+        model interpret only what it returned, citing the symbols by source.</p>
       </div>
       <div class="card">
-        <span class="mark">TWO SURFACES, ONE BEHAVIOUR</span>
-        <h3>The terminal and the console agree</h3>
-        <p><code>repo-mcp-admin</code> and the web console call the same
-        functions, go through the same validation and produce the same audit
-        entry. A test fails if they ever diverge.</p>
-      </div>
-      <div class="card">
-        <span class="mark">AUDIT</span>
-        <h3>Every call, refusals included</h3>
-        <p>One line of JSON per tool call on stdout. Configuration changes are
-        additionally recorded in an audit table in the database.</p>
+        <span class="mark">SELF-HOSTED</span>
+        <h3>No restart</h3>
+        <p>Configuration lives in PostgreSQL; every change reaches the services
+        through a counter. Nothing per-deployment lives in git.</p>
       </div>
     </div>
   </div>
@@ -111,196 +93,47 @@
     <p class="eyebrow">The interface</p>
     <h2>Somewhere to look at the graph</h2>
     <p>
-      The interface is at <code>/ui</code>. It was not written from scratch:
-      the engine project's own interface (React and Three.js, MIT) was adopted
-      and pointed at this platform. Every question it asks about a codebase
-      goes to <code>/mcp</code> with the signed-in user's own token — so
-      anything the browser can do, an MCP client can do, authorized by exactly
-      the same code.
+      The engine's own interface (React and Three.js, MIT) was adopted and
+      pointed at this platform. Every question about the code goes to
+      <code>/mcp</code> with the caller's own token — anything a browser can do,
+      an MCP client can too.
     </p>
-
-    <figure>
-      <img class="shot" src="images/ui-graph.png" alt="A 3D view of a code graph with 854 nodes and 4,454 edges, with node type, relationship type and folder filters on the left">
-      <figcaption>The graph in 3D. The engine computes the layout in C and the gateway authorizes and proxies it, rather than reimplementing 860 lines.</figcaption>
-    </figure>
-
     <div class="gallery">
       <figure>
-        <img class="shot" src="images/ui-ask.png" alt="The Ask tab, listing example questions">
-        <figcaption>Ask. The answer rests on graph evidence and cites the qualified name of every symbol it mentions.</figcaption>
+        <img class="shot" src="images/ui-ask.png" alt="Asking a question in words">
+        <figcaption>Ask. The answer rests on graph evidence and cites the symbols it mentions.</figcaption>
       </figure>
       <figure>
-        <img class="shot" src="images/ui-projects.png" alt="The indexed projects list, with node and edge counts">
+        <img class="shot" src="images/ui-projects.png" alt="The indexed projects list">
         <figcaption>Projects. Everything this squad has indexed, with its health and its ADR.</figcaption>
       </figure>
       <figure>
-        <img class="shot" src="images/ui-admin.png" alt="The administrative console showing the squads table with profiles and LDAP groups">
-        <figcaption>The administrative console. Squads, roles, connectors, secrets, settings, audit.</figcaption>
+        <img class="shot" src="images/ui-admin.png" alt="The administrative console">
+        <figcaption>Administer. Squads, roles, connectors, secrets, settings, audit.</figcaption>
       </figure>
       <figure>
-        <img class="shot" src="images/ui-signin.png" alt="The sign-in screen, through the identity provider">
-        <figcaption>Signing in. Authorization Code with PKCE; the browser is a public client and holds no secret.</figcaption>
+        <img class="shot" src="images/ui-signin.png" alt="The sign-in screen">
+        <figcaption>Sign in. Authorization Code with PKCE; the browser is a public client.</figcaption>
       </figure>
     </div>
-
-    <p class="note">
-      A control the platform would refuse is not hidden — it is disabled with
-      the reason on it. A refusal that arrives is shown in the platform's own
-      words: <code>'manage_adr' is not available in this session (role: lead,
-      squad: payments)</code>. Nothing fails silently.
-    </p>
   </div>
 </section>
 
-<section id="cases">
+<section id="start">
   <div class="wrap">
-    <p class="eyebrow">Use cases</p>
-    <h2>Who reaches for it, and why</h2>
-
-    <div class="case">
-      <div>
-        <p class="who">Developer · coding agent</p>
-        <h3>“What breaks if I change this?”</h3>
-        <p>
-          Your agent connects without indexing anything locally. The graph is
-          central and current within minutes of the last merge. The answer is
-          not a guess: the graph query runs first.
-        </p>
-        <ul>
-          <li>What calls a symbol — <code>search_graph</code>, <code>trace_path</code></li>
-          <li>What a change affects — <code>detect_changes</code></li>
-          <li>The relevant source — <code>get_code_snippet</code></li>
-        </ul>
-      </div>
-      <figure><img class="shot" src="images/03-mcp-tools.svg" alt="An MCP client calling tools/list, and the tools it gets back"></figure>
-    </div>
-
-    <div class="case flip">
-      <div>
-        <p class="who">Team lead</p>
-        <h3>Your own service in full, everyone else's as topology</h3>
-        <p>
-          A squad sees its own code in detail and other squads' services only
-          as structure. Cross-service questions get answered without source
-          leaving the squad that owns it.
-        </p>
-        <ul>
-          <li>Squad scope from LDAP groups, project allowlist by glob</li>
-          <li>The <code>scout</code> profile: structure, no source</li>
-          <li>A shared <code>org-public</code> layer: topology for everyone</li>
-        </ul>
-      </div>
-      <figure><img class="shot" src="images/04-denied.svg" alt="A request for a project outside the squad's allowlist being refused"></figure>
-    </div>
-
-    <div class="case">
-      <div>
-        <p class="who">Platform team · DevOps</p>
-        <h3>One command to stand it up, no restart to change it</h3>
-        <p>
-          Four containers is enough with Compose; bring your own identity
-          provider and model proxy and the optional images are never pulled.
-          Configuration lives in the database and reaches the services on its
-          own.
-        </p>
-        <ul>
-          <li><code>make setup</code> writes the profiles from five questions</li>
-          <li>The Helm chart refuses an unpinned image tag in production</li>
-          <li>The terminal and the web console do the same things</li>
-        </ul>
-      </div>
-      <figure><img class="shot" src="images/05-admin.svg" alt="A change through the administrative API advancing the generation counter"></figure>
-    </div>
-
-    <div class="case flip">
-      <div>
-        <p class="who">CI pipeline</p>
-        <h3>A blast-radius comment on the pull request</h3>
-        <p>
-          A job connecting as a service account can compute the impact set from
-          the graph and have it summarised. No per-repository job to configure.
-        </p>
-        <ul>
-          <li>The bundled Keycloak realm ships a service client for CI</li>
-          <li><code>explain_change_impact</code> runs <code>detect_changes</code> first</li>
-          <li>Reindex by webhook, scheduled scan or CI trigger</li>
-        </ul>
-      </div>
-      <figure><img class="shot" src="images/02-readyz.svg" alt="The service readiness endpoint answering"></figure>
-    </div>
-  </div>
-</section>
-
-<section id="install">
-  <div class="wrap">
-    <p class="eyebrow">Install</p>
-    <h2>Five minutes, four commands</h2>
+    <p class="eyebrow">Get started</p>
+    <h2>Up in five minutes</h2>
     <p>
-      Docker Engine 24+ and Compose v2 is all it needs. It runs on Linux; the
-      engine binary is downloaded statically linked for
-      <code>linux/amd64</code> and <code>linux/arm64</code>.
+      Docker Engine 24+ and Compose v2 is all it needs. The interface is then at
+      <code>http://localhost:8080/ui</code>. Installation, the roles, and the
+      reasoning behind each decision are in the docs.
     </p>
-
-    <div class="steps">
-      <div class="step">
-        <h3>Clone and configure</h3>
-        <p>Five questions — database, identity, model backend, compression, provider — written to <code>deploy/.env</code>.</p>
 <pre><span class="p">git</span> clone https://github.com/emrezdemir/repo-mcp
-<span class="p">cd</span> repo-mcp && <span class="p">make</span> setup</pre>
-      </div>
-      <div class="step">
-        <h3>Bring it up</h3>
-        <p>The schema is created, the first administrator is made and its password is printed once.</p>
-<pre><span class="p">make</span> up</pre>
-      </div>
-      <div class="step">
-        <h3>Define a connector</h3>
-        <p>From the terminal or the web console — both call the same function. <code>check</code> asks the provider what it can actually see.</p>
-<pre><span class="p">repo-mcp-admin</span> secret set connector.acme-github.token
-<span class="p">repo-mcp-admin</span> connector set acme-github \
-  --provider github --squad payments --setting org=acme \
-  --token-secret connector.acme-github.token
-<span class="p">repo-mcp-admin</span> connector check acme-github
-<span class="c">acme-github: ok — 34 of 41 repositories would be indexed</span></pre>
-      </div>
-      <div class="step">
-        <h3>Connect</h3>
-        <p>A browser at <code>http://localhost:8080/ui</code>, an MCP client at <code>POST /mcp</code>.</p>
-<pre><span class="p">curl</span> -s http://localhost:8080/mcp \
-  -H <span class="c">"Authorization: Bearer $TOKEN"</span> \
-  -d <span class="c">'{"jsonrpc":"2.0","id":1,"method":"tools/list"}'</span></pre>
-      </div>
-    </div>
-
-    <p class="note">
-      For development without Docker, <code>make dev</code> creates a local
-      SQLite database, starts both services with auto-reload, and prints the
-      token to use.
-    </p>
-  </div>
-</section>
-
-<section id="docs">
-  <div class="wrap">
-    <p class="eyebrow">Documentation</p>
-    <h2>How it works, and why it is like that</h2>
-    <p>
-      All of it is here — architecture through deployment, roles through
-      scaling. Every page is rendered from the markdown in the repository, so
-      what you read is the running version's documentation. The reasoning
-      behind each decision is kept in an ADR, including what was ruled out and
-      what the decision cost.
-    </p>
-
-    <div class="links">
-      <a href="docs/"><strong>All documentation</strong><span>Twelve documents and eleven decision records, on one page</span></a>
-      <a href="docs/architecture.html"><strong>Architecture</strong><span>Two services, one engine, a shared graph directory</span></a>
-      <a href="docs/administration.html"><strong>Administration</strong><span>The terminal and the console, side by side</span></a>
-      <a href="docs/roles-and-permissions.html"><strong>Roles and permissions</strong><span>What a role may do, what a squad may reach</span></a>
-      <a href="docs/deployment.html"><strong>Deployment</strong><span>Compose, Kubernetes, Keycloak and LDAP</span></a>
-      <a href="docs/web-interface.html"><strong>Web interface</strong><span>How it is built, how sign-in works, what it does not do</span></a>
-      <a href="docs/scaling.html"><strong>Scaling</strong><span>Replicas, the queue and storage</span></a>
-      <a href="docs/adr/0001-wrap-dont-fork.html"><strong>Decisions</strong><span>Why not a fork, why a database, why this interface</span></a>
+<span class="p">cd</span> repo-mcp && <span class="p">make</span> setup   <span class="c"># five questions -> deploy/.env</span>
+<span class="p">make</span> up                     <span class="c"># schema, first administrator, services</span></pre>
+    <div class="cta">
+      <a class="button solid" href="docs/deployment/">Deployment guide</a>
+      <a class="button ghost" href="docs/">All docs</a>
     </div>
   </div>
 </section>

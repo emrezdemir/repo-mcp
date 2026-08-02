@@ -11,16 +11,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **A project site**, at `site/`, published to GitHub Pages by
   `.github/workflows/pages.yml`. Turkish and English, sharing one stylesheet
   that takes its palette from the interface's own, so the site and the product
-  look like the same thing. It carries what a README should not: the showcase,
-  the use cases and the screenshots at a size worth looking at.
+  look like the same thing. It is a showcase, not a manual: the hero, the 3D
+  graph, four reasons, the screenshots at a size worth looking at, and a
+  three-line quickstart — the detail lives in the docs rather than in a second
+  copy of them.
 
-  Hand-written HTML rather than a static site generator — two pages that
-  change a few times a release do not repay a toolchain. `scripts/build-site.sh`
-  assembles `site/` and `docs/images/` into `_site/`, so the screenshots have
-  one copy in git and a local preview is exactly what is published;
-  `make site --serve` previews it. The workflow fails if any page references a
-  file that is not there, and turns Pages on for the repository itself rather
-  than relying on a settings change nobody remembers to make.
+  The landing is hand-written HTML — a few pages that change a few times a
+  release do not repay a toolchain of their own. `scripts/build-site.sh`
+  assembles it with `docs/images/` and the built documentation into `_site/`,
+  so the screenshots have one copy in git and a local preview is what is
+  published. The workflow fails if any page references a file that is not there,
+  and turns Pages on for the repository itself rather than relying on a settings
+  change nobody remembers to make.
 - **An Ask tab.** `ask_codebase` is the thing this platform has that a local
   graph viewer does not, and it had no interface. It runs `get_architecture`
   and `search_graph` first and answers from what they returned, citing
@@ -72,26 +74,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- **The whole documentation is on the site.** It linked out to thirteen files
-  on GitHub, which meant the site was an advertisement and the documentation
-  lived somewhere else. `scripts/render-docs.py` now renders every document
-  under `docs/` — twelve documents and eleven decision records — into the
-  site's own shell, with a sidebar, working links between them and a
-  decision index that carries each ADR's status and its actual decision.
+- **The whole documentation is on the site, built by Docusaurus.** It linked
+  out to thirteen files on GitHub, which meant the site was an advertisement and
+  the documentation lived somewhere else. `docs-site/` (Docusaurus) now builds
+  every document under `docs/` — twelve documents and eleven decision records —
+  with a sidebar, breadcrumbs, and links between the pages that resolve.
 
-  The markdown stays the single source: the pages are generated from it on
-  every build, so there is no second copy to drift. A new document that is not
-  added to the script's index fails the build rather than being published with
-  no way to reach it. The reference documentation remains in English; the
-  landing pages are Turkish and English.
+  The markdown stays the single source: `docs-site/scripts/sync-docs.mjs` copies
+  it in on every build and rewrites the links that point outside `docs/` — a
+  source file, `AGENTS.md`, `NOTICE` — to GitHub URLs, because there is no page
+  for them here. A document missing from `docs-site/sidebars.js` fails the build
+  rather than being published with no way to reach it. The reference
+  documentation remains in English; the landing pages are Turkish and English.
 - **The Turkish reads like Turkish.** The landing page and the primary README
   were written as a translation of the English — calqued sentence shapes, an
   archaic participle where an ordinary one belonged, headings that were not
   sentences. Both were rewritten, the use-case descriptions in particular.
-- **Both READMEs are a landing page, not a manual.** 699 lines each became
-  127: what it is, the six things that matter, four commands to install, the
-  interface in pictures, and links. Everything cut is on the site or in
-  `docs/`, which is where it was already duplicated from.
+- **Both READMEs are a landing page, not a manual.** The 699-line manual became
+  a header — a row of badges and quick links — then what it is, why it matters,
+  four commands to install, the interface in pictures, and links. Everything cut
+  is on the site or in `docs/`, which is where it was already duplicated from.
 
 ### Fixed
 
@@ -109,7 +111,27 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `venv` and `pip` call, which none of them did; and warns when the interpreter
   is newer than the 3.13 CI tests against, since a dependency with no wheel for
   it fails during `pip` in a way that looks like a fault here.
-- **The site published nothing and the URL answered 404.** The workflow ran on
+- **`make setup` could not install gateway or indexer on a fresh server.** Both
+  depend on `repo-mcp-common`, a sibling package whose local path is declared
+  only in `[tool.uv.sources]` — a table `uv` reads and `pip` ignores. With each
+  service in its own virtualenv, pip looked for `repo-mcp-common` on PyPI and
+  failed with "No matching distribution found". Setup now installs the local
+  `common` into the gateway and indexer venvs first, so the dependency is
+  already satisfied when the service is installed.
+
+  That surfaced a second wall on a VirtualBox shared folder, where `pwd` reports
+  the tree as `//home/...`: the leading `//` broke both pip (read as a URL
+  authority — "file:// scheme is supported only on localhost") and pytest (its
+  summary's `relative_to()` raised, crashing a run whose tests had passed).
+  `lib.sh` now collapses `REPO_ROOT` to a single leading slash, so every script
+  agrees on the path. All reported from an Ubuntu server; none could occur in
+  the sandbox.
+- **A fresh install did not say how to reach the interface.** `make setup`
+  finished with a list of dev scripts and no mention of the web UI, so it was
+  unclear that nothing was running yet or how to open it once it was. The setup
+  message and `deployment.md` now point at `http://localhost:8080/ui`, say
+  `make up` starts containers rather than a system service, and note sign-in
+  goes through OIDC. The workflow ran on
   pushes to `main`; GitHub creates the `github-pages` deployment environment
   with a branch policy that admits the default branch alone, and this
   repository's default branch is `dev`. A job whose environment refuses its ref
