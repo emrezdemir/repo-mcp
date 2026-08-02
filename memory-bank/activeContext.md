@@ -1,7 +1,7 @@
 # Active context
 
 **Last updated:** 2026-08-02
-**Branch:** `feature/interface-polish`, off `dev`
+**Branch:** `dev`
 
 ## Where things stand
 
@@ -13,10 +13,36 @@ Deployment now has a shape: branches produce images, images are promoted to
 environments, and configuration is never promoted. CI publishes `:dev-<sha>`
 from `dev`; a version tag publishes `:vX.Y.Z` and packages the chart.
 
-`main` is still at the initial commit — the maintainer merges `dev` into it;
-nothing else pushes there.
+`main` now carries two releases; the maintainer merges `dev` into it, and
+`sync-dev.yml` fast-forwards `dev` back so the two never drift. `dev` is the
+repository's **default branch**, which matters for anything that deploys — see
+session 13.
 
 ## What the last sessions did
+
+**Session 13 — the project site, shorter READMEs, and two branch problems.**
+Both READMEs were 699 lines, which is a manual rather than a landing page.
+They became 127 each — what it is, the six things that matter, four commands,
+the interface in pictures, links — and everything cut moved to `site/`, a
+hand-written two-page site published to GitHub Pages, sharing the interface's
+palette so the site and the product look like one thing.
+
+Then the two branch problems, which are separate and were easy to confuse.
+The first: merging through a pull request leaves a merge commit on `main` that
+`dev` never receives, so the history diverged by one commit per release while
+the content stayed identical. `sync-dev.yml` fast-forwards `dev` after every
+push to `main`, and refuses rather than forces if `dev` has moved on.
+
+The second: the site still 404'd, and the Pages workflow looked green in the
+build job. GitHub creates the `github-pages` deployment environment with a
+branch policy that admits **only the default branch**, and the workflow
+published from `main` while the default branch is `dev`. A job whose
+environment refuses its ref runs no steps and fails in one second with no
+message at all, so it reads as a build failure and is not one. The workflow
+now publishes from whichever branch is the default and skips visibly
+elsewhere, so no repository setting is needed and changing the default branch
+cannot break it again. Confirmed by dispatch on `dev`: `deploy-pages` reported
+success and the URL is live.
 
 **Session 12 — auditing the adopted interface, and the Ask tab.** Driving
 every surface against the real engine found that the interface was hiding
@@ -213,8 +239,11 @@ discusses engine internals — with source references, so claims are checkable.
 - **`helm` cannot be installed in every sandbox** (the download is sometimes
   blocked). `make check-chart` covers the templates without it; CI still runs
   the real `helm lint` and `helm template`.
-- **Two things are designed but not built:** the web UI and graph history.
-  `progress.md` and `docs/roadmap.md` both say so — keep it that way.
+- **Graph history is designed but not built.** `progress.md` and
+  `docs/roadmap.md` both say so — keep it that way. The web interface was the
+  other entry here and is now built (sessions 10–13).
+- **`dev` is the default branch.** Anything using a GitHub deployment
+  environment — Pages today — is admitted for the default branch only.
 
 ## Suggested next steps
 
@@ -227,8 +256,9 @@ Roughly in order of value per unit of effort:
    indexer can run more than one replica.
 4. **Graph history**, per [ADR-0004](../docs/adr/0004-graph-history.md):
    publish snapshots to object storage and add a diff service.
-5. **Web UI.** Largest chunk by far, and effectively its own product. Needs a
-   read API and a rendering strategy that survives large graphs.
+5. **Engine capability gaps in the interface.** Ranked when the maintainer
+   asked: a rich project overview from `get_architecture` first, then
+   `explain_change_impact` as a pull request blast radius, then `trace_path`.
 
 Before starting any of these, read
 [systemPatterns.md](systemPatterns.md) — items 3 and 4 touch invariants.

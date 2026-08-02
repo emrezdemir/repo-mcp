@@ -4,9 +4,16 @@ name: Pages
 # Assembled by the same script a person runs locally, so what is published is
 # what was previewed.
 
+# Published from the default branch, and only from it. GitHub creates the
+# `github-pages` deployment environment with a branch policy that admits the
+# default branch alone, and a job whose environment refuses its ref does not
+# fail with a message — it fails in one second having run no steps at all.
+# Guarding on the ref here turns that into a visible skip instead. The other
+# way out is to add the branch under Settings -> Environments -> github-pages,
+# which is a setting nobody remembers making; this needs no setting.
 on:
   push:
-    branches: [main]
+    branches: [dev, main]
     paths:
       - "site/**"
       - "docs/images/**"
@@ -28,6 +35,8 @@ concurrency:
 jobs:
   build:
     name: build
+    # Any other branch is a no-op rather than a red run: see the note above.
+    if: github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -55,9 +64,7 @@ jobs:
           PY
 
       # enablement turns Pages on for the repository if it is off, which is
-      # otherwise a settings change nobody remembers to make — and its absence
-      # shows up as a deploy job that fails in two seconds having run no steps
-      # at all, which explains nothing.
+      # otherwise a settings change nobody remembers to make.
       - id: pages
         uses: actions/configure-pages@v5
         with:

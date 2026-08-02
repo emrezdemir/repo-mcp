@@ -30,9 +30,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`GET /api/ui-config`**, backed by a new `ui.language` setting, so an
   installation can pin the interface's language instead of following the
   browser. The interface asked for this endpoint on every load and got a 404.
-
-### Added
-
 - **`dev` no longer falls behind `main`.** Merging through a pull request
   leaves one commit on `main` that `dev` never gets — the merge commit GitHub
   writes — so the content stayed identical while the history diverged by one
@@ -54,6 +51,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **The site published nothing and the URL answered 404.** The workflow ran on
+  pushes to `main`; GitHub creates the `github-pages` deployment environment
+  with a branch policy that admits the default branch alone, and this
+  repository's default branch is `dev`. A job whose environment refuses its ref
+  does not fail with a message — it fails in one second having run no steps at
+  all, so both runs looked like a build problem and were not one. The workflow
+  now publishes from whichever branch is the default and skips visibly on any
+  other, which needs no repository setting and survives the default branch
+  being changed. Verified by dispatch: `deploy-pages` reported success and
+  `https://emrezdemir.github.io/repo-mcp/` is live.
 - **Search answered from the screen rather than the project.** The graph is
   drawn up to a node budget, and the search box filtered only what was drawn
   — so a symbol that exists but was outside the budget produced "No matches".
