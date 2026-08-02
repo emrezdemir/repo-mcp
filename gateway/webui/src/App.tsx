@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { GraphTab } from "./components/GraphTab";
 import { StatsTab } from "./components/StatsTab";
 import { AdminTab } from "./components/AdminTab";
+import { AskTab } from "./components/AskTab";
 import { SignIn } from "./components/SignIn";
 import { SquadPicker } from "./components/SquadPicker";
 import * as auth from "./api/auth";
@@ -12,7 +13,7 @@ import { useUiMessages } from "./lib/i18n";
 /* Upstream's third tab was "control": engine processes, logs and a filesystem
  * browser, which are single-machine surfaces and have no place in a
  * multi-tenant deployment. It is replaced by the administrative console. */
-const TAB_IDS: TabId[] = ["graph", "stats", "admin"];
+const TAB_IDS: TabId[] = ["graph", "stats", "ask", "admin"];
 
 interface RouteState {
   tab: TabId;
@@ -132,6 +133,7 @@ export function App() {
   const tabs: { id: TabId; label: string }[] = [
     { id: "graph", label: t.tabs.graph },
     { id: "stats", label: t.tabs.projects },
+    { id: "ask", label: "Ask" },
     { id: "admin", label: "Admin" },
   ];
 
@@ -216,6 +218,8 @@ export function App() {
       <main className="flex-1 min-h-0">
         {activeTab === "graph" ? (
           <GraphTab project={selectedProject} />
+        ) : activeTab === "ask" ? (
+          <AskTab project={selectedProject} />
         ) : activeTab === "admin" ? (
           <AdminTab />
         ) : (

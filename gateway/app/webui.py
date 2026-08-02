@@ -31,7 +31,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from .audit import AuditEvent, emit
 from .auth import Authenticator, AuthError
 from .configuration import RuntimeConfig
-from .mcp import TenantSelectionError, build_session
+from .mcp import TenantSelectionError, build_session, smart_tools_for
 from .roles import TOOL_CAPABILITY, Capability
 
 log = logging.getLogger(__name__)
@@ -49,18 +49,28 @@ UI_DIR = Path(os.getenv("REPO_MCP_UI_DIR") or (Path(__file__).parent / "ui")).re
 SERVED_SUFFIXES = {".html", ".css", ".js", ".svg", ".map"}
 
 
-def build_router(current_config, ready, engine_ui_port=None) -> APIRouter:
+def build_router(current_config, ready, engine_ui_port=None, llm_enabled=None) -> APIRouter:
     """The UI's own routes.
 
     `current_config` returns the live `RuntimeConfig`; `ready` reports whether
     the platform is configured; `engine_ui_port` returns the loopback port a
-    tenant's engine serves its layout on, or None. All three are passed in
-    rather than imported so the router holds no state of its own.
+    tenant's engine serves its layout on, or None; `llm_enabled` takes the live
+    settings and reports whether a model backend is configured — it is given
+    the settings rather than asked cold, so an administrator turning the
+    backend on is visible here without waiting for a request to /mcp.
+
+    All four are passed in rather than imported, so the router holds no state
+    of its own.
     """
     if engine_ui_port is None:
 
         async def engine_ui_port(_tenant):  # noqa: F811 — the no-engine default
             return None
+
+    if llm_enabled is None:
+
+        def llm_enabled(_settings) -> bool:  # noqa: F811 — the no-model default
+            return False
     router = APIRouter(tags=["ui"])
 
     @router.get("/api/auth")
@@ -164,7 +174,11 @@ def build_router(current_config, ready, engine_ui_port=None) -> APIRouter:
                 }
             )
 
-        allowed = session.effective_tools
+        # The composite tools are the gateway's own and are not in the
+        # engine's list, so they are added here the same way tools/list adds
+        # them. Reporting a different set would mean offering a button the
+        # platform then refuses.
+        allowed = session.effective_tools | smart_tools_for(session, llm_enabled(config.settings))
         return JSONResponse(
             {
                 "username": principal.username,
