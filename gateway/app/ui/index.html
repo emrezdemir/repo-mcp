@@ -16,20 +16,32 @@
 <section id="signin" class="pane">
   <div class="card">
     <h1>repo-mcp</h1>
-    <p class="muted">
-      Sign in with the same OIDC token an MCP client uses. In development mode
-      that is the token <code>make dev</code> prints.
-    </p>
-    <form id="signin-form">
+    <p id="signin-lead" class="muted">Checking how this platform signs people in…</p>
+
+    <!-- The redirect flow, when the platform has a browser client. -->
+    <div id="signin-oidc" hidden>
+      <button id="signin-provider" class="primary">Sign in</button>
+      <p class="muted small">
+        You will be sent to your organisation's identity provider and back.
+        Group membership comes from the directory, so access is whatever it
+        already grants — this platform keeps no user list of its own.
+      </p>
+    </div>
+
+    <!-- The token box, for a platform with no browser client and for
+         development. Also the fallback when the redirect cannot be used. -->
+    <form id="signin-form" hidden>
       <label for="token">Bearer token</label>
       <input id="token" type="password" autocomplete="off" spellcheck="false"
              placeholder="eyJhbGciOi… or your development token">
       <button type="submit">Sign in</button>
     </form>
+
     <p id="signin-error" class="error" hidden></p>
+    <p id="signin-note" class="muted small"></p>
     <p class="muted small">
-      There is no browser redirect flow yet, so the token is entered by hand
-      and kept in this tab only. It is never written to disk.
+      Nothing is written to disk: the token lives in this tab and goes when it
+      closes.
     </p>
     <p class="muted small">
       Administrators sign in separately at <a href="#admin">the admin console</a>.

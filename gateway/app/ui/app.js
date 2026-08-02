@@ -6,6 +6,7 @@
  */
 
 import { $, el, state, status, loadSession, callTool, jsonOf } from './core.js';
+import * as auth from './auth.js';
 import * as overview from './pages/overview.js';
 import * as search from './pages/search.js';
 import * as map from './pages/map.js';
@@ -14,6 +15,58 @@ import * as admin from './pages/admin.js';
 const PAGES = { overview, search, map, admin };
 
 // ── sign in and out ──────────────────────────────────────────────────
+
+function signinError(message) {
+  $('signin-error').textContent = message;
+  $('signin-error').hidden = false;
+}
+
+/* What the sign-in screen offers depends on what the platform is configured
+ * for, which only the platform knows. Asking beats guessing at build time. */
+async function offerSignIn() {
+  let info;
+  try {
+    info = await auth.describe();
+  } catch {
+    info = { mode: 'token', reason: 'the platform did not answer' };
+  }
+
+  const lead = $('signin-lead');
+  const note = $('signin-note');
+
+  if (info.mode === 'oidc') {
+    $('signin-oidc').hidden = false;
+    lead.textContent = 'Sign in with your organisation account.';
+    note.textContent = 'A token can also be pasted, if you have one already.';
+    // Still available: an MCP client's token is a perfectly good way in, and
+    // it is the way to test a token that a tool is failing with.
+    const paste = el('button', { className: 'link', textContent: 'use a token instead' });
+    paste.addEventListener('click', () => {
+      $('signin-form').hidden = false;
+      paste.remove();
+    });
+    note.append(' ', paste);
+    return;
+  }
+
+  $('signin-form').hidden = false;
+  if (info.mode === 'development') {
+    lead.textContent = 'This platform is in development mode.';
+    note.textContent = `${info.reason}. The token make dev prints is the one to use.`;
+  } else {
+    lead.textContent = 'Sign in with the same token an MCP client uses.';
+    note.textContent = info.reason || '';
+  }
+}
+
+$('signin-provider').addEventListener('click', async () => {
+  $('signin-error').hidden = true;
+  try {
+    await auth.begin();
+  } catch (error) {
+    signinError(error.message);
+  }
+});
 
 $('signin-form').addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -26,12 +79,12 @@ $('signin-form').addEventListener('submit', async (event) => {
     sessionStorage.setItem('repo-mcp-token', token);
   } catch (error) {
     state.token = '';
-    $('signin-error').textContent = error.message;
-    $('signin-error').hidden = false;
+    signinError(error.message);
   }
 });
 
 $('signout').addEventListener('click', () => {
+  auth.forget();
   sessionStorage.clear();
   location.reload();
 });
@@ -126,9 +179,32 @@ export function show(page) {
 
 // ── start ────────────────────────────────────────────────────────────
 
-if (state.token) {
-  start().catch(() => {
-    sessionStorage.removeItem('repo-mcp-token');
-    state.token = '';
-  });
-}
+/* Three ways this page can be loaded: as the return leg of a sign-in, with a
+ * session already in this tab, or cold. */
+(async function boot() {
+  try {
+    const returned = await auth.complete();
+    if (returned) {
+      state.token = returned;
+      location.hash = auth.returnTo();
+      await start();
+      return;
+    }
+  } catch (error) {
+    signinError(error.message);
+  }
+
+  if (state.token) {
+    try {
+      await start();
+      return;
+    } catch {
+      // A token that no longer works is not an error worth showing on its
+      // own: the sign-in screen is the answer, and it is about to appear.
+      auth.forget();
+      state.token = '';
+    }
+  }
+
+  await offerSignIn();
+}());

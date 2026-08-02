@@ -100,10 +100,24 @@ function headers(extra = {}) {
   return sent;
 }
 
+/* An access token from a provider expires, usually in minutes. Renewing it
+ * just before a request keeps a session that is being used alive without a
+ * timer, and without the user discovering the expiry as a failed search.
+ *
+ * auth.js is imported lazily so that this module stays usable — and testable —
+ * without it. */
+async function currentToken() {
+  const { fresh } = await import('./auth.js');
+  const token = await fresh();
+  if (token) state.token = token;
+  return state.token;
+}
+
 /* One MCP tool call, over the same endpoint an MCP client uses. A refusal is
  * thrown with the platform's own words: "no access to project 'x' (allowed:
  * …)" tells a user what to do, and "something went wrong" does not. */
 export async function callTool(name, args) {
+  await currentToken();
   const response = await fetch('/mcp', {
     method: 'POST',
     headers: headers(),
@@ -137,6 +151,7 @@ export function jsonOf(result) {
 }
 
 export async function loadSession() {
+  await currentToken();
   const response = await fetch('/api/session', { headers: headers() });
   if (!response.ok) throw new Error((await response.json()).error || 'sign-in failed');
   return response.json();

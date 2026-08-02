@@ -47,6 +47,55 @@ def build_router(current_config, ready) -> APIRouter:
     """
     router = APIRouter(tags=["ui"])
 
+    @router.get("/api/auth")
+    async def auth_info() -> JSONResponse:
+        """How to sign in. Answered before anyone is signed in, so it is public.
+
+        Nothing here is a secret: an issuer URL and a public client id are
+        both visible in the redirect the browser is about to make anyway. The
+        interface uses this to decide between the OIDC redirect and the token
+        box, rather than shipping a build-time guess about the deployment.
+        """
+        if not ready():
+            return JSONResponse({"error": "the platform is not configured yet"}, status_code=503)
+
+        config: RuntimeConfig = await current_config()
+        settings = config.settings
+
+        if settings.dev_insecure_auth:
+            # Saying so plainly matters: this mode accepts one static token
+            # and verifies nothing, and anyone looking at the sign-in screen
+            # should be able to tell that is what they are looking at.
+            return JSONResponse(
+                {
+                    "mode": "development",
+                    "reason": "DEV_INSECURE_AUTH is on: tokens are not verified",
+                }
+            )
+
+        if settings.oidc_issuer and settings.oidc_browser_client_id:
+            return JSONResponse(
+                {
+                    "mode": "oidc",
+                    "issuer": settings.oidc_issuer.rstrip("/"),
+                    "client_id": settings.oidc_browser_client_id,
+                    "audience": settings.oidc_audience,
+                    "scopes": settings.oidc_browser_scopes or "openid profile",
+                }
+            )
+
+        # An issuer without a browser client is the ordinary state of a
+        # platform used only by MCP clients. The token box still works.
+        return JSONResponse(
+            {
+                "mode": "token",
+                "reason": (
+                    "no browser client is configured; set oidc.browser_client_id "
+                    "to sign in through the provider"
+                ),
+            }
+        )
+
     @router.get("/api/session")
     async def session_info(
         authorization: str | None = Header(default=None),
