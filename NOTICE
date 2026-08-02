@@ -6,9 +6,9 @@ Licensed under the MIT License. See LICENSE.
 Third-party components
 ================================================================================
 
-repo-mcp embeds and redistributes the following component in its container
-images. It is used unmodified; repo-mcp is an independent project and is not
-affiliated with or endorsed by its authors.
+repo-mcp embeds and redistributes the following components. They are used
+unmodified; repo-mcp is an independent project and is not affiliated with or
+endorsed by their authors.
 
 --------------------------------------------------------------------------------
 codebase-memory-mcp — the indexing engine
@@ -28,6 +28,48 @@ codebase-memory-mcp — the indexing engine
   See docs/engine.md for the engine behaviours that constrain repo-mcp's
   design, and docs/adr/0001-wrap-dont-fork.md for why it is wrapped rather
   than forked.
+
+  MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in
+  all copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+
+--------------------------------------------------------------------------------
+graph-ui — the web interface
+--------------------------------------------------------------------------------
+
+  Upstream:  https://github.com/DeusData/codebase-memory-mcp, graph-ui/
+  Adopted:   commit d6be58ef9d43c574a2d1b0827ecc1e3c4846f0fe
+  Licence:   MIT
+  Used as:   source, under gateway/webui/, modified.
+
+  The interface repo-mcp serves at /ui is the engine project's own, adopted
+  rather than rewritten. What was changed and why is recorded in
+  gateway/webui/README.md, and the reasoning is in
+  docs/adr/0011-adopt-the-upstream-interface.md. In short: its JSON-RPC client
+  was pointed at repo-mcp's authorized /mcp endpoint instead of the engine's
+  loopback server, sign-in and squad selection were added, and the surfaces
+  that only make sense on a single machine were removed.
+
+  Its own dependencies — React, Three.js, Tailwind and the rest — are declared
+  in gateway/webui/package.json and pinned in package-lock.json. They are
+  installed at image build time rather than vendored here, and their licences
+  travel with them.
 
   MIT License
 

@@ -44,3 +44,11 @@ deploy/helm/values-*.yaml
 *.db-wal
 *.db-shm
 *.zst
+
+# The built interface. Its source is gateway/webui/; the image build produces
+# this, and committing it would mean reviewing minified output.
+gateway/app/ui/
+gateway/webui/node_modules/
+gateway/webui/dist/
+gateway/webui/tsconfig.tsbuildinfo
+_site/

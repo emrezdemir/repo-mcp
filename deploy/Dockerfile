@@ -29,6 +29,11 @@ ARG CBM_DOWNLOAD_URL=
 # dynamic linker. The static build has no such dependency, which is what a
 # container wants anyway.
 ARG CBM_VARIANT=-portable
+# The engine ships in two flavours: with the graph interface compiled in and
+# without. The gateway's graph page needs the layout server that only the
+# first one has, so that is the default. "" gives the smaller build, and the
+# graph page then says plainly that this deployment cannot serve it.
+ARG CBM_EDITION=-ui
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl \
@@ -44,7 +49,7 @@ RUN set -eux; \
       arm64) cbm_arch=arm64 ;; \
       *) echo "unsupported architecture: $arch" >&2; exit 1 ;; \
     esac; \
-    archive="codebase-memory-mcp-linux-${cbm_arch}${CBM_VARIANT}.tar.gz"; \
+    archive="codebase-memory-mcp${CBM_EDITION}-linux-${cbm_arch}${CBM_VARIANT}.tar.gz"; \
     if [ "$CBM_VERSION" = "latest" ]; then \
       base="${CBM_RELEASE_BASE}/latest/download"; \
     else \
@@ -87,6 +92,20 @@ RUN set -eux; \
     }
 
 # ── python dependencies ───────────────────────────────────────────────
+# ── web interface ─────────────────────────────────────────────────────
+# The interface is React and Three.js built by Vite. It is built here rather
+# than committed: reviewing minified output is not reviewing, and a build
+# pinned by package-lock.json is reproducible. Nothing is fetched at runtime,
+# so the finished bundle still works in an air-gapped installation.
+FROM node:22-slim AS webui
+
+WORKDIR /ui
+COPY gateway/webui/package.json gateway/webui/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY gateway/webui/ ./
+RUN npm run build
+
+
 FROM python:3.12-slim AS builder
 
 ARG SERVICE=gateway
@@ -133,6 +152,10 @@ RUN apt-get update \
 
 COPY --from=builder /install /usr/local
 COPY --from=engine /out-cbm /usr/local/bin/codebase-memory-mcp
+# Only the gateway serves it, but one image serves both services (the engine's
+# exact-build admission barrier is why), so it travels with both.
+COPY --from=webui /ui/dist /usr/local/lib/repo-mcp-ui
+ENV REPO_MCP_UI_DIR=/usr/local/lib/repo-mcp-ui
 
 RUN mkdir -p /var/lib/repo-mcp/cache /var/lib/repo-mcp/repos /etc/repo-mcp \
     && chown -R repomcp:repomcp /var/lib/repo-mcp

@@ -31,6 +31,53 @@ away.
 - Structured audit record per call, including denials. Verified in live logs.
 - Prometheus metrics with bounded label cardinality.
 
+**Web interface** (`/ui`)
+- Search asks the engine about the whole project, not just the drawn subset.
+  Verified by filtering every node out and searching for a symbol the engine
+  knows: it is offered under "Elsewhere in this project", opens with its
+  location and real source, and says why its connections are absent.
+- Ask: `ask_codebase` from the browser, verified end to end against a
+  stand-in model backend — 16,894 characters of graph evidence reached it and
+  the answer came back citing a qualified name. Both refusal paths verified
+  too: no backend, and a backend with no key.
+- Refusals are shown rather than swallowed, and controls the platform would
+  refuse are disabled with the reason on them. Verified by putting the
+  payments squad on structure-only and watching the graph still draw while
+  the source button explained itself.
+- Upstream's `graph-ui`, adopted at d6be58ef and pointed at `/mcp`. Driven in
+  a real browser end to end against a real indexed project (854 nodes, 4454
+  edges): sign-in, the project list, the 3D graph rendering through the
+  authorized layout proxy, and all eight administrative sections. No console
+  errors.
+- The layout proxy verified against the real engine: 401 without a token, the
+  platform's own refusal by name for another squad's project, and the engine's
+  port refusing every address but loopback.
+- Authorization Code with PKCE against a stand-in provider signing RS256
+  tokens the gateway verifies through its ordinary JWKS path. Redirect out and
+  back, code exchanged, groups claim mapped to role and squad, code stripped
+  from the address bar, refresh before expiry, sign-out clearing storage. Also
+  verified: a code with no matching state is refused, and a provider error
+  reaches the screen.
+- React 19 and Three.js, built by Vite at image build time; the build output
+  is not committed.
+- 21 tests over `/api/auth`, `/api/session` and static serving, including
+  path traversal.
+
+**Identity**
+- The bundled Keycloak realm imports: nine groups, a public browser client
+  with PKCE, a service client, and the group and audience mappers. Verified
+  against a real Keycloak 26 — realm imported, user created by
+  `scripts/keycloak-user.sh`, signed in through the browser, and the token's
+  `groups` and `aud` claims mapped to the expected role and squad. A user in
+  `squad-checkout` sees none of the payments squad's graph.
+
+**Administration**
+- `repo-mcp-admin` and the console cover the same operations through the same
+  functions: squads, roles, connectors, secrets, settings, audit,
+  administrator accounts, answer cache. 18 tests, including one that fails if
+  an API operation arrives without a matching command, and one that a CLI
+  change reaches a running service through the generation counter.
+
 **Indexer**
 - Discovery for GitHub organisations, GitLab groups (nested subgroups) and
   Bitbucket workspaces or projects, with include/exclude globs.

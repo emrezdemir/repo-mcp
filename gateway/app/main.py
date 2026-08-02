@@ -11,6 +11,7 @@ from repo_mcp_common.bootstrap import NotBootstrapped, inspect_state
 from repo_mcp_common.db import Database, DatabaseUnavailable
 from repo_mcp_common.env import EnvError, secrets_key
 
+from . import webui
 from .admin_api import build_router
 from .answer_cache import AnswerCache
 from .audit import AuditEvent, emit
@@ -79,6 +80,36 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
 
     app = FastAPI(title="repo-mcp gateway", lifespan=lifespan)
     app.include_router(build_router(database, provider))
+    # The interface asks the platform the same questions an MCP client does,
+    # over the same endpoint. See gateway/app/webui.py.
+    def _llm_enabled(live: Settings) -> bool:
+        """Whether a model backend is configured, as of right now.
+
+        `llm.update` is idempotent and cheap; calling it here means the
+        interface sees an administrator enabling the backend on the next page
+        load rather than after the next tool call.
+        """
+        llm.update(live)
+        return llm.enabled
+
+    async def engine_ui_port(tenant) -> int | None:
+        """Start this tenant's engine if it is not running, and report its port.
+
+        Asking for the port is what starts the engine, which is the same thing
+        a tool call does — the graph page is not a special case.
+        """
+        session = await pool.session(tenant)
+        await session.ensure_started()
+        return session.ui_port
+
+    app.include_router(
+        webui.build_router(
+            provider.current,
+            lambda: bool(state["ready"]),
+            engine_ui_port,
+            _llm_enabled,
+        )
+    )
 
     @app.get("/healthz")
     async def healthz() -> dict:

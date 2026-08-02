@@ -1,0 +1,71 @@
+name: Pages
+
+# The project site: site/ for the pages, docs/images/ for the screenshots.
+# Assembled by the same script a person runs locally, so what is published is
+# what was previewed.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - "docs/images/**"
+      - "scripts/build-site.sh"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; a queued run supersedes an older one rather than
+# racing it.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assemble
+        run: scripts/build-site.sh
+
+      - name: Every page and asset it references exists
+        run: |
+          python3 - <<'PY'
+          import pathlib, re, sys
+          root = pathlib.Path("_site")
+          missing = []
+          for page in root.glob("*.html"):
+              text = page.read_text(encoding="utf-8")
+              for ref in re.findall(r'(?:src|href)="([^"#:]+)"', text):
+                  if ref.startswith(("http", "mailto", "//")):
+                      continue
+                  if not (root / ref).exists():
+                      missing.append(f"{page.name}: {ref}")
+          if missing:
+              print("\n".join(missing))
+              sys.exit(1)
+          print("every local reference resolves")
+          PY
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    name: deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -8,6 +8,187 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **A project site**, at `site/`, published to GitHub Pages by
+  `.github/workflows/pages.yml`. Turkish and English, sharing one stylesheet
+  that takes its palette from the interface's own, so the site and the product
+  look like the same thing. It carries what a README should not: the showcase,
+  the use cases and the screenshots at a size worth looking at.
+
+  Hand-written HTML rather than a static site generator — two pages that
+  change a few times a release do not repay a toolchain. `scripts/build-site.sh`
+  assembles `site/` and `docs/images/` into `_site/`, so the screenshots have
+  one copy in git and a local preview is exactly what is published;
+  `make site --serve` previews it. The workflow fails if any page references a
+  file that is not there.
+- **An Ask tab.** `ask_codebase` is the thing this platform has that a local
+  graph viewer does not, and it had no interface. It runs `get_architecture`
+  and `search_graph` first and answers from what they returned, citing
+  qualified names, so the model is never asked to guess the graph. Verified
+  against a stand-in model backend: 16,894 characters of real graph evidence
+  reached it and the answer came back with a citation.
+- **`GET /api/ui-config`**, backed by a new `ui.language` setting, so an
+  installation can pin the interface's language instead of following the
+  browser. The interface asked for this endpoint on every load and got a 404.
+
+### Changed
+
+- **Both READMEs are a landing page, not a manual.** 699 lines each became
+  127: what it is, the six things that matter, four commands to install, the
+  interface in pictures, and links. Everything cut is on the site or in
+  `docs/`, which is where it was already duplicated from.
+
+### Fixed
+
+- **Search answered from the screen rather than the project.** The graph is
+  drawn up to a node budget, and the search box filtered only what was drawn
+  — so a symbol that exists but was outside the budget produced "No matches".
+  On a codebase large enough to need a budget, that is a wrong answer rather
+  than a missing feature. Search now also asks `search_graph`, and anything
+  found outside the drawn graph is listed separately with its location and
+  source, saying plainly that its connections are not shown because they run
+  to nodes that were not drawn.
+- **The interface hid refusals.** A squad on the analysis profile cannot call
+  `manage_adr` — correct — and the ADR dialog opened empty, the save did
+  nothing and nothing said why. Refusals now appear in the platform's own
+  words, which name what is missing. A save that silently does nothing is
+  worse than one that fails.
+- **`/api/session` under-reported what a caller may do.** It listed only the
+  engine's tools, while `tools/list` also offers the composite ones when a
+  model backend exists and the session can call the primitives they are built
+  from — so the interface would have hidden Ask forever. Both now call
+  `smart_tools_for`.
+- **Selecting a symbol from the search results now opens its detail.** It used
+  to highlight a dot somewhere in three dimensions and leave the person to
+  find it, which made the source view effectively unreachable.
+- **Escape closes the dialogs**, which also carry a dialog role and a label.
+  By keyboard there had been no way out of them at all.
+- Controls the platform would refuse are disabled with the reason on them
+  rather than vanishing.
+
+## [0.3.0] - 2026-08-02
+
+### Changed
+
+- **The web interface is the engine project's own, adopted rather than
+  written here.** `graph-ui` — 60 files of React 19 and Three.js, MIT — is
+  under `gateway/webui/` at a recorded upstream commit, and the ~2,500-line
+  interface written for this repository is gone. Put side by side, upstream's
+  is better, and it is separable from the 1,229 C files it ships beside.
+  [ADR-0011](docs/adr/0011-adopt-the-upstream-interface.md) records the
+  decision; ADR-0001 is unchanged — the engine is still wrapped, not forked.
+
+  Adoption cost a URL and two headers, because the protocol was already the
+  same: upstream posts JSON-RPC `tools/call` to `/rpc`, and the gateway
+  accepts exactly that at `/mcp`. Everything the interface asks about a
+  codebase therefore carries the caller's token and squad and goes through
+  role capabilities, the project allowlist and the engine's tool profile.
+
+- **The 3D layout is proxied, not reimplemented.** The engine computes it in
+  C and serves it on a loopback port; the gateway starts each tenant's engine
+  with that server on a port of its choosing and proxies `GET /api/layout`
+  after authorizing the request exactly as it authorizes a tool call.
+  Verified: the port refuses anything but loopback, an unauthenticated
+  request gets 401, and another squad's project gets the platform's own
+  refusal by name.
+
+- **Everything else upstream reached for over HTTP is now a tool call**, and
+  therefore behind a capability — project health and index status via
+  `index_status`, ADRs via `manage_adr`, indexing via `index_repository`,
+  deletion via `delete_project`, git metadata from `list_projects`.
+
+### Removed
+
+- **The filesystem browser, and the Control tab's process and log views.**
+  They are meaningful on one machine and neither safe nor meaningful on a
+  shared platform. The tab is the administrative console instead.
+- `scripts/update-vendor.sh` and the three vendored UMD bundles, which
+  belonged to the interface that is gone.
+
+### Added
+
+- **A Keycloak realm that ships.** `deploy/keycloak/repo-mcp-realm.json` is
+  imported on first start: the groups the example squads refer to, a public
+  browser client with PKCE for `/ui`, a confidential service client for CI,
+  and the mappers that put the group list and the `repo-mcp` audience where
+  the gateway looks for them. The directory was mounted and empty before, so
+  the bundled identity provider started with nothing in it and the
+  documentation was a list of console steps.
+
+  It ships no users on purpose — the import runs with `OVERWRITE_EXISTING`, so
+  a user in it would come back after every restart, and a repository that
+  carries a working credential is a repository whose credential ends up in
+  production. `scripts/keycloak-user.sh` creates one and prints a generated
+  password once.
+
+  Verified against a real Keycloak 26: realm imported, user created by the
+  script, signed in through the browser, and the resulting token's `groups`
+  and `aud` claims mapped to the expected role and squad. A user in
+  `squad-checkout` correctly sees none of the payments squad's graph.
+
+## [0.2.0] - 2026-08-02
+
+### Added
+
+- **A web interface**, served by the gateway at `/ui`. Four pages: an overview
+  of what the engine computed about a project, symbol search with source, a
+  WebGL map of the graph, and the administrative console. It has no read path
+  of its own — every question about a codebase goes to `POST /mcp` with the
+  caller's own token, so the browser and an MCP client are authorized and
+  audited by exactly the same code. A second read API beside the first would
+  be a second place for the tenancy rules to be wrong.
+- **Graph rendering that survives a real codebase.** Sigma over graphology,
+  using WebGL: one draw call class for all nodes and one for all edges. Canvas
+  2D and the SVG-based graph libraries stop being usable in the low thousands,
+  and a real graph is tens of thousands. The ForceAtlas2 layout runs in a Web
+  Worker so the main thread only draws and the graph can be navigated while it
+  settles; a content security policy forbidding `worker-src blob:` falls back
+  to slicing the same layout between frames. Filtering by node label and edge
+  type happens in the render reducers, so it is instant, reversible, and never
+  moves the layout.
+- **Authorization Code with PKCE in the browser.** The interface signs in
+  through the same issuer the gateway already verifies tokens from — a public
+  client with no secret, with the gateway outside the flow. `GET /api/auth`
+  publishes the issuer and the public client id so the sign-in screen matches
+  the deployment rather than a build-time guess; without a browser client
+  configured the token box stays, and in development mode the screen says
+  plainly that tokens are not verified. Tokens live in `sessionStorage` only,
+  and an expiring one is renewed just before the request that would have
+  failed.
+- **The administrative console covers the whole API.** Squads, roles,
+  connectors, secrets, settings, the answer cache, the audit trail and
+  administrator accounts are all editable, through the same routes and
+  therefore the same validation the terminal gets — a refusal arrives verbatim.
+- **`repo-mcp-admin` covers it too.** `squad`, `role`, `connector`, `secret`,
+  `settings`, `audit`, `admins` and `answer-cache` commands, calling the same
+  functions the API calls. Parity is a test, not a promise: one check fails if
+  an API operation ever arrives without a matching command.
+- **[docs/web-interface.md](docs/web-interface.md)** and
+  **[docs/administration.md](docs/administration.md)**, and screenshots taken
+  from the running interface by `scripts/ui-screenshots.py` rather than drawn.
+
+### Changed
+
+- `/admin/config` also returns the role assignments and the connector filters,
+  which the editors need in order to show what they are changing.
+- Static files under `ui/` are served by resolving the path and checking it
+  stays inside the directory, rather than by matching against a list of names
+  that had to be edited every time the interface gained a file.
+- `scripts/dev.sh` no longer forces `DEV_INSECURE_AUTH=true`, so a real
+  identity provider can be pointed at locally.
+- `scripts/check-docs.sh` checks links in tracked files rather than walking the
+  working tree, which had started reading a repository cloned under `.dev/`
+  for testing.
+
+### Fixed
+
+- The `hidden` attribute is honoured by elements that set `display` in a class
+  rule. The sign-in pane stayed on screen underneath the application, because
+  `.pane { display: grid }` outranks the browser's own `[hidden]` rule.
+
+## [0.1.0] - 2026-08-01
+
+### Added
+
 - **The optional components are now optional in practice.** Keycloak, LiteLLM,
   Ollama and headroom are Compose profiles, so a deployment with its own
   identity provider and its own model proxy runs four containers instead of

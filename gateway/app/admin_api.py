@@ -34,7 +34,15 @@ from repo_mcp_common.admin import (
 from repo_mcp_common.answer_cache import purge as purge_answers
 from repo_mcp_common.answer_cache import stats as cache_stats
 from repo_mcp_common.db import Database
-from repo_mcp_common.models import AdminUser, AuditEntry, Connector, Secret, Setting, Tenant
+from repo_mcp_common.models import (
+    AdminUser,
+    AuditEntry,
+    Connector,
+    RoleAssignment,
+    Secret,
+    Setting,
+    Tenant,
+)
 from repo_mcp_common.passwords import WeakPassword
 from repo_mcp_common.store import DEFAULT_SETTINGS
 from sqlalchemy import select
@@ -214,6 +222,11 @@ def build_router(database: Database, provider: ConfigurationProvider) -> APIRout
             settings = (await session.execute(select(Setting))).scalars().all()
             secret_rows = (await session.execute(select(Secret))).scalars().all()
             admins = (await session.execute(select(AdminUser))).scalars().all()
+            assignments = (await session.execute(select(RoleAssignment))).scalars().all()
+
+        roles: dict[str, list[str]] = {}
+        for assignment in assignments:
+            roles.setdefault(assignment.role, []).append(assignment.group_name)
 
         return {
             "generation": config.generation,
@@ -222,12 +235,17 @@ def build_router(database: Database, provider: ConfigurationProvider) -> APIRout
                     "name": t.name,
                     "tool_profile": t.tool_profile,
                     "structural_only": t.structural_only,
+                    "denied_tools": list(t.denied_tools or []),
+                    "litellm_key_secret": t.litellm_key_secret,
                     "enabled": t.enabled,
                     "ldap_groups": sorted(g.group_name for g in t.ldap_groups),
                     "projects": sorted(p.pattern for p in t.projects),
                 }
                 for t in tenants
             ],
+            # Whoever edits a role needs to see what it currently is; the
+            # capabilities behind it are fixed in roles.py and not editable.
+            "roles": {role: sorted(groups) for role, groups in roles.items()},
             "connectors": [
                 {
                     "name": c.name,
@@ -235,6 +253,9 @@ def build_router(database: Database, provider: ConfigurationProvider) -> APIRout
                     "tenant": c.tenant.name,
                     "mode": c.mode,
                     "enabled": c.enabled,
+                    "persistence": c.persistence,
+                    "include": list(c.include or ["*"]),
+                    "exclude": list(c.exclude or []),
                     "settings": c.settings,
                     "token_secret": c.token_secret,
                 }

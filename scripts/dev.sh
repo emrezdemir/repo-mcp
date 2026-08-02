@@ -39,7 +39,10 @@ esac
 DEV_ROOT="${DEV_ROOT:-$REPO_ROOT/.dev}"
 mkdir -p "$DEV_ROOT/cache" "$DEV_ROOT/repos"
 
-export DEV_INSECURE_AUTH=true
+# Overridable, so a real identity provider can be pointed at locally:
+#   DEV_INSECURE_AUTH=false scripts/dev.sh gateway
+# with oidc.issuer and oidc.browser_client_id set in the database.
+export DEV_INSECURE_AUTH="${DEV_INSECURE_AUTH:-true}"
 export DEV_STATIC_TOKEN="${DEV_STATIC_TOKEN:-devtoken}"
 export SCAN_CONFIG="$REPO_ROOT/deploy/scan.yaml"
 export CBM_CACHE_ROOT="$DEV_ROOT/cache"

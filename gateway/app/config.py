@@ -51,6 +51,23 @@ class Settings:
     headroom_base_url: str
     headroom_fallback: bool
 
+    # --- the browser's own sign-in ---
+    #: The public client the web interface signs in as, for Authorization Code
+    #: with PKCE. Empty disables the redirect and leaves the token box, which
+    #: is the right default: a platform used only by MCP clients does not need
+    #: a browser client registered with its provider.
+    oidc_browser_client_id: str = ""
+    oidc_browser_scopes: str = "openid profile"
+
+    #: Start each tenant's engine with its loopback layout server, which the
+    #: web interface's graph needs. Off means the graph page says so rather
+    #: than failing: a build of the engine without the interface included
+    #: cannot serve it, and there is no point starting a port for nothing.
+    engine_ui_enabled: bool = True
+
+    #: The interface's language: "auto" follows the browser.
+    ui_language: str = "auto"
+
     @classmethod
     def from_env(cls) -> Settings:
         groups = os.getenv("DEV_STATIC_GROUPS", "")
@@ -58,6 +75,10 @@ class Settings:
             oidc_issuer=os.getenv("OIDC_ISSUER", ""),
             oidc_audience=os.getenv("OIDC_AUDIENCE", "repo-mcp"),
             oidc_groups_claim=os.getenv("OIDC_GROUPS_CLAIM", "groups"),
+            oidc_browser_client_id=os.getenv("OIDC_BROWSER_CLIENT_ID", ""),
+            oidc_browser_scopes=os.getenv("OIDC_BROWSER_SCOPES", "openid profile"),
+            engine_ui_enabled=_bool("ENGINE_UI_ENABLED", True),
+            ui_language=os.getenv("UI_LANGUAGE", "auto"),
             dev_insecure_auth=_bool("DEV_INSECURE_AUTH", False),
             dev_static_token=os.getenv("DEV_STATIC_TOKEN", ""),
             dev_static_groups=tuple(g.strip() for g in groups.split(",") if g.strip()),

@@ -1,7 +1,7 @@
 # Active context
 
 **Last updated:** 2026-08-02
-**Branch:** `chore/versioning-and-readme`, off `dev`
+**Branch:** `feature/interface-polish`, off `dev`
 
 ## Where things stand
 
@@ -17,6 +17,77 @@ from `dev`; a version tag publishes `:vX.Y.Z` and packages the chart.
 nothing else pushes there.
 
 ## What the last sessions did
+
+**Session 12 — auditing the adopted interface, and the Ask tab.** Driving
+every surface against the real engine found that the interface was hiding
+refusals: a squad on the analysis profile cannot call `manage_adr`, and the
+dialog opened empty with a save button that did nothing. Refusals now appear
+in the platform's own words, and controls it would certainly refuse are
+disabled with the reason on them rather than vanishing.
+
+Two more from the same pass: selecting a symbol from the search results only
+highlighted a dot in three dimensions, which made the source view effectively
+unreachable; and the dialogs could not be closed by keyboard at all.
+
+Then the biggest missing capability. `ask_codebase` is what this platform has
+that a local graph viewer does not, and it had no interface. Adding one
+exposed that `/api/session` reported only the engine's tools while
+`tools/list` also offers the composite ones — so the tab would have been
+hidden forever. Both now call one function.
+
+**Session 11 — the interface was rewritten, and it should not have been.**
+The maintainer had asked for the upstream project to be used as the base. It
+was cloned and read this session rather than assumed about: the engine is
+1,229 C files with 43 MB of vendored dependencies, but `graph-ui` is 60 files
+of React and Three.js that move independently of it, and upstream's client
+already posts JSON-RPC `tools/call` — the same protocol the gateway accepts
+at `/mcp`. So the interface written here was deleted and upstream's adopted,
+at commit d6be58ef. ADR-0011 records it; ADR-0001 is unchanged.
+
+The 3D layout was the one real obstacle: it is 860 lines of C serving on a
+loopback port, not an MCP tool. Rather than reimplement it, the gateway now
+starts each tenant's engine with that server on a port of its choosing and
+proxies `GET /api/layout` after authorizing exactly as it authorizes a tool
+call. Verified against the real engine: 401 without a token, the platform's
+own refusal for another squad's project, and the port refusing every address
+but loopback.
+
+Everything upstream reached for over HTTP became a tool call, so each is
+behind a capability. Two surfaces were removed rather than rewired — the
+filesystem browser and the process/log views — because they are meaningful on
+one machine and not on a shared platform.
+
+The costs are real and recorded: a Node build stage, a second dependency
+ecosystem, an npm mirror needed for an air-gapped build, and the engine build
+that includes the interface (`CBM_EDITION=-ui`). Version 0.3.0.
+
+**Session 10 — the web interface, and administrative parity.** The gateway
+serves a browser interface at `/ui`: overview, search, a WebGL map of the
+graph, and the administrative console. It has no read path of its own —
+everything about a codebase goes to `POST /mcp` with the caller's own token —
+so there is exactly one place the tenancy rules are enforced.
+
+Signing in is Authorization Code with PKCE against the configured issuer. That
+was verified end to end in a real browser against a stand-in provider that
+signs RS256 tokens the gateway verifies through its ordinary JWKS path:
+redirect out and back, code exchanged, groups claim mapped to role and squad,
+code removed from the address bar, refresh before expiry, sign-out clearing
+storage. `scripts/dev.sh` no longer forces `DEV_INSECURE_AUTH`, which is what
+made that test possible.
+
+Rendering is Sigma over graphology with the ForceAtlas2 layout in a Web
+Worker. Four defects were found by actually loading the page rather than by
+reading it: the layout module is `layoutForceAtlas2`, not `layout.forceAtlas2`;
+`query_graph` returns `labels(x)` as the JSON text `["Class"]` rather than an
+array, so every node was grey; `.pane { display: grid }` outranks the
+browser's `[hidden]` rule, so the sign-in pane stayed on screen underneath the
+application; and a node selected while the layout was still running drifted
+off-screen, because Sigma renormalises coordinates as the graph expands.
+
+Parity was the other half. The administrative API could already create squads,
+roles, connectors and secrets; neither the CLI nor the interface could. Both
+now can, through the same functions, with a test that fails if an API
+operation ever arrives without a matching command. Version 0.2.0.
 
 **Session 9 — CI turned red, and it was telling the truth.** The image build
 had never worked: it fetched the engine from a URL that does not exist, and

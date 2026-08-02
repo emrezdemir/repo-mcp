@@ -177,35 +177,80 @@ Back it up somewhere other than the database it protects.
 
 ## Keycloak and LDAP
 
-1. Create a realm (`engineering` in the example configuration).
-2. Add **User federation → LDAP** with a read-only bind account. Set the
-   users DN, the username attribute (`sAMAccountName` for Active Directory,
-   `uid` for OpenLDAP) and enable periodic sync.
-3. Add **Mappers → group-ldap-mapper** so directory groups become Keycloak
-   groups.
-4. Create a client `repo-mcp`, then add a **Group Membership** mapper with
-   token claim name `groups` and *Full group path* switched **off** — the
-   gateway strips a leading slash, but plain names keep the configuration
-   readable.
-5. Create a client scope so the `groups` claim is included in access tokens.
-6. Theme the login page if you want the platform's own branding; it is still
-   LDAP behind it.
+### The bundled realm
 
-For CI, create a service account client with client credentials and put it in
-whichever groups grant the scope its pipelines need.
+`deploy/keycloak/repo-mcp-realm.json` is imported on first start of the
+bundled Keycloak. It carries:
 
-Verify a token before wiring agents up:
+| | |
+| --- | --- |
+| Groups | the nine that `deploy/tenants.example.yaml` refers to |
+| `repo-mcp-web` | the browser client for `/ui`: public, PKCE `S256`, redirecting to `http://localhost:8080/ui` |
+| `repo-mcp-agent` | a confidential client with a service account, for CI and headless agents |
+| Mappers | on both clients: `groups` as a plain-name claim, and `repo-mcp` added to the token audience |
+
+It carries **no users**. A repository that ships a working credential is a
+repository whose credential ends up in production, and the realm is imported
+with `OVERWRITE_EXISTING` — a user in it would come back after every restart.
+
+To create one:
 
 ```bash
-TOKEN=$(curl -s -d grant_type=password -d client_id=repo-mcp \
-  -d username=alice -d password=... \
-  http://localhost:8081/realms/engineering/protocol/openid-connect/token | jq -r .access_token)
+scripts/keycloak-user.sh ada --name "Ada Lovelace" --group squad-payments
+```
+
+The password is generated and printed once unless `--password` is given.
+`--group` is repeatable and required: a user in no group has neither a role
+nor a squad, and every request from them would be refused.
+
+Then point the interface at it:
+
+```bash
+repo-mcp-admin set oidc.issuer http://localhost:8081/realms/repo-mcp
+repo-mcp-admin set oidc.browser_client_id repo-mcp-web
+```
+
+For a different hostname, change the client's **Valid redirect URIs** and
+**Web origins** to match. Web origins is the one people miss: without it the
+browser's request to the token endpoint is refused by CORS, and the sign-in
+fails *after* the redirect rather than before it.
+
+### Federating a real directory
+
+The bundled realm is a starting point. For a real deployment:
+
+1. Add **User federation → LDAP** with a read-only bind account. Set the users
+   DN, the username attribute (`sAMAccountName` for Active Directory, `uid`
+   for OpenLDAP) and enable periodic sync.
+2. Add **Mappers → group-ldap-mapper** so directory groups become Keycloak
+   groups. The names have to match the `ldap_groups` in your squads.
+3. Leave the group membership mapper's *Full group path* switched **off** —
+   the gateway strips a leading slash either way, but plain names keep the
+   configuration readable.
+4. Theme the login page if you want the platform's own branding; it is still
+   the directory behind it.
+
+An external Keycloak, or another provider entirely, needs the same three
+things: a `groups` claim, `repo-mcp` in the audience, and a public client with
+PKCE if the web interface is to be used.
+
+### Verifying a token
+
+```bash
+TOKEN=$(curl -s -d grant_type=client_credentials \
+  -d client_id=repo-mcp-agent -d client_secret=... \
+  http://localhost:8081/realms/repo-mcp/protocol/openid-connect/token | jq -r .access_token)
 
 curl -s http://localhost:8080/mcp \
   -H "Authorization: Bearer $TOKEN" -H 'X-Tenant: payments' \
   -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | jq
 ```
+
+The service client's secret is in the Keycloak console under **Clients →
+repo-mcp-agent → Credentials**; it is generated on import rather than shipped.
+Put the service account in whichever groups grant the scope its pipelines
+need — **Service account roles → Groups** on that client.
 
 ## Webhooks
 

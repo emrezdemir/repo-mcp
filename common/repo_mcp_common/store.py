@@ -31,6 +31,17 @@ DEFAULT_SETTINGS: dict[str, object] = {
     "oidc.issuer": "",
     "oidc.audience": "repo-mcp",
     "oidc.groups_claim": "groups",
+    # The public client the web interface signs in as. Separate from the
+    # audience because a browser doing Authorization Code with PKCE is a
+    # different client to the service the token is issued *for*, and it holds
+    # no secret. Empty means the interface offers the token box instead.
+    "oidc.browser_client_id": "",
+    # Extra scopes for that flow. `openid` is always sent; a Keycloak realm
+    # that puts group membership behind a scope needs it named here.
+    "oidc.browser_scopes": "openid profile",
+    # The web interface's language. "auto" follows the browser; the interface
+    # ships English and Chinese, so anything else falls back to English.
+    "ui.language": "auto",
     "litellm.base_url": "",
     "litellm.model": "gpt-4o-mini",
     "litellm.timeout_seconds": 90,
