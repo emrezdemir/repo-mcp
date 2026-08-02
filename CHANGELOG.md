@@ -152,6 +152,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The image build downloaded the engine from a URL that does not exist. The
+  release publishes `codebase-memory-mcp-linux-<arch>.tar.gz`, not a bare
+  executable, so every image build failed with `curl` exit 22 and no
+  explanation. It now fetches and unpacks the archive, and verifies it against
+  the release's own `checksums.txt` — which covers every architecture, so
+  `CBM_SHA256` is no longer something anyone has to copy by hand.
+- Eight shellcheck warnings, including a `cd` whose failure would have run the
+  next command against the wrong tree, and a `--keep` flag in `scripts/smoke.sh`
+  that set a variable nothing read. `make test` now runs shellcheck too, so
+  these fail locally instead of only on a push.
 - `deploy/docker-compose.yml` did not parse — `limits: { memory: ${VAR:-16g} }`
   is not valid YAML unquoted, and a duplicate `ENVIRONMENT` key had crept in.
   Nothing read the file, so nothing said so; `make test` now validates it with

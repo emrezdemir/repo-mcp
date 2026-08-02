@@ -23,6 +23,10 @@ dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "ruff>=0.4",
+    # The shell scripts are part of the contract and CI lints them; shipping
+    # the linter with the dev environment is what keeps that a local failure
+    # rather than a surprise on a push.
+    "shellcheck-py>=0.10",
 ]
 
 [project.scripts]

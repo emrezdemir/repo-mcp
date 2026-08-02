@@ -11,19 +11,28 @@
 FROM debian:bookworm-slim AS engine
 
 ARG CBM_VERSION=latest
-# Optional: set to the published SHA-256 of the binary to verify the download.
+# Optional: the published SHA-256 of the *archive*. Leave it empty and the
+# build verifies against the release's own checksums.txt instead, which is
+# strictly better — it covers every architecture and needs no manual copying.
 ARG CBM_SHA256=
 # Where to fetch the engine from. Override to point at an internal mirror or
 # artifact repository — useful in air-gapped builds and when you want the
 # supply chain to run through your own infrastructure.
 ARG CBM_RELEASE_BASE=https://github.com/DeusData/codebase-memory-mcp/releases
-# Set to a full URL to bypass the version/architecture layout entirely.
+# Set to a full URL to bypass the version/architecture layout entirely. It must
+# point at a .tar.gz laid out like the upstream one.
 ARG CBM_DOWNLOAD_URL=
+# "" for the glibc build, "-portable" for the static one. The runtime below is
+# Debian, so the default is right unless your mirror only carries the other.
+ARG CBM_VARIANT=
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
 
+# The release ships a .tar.gz containing the binary, its licence and its own
+# installer — not a bare executable. Downloading the bare name gives a 404,
+# which surfaces as a build that fails with curl exit 22 and no explanation.
 RUN set -eux; \
     arch="$(dpkg --print-architecture)"; \
     case "$arch" in \
@@ -31,17 +40,38 @@ RUN set -eux; \
       arm64) cbm_arch=arm64 ;; \
       *) echo "unsupported architecture: $arch" >&2; exit 1 ;; \
     esac; \
+    archive="codebase-memory-mcp-linux-${cbm_arch}${CBM_VARIANT}.tar.gz"; \
+    if [ "$CBM_VERSION" = "latest" ]; then \
+      base="${CBM_RELEASE_BASE}/latest/download"; \
+    else \
+      base="${CBM_RELEASE_BASE}/download/${CBM_VERSION}"; \
+    fi; \
     if [ -n "$CBM_DOWNLOAD_URL" ]; then \
       url="$CBM_DOWNLOAD_URL"; \
-    elif [ "$CBM_VERSION" = "latest" ]; then \
-      url="${CBM_RELEASE_BASE}/latest/download/codebase-memory-mcp-linux-${cbm_arch}"; \
     else \
-      url="${CBM_RELEASE_BASE}/download/${CBM_VERSION}/codebase-memory-mcp-linux-${cbm_arch}"; \
+      url="${base}/${archive}"; \
     fi; \
-    curl -fsSL --retry 3 --retry-delay 2 "$url" -o /out-cbm; \
+    curl -fsSL --retry 3 --retry-delay 2 "$url" -o /tmp/cbm.tar.gz; \
     if [ -n "$CBM_SHA256" ]; then \
-      echo "${CBM_SHA256}  /out-cbm" | sha256sum -c -; \
+      echo "${CBM_SHA256}  /tmp/cbm.tar.gz" | sha256sum -c -; \
+    elif curl -fsSL --retry 3 --retry-delay 2 "${base}/checksums.txt" -o /tmp/checksums.txt; then \
+      # The file lists every asset. Take the hash for ours and rebuild the
+      # line, rather than rewriting the filename in place: the published file
+      # separates the two fields with two spaces, and an off-by-one there
+      # produces a checksum that silently never matches anything.
+      published="$(awk -v a="${archive}" '$2 == a { print $1 }' /tmp/checksums.txt)"; \
+      [ -n "$published" ] || { echo "checksums.txt has no entry for ${archive}" >&2; exit 1; }; \
+      echo "${published}  /tmp/cbm.tar.gz" | sha256sum -c -; \
+    else \
+      echo "no checksums.txt and no CBM_SHA256: the engine download is unverified" >&2; \
     fi; \
+    mkdir -p /tmp/cbm; \
+    tar -xzf /tmp/cbm.tar.gz -C /tmp/cbm; \
+    # The archive has the binary at its root; find it rather than assuming a
+    # layout that upstream is free to change.
+    binary="$(find /tmp/cbm -maxdepth 2 -type f -name codebase-memory-mcp | head -n1)"; \
+    [ -n "$binary" ] || { echo "no codebase-memory-mcp in $archive" >&2; tar -tzf /tmp/cbm.tar.gz >&2; exit 1; }; \
+    mv "$binary" /out-cbm; \
     chmod +x /out-cbm; \
     /out-cbm --version
 

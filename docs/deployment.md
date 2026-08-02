@@ -287,21 +287,32 @@ upgrade a tenant's processes together — `Recreate`, not `RollingUpdate`. A
 half-upgraded tenant fails with a version cohort conflict.
 
 **Build the engine in from your own infrastructure.** The image fetches the
-engine binary at build time. For an air-gapped or supply-chain-controlled
-build, mirror the release and point the build at it:
+engine at build time: a `.tar.gz` per OS and architecture, alongside a
+`checksums.txt` covering every asset. The build verifies against that file
+automatically, so nothing has to be copied by hand.
+
+For an air-gapped or supply-chain-controlled build, mirror the release —
+archives and `checksums.txt` — and point the build at it:
 
 ```bash
 docker build -f deploy/Dockerfile \
   --build-arg SERVICE=gateway \
   --build-arg CBM_RELEASE_BASE=https://artifacts.internal/repo-mcp/engine \
-  --build-arg CBM_VERSION=v1.2.3 \
-  --build-arg CBM_SHA256=<published checksum> \
+  --build-arg CBM_VERSION=v0.9.0 \
   .
 ```
 
-`CBM_DOWNLOAD_URL` bypasses the layout entirely if your mirror names files
-differently. Setting `CBM_SHA256` makes the build fail on any mismatch, which
-is what you want once a version is pinned.
+| Build argument | Use it for |
+| --- | --- |
+| `CBM_VERSION` | A pinned release tag. Pin it in production — every engine process sharing a cache root must be the same build |
+| `CBM_RELEASE_BASE` | An internal mirror laid out like the upstream releases |
+| `CBM_DOWNLOAD_URL` | A single archive URL, when your mirror names files differently |
+| `CBM_SHA256` | The archive's checksum, when your mirror publishes no `checksums.txt` |
+| `CBM_VARIANT` | `-portable` for the static build. The runtime image is Debian, so the default is right unless your mirror only carries the other |
+
+A mirror that publishes neither `checksums.txt` nor a `CBM_SHA256` still
+builds, and says so on the build log — an unverified download is a decision,
+not a silent default.
 
 **Never expose the engine.** The engine has no authentication. The gateway is the only
 ingress; `CBM_ALLOWED_ROOT` is the backstop, not the control.
