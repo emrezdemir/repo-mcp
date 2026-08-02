@@ -19,6 +19,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from .metrics import COALESCED, JOB_DURATION, JOBS, QUEUE_DEPTH
 from .repos import Binding
 
 log = logging.getLogger(__name__)
@@ -93,9 +94,11 @@ class Indexer:
         """
         if job.key in self._pending:
             log.info("coalescing job for %s (trigger=%s)", job.key, job.trigger)
+            COALESCED.labels(job.trigger).inc()
             return False
         self._pending.add(job.key)
         self._queue.put_nowait(job)
+        QUEUE_DEPTH.set(self._queue.qsize())
         return True
 
     # ── execution ────────────────────────────────────────────────────
@@ -116,9 +119,11 @@ class Indexer:
             except Exception as exc:  # noqa: BLE001 - a worker must not die
                 log.exception("indexing failed for %s", job.key)
                 self.last_results[job.key] = JobResult(job, False, 0, str(exc))
+                JOBS.labels(job.trigger, "error").inc()
             finally:
                 self._pending.discard(job.key)
                 self._queue.task_done()
+                QUEUE_DEPTH.set(self._queue.qsize())
 
     async def _index(self, job: IndexJob) -> JobResult:
         binding = job.binding
@@ -137,14 +142,21 @@ class Indexer:
             "persistence": binding.persistence,
         }
         code, out, err = await self._cbm_cli(binding.tenant, args)
-        elapsed = int(time.monotonic() - started)
+        elapsed = time.monotonic() - started
+        JOB_DURATION.labels(binding.mode).observe(elapsed)
 
         if code != 0:
-            log.error("indexing %s failed rc=%s after %ss: %s", job.key, code, elapsed, err[-2000:])
-            return JobResult(job, False, elapsed, err[-2000:])
+            outcome = "timeout" if code == 124 else "failed"
+            JOBS.labels(job.trigger, outcome).inc()
+            log.error(
+                "indexing %s failed rc=%s after %ds: %s",
+                job.key, code, int(elapsed), err[-2000:],
+            )
+            return JobResult(job, False, int(elapsed), err[-2000:])
 
-        log.info("indexed %s in %ss", job.key, elapsed)
-        return JobResult(job, True, elapsed, out[-2000:])
+        JOBS.labels(job.trigger, "ok").inc()
+        log.info("indexed %s in %ds", job.key, int(elapsed))
+        return JobResult(job, True, int(elapsed), out[-2000:])
 
     async def _sync_worktree(self, job: IndexJob) -> None:
         binding = job.binding

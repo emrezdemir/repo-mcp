@@ -15,10 +15,12 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 
 import httpx
 
 from .config import Settings
+from .metrics import LLM_CALLS, LLM_DURATION
 from .tenants import Tenant
 
 log = logging.getLogger(__name__)
@@ -84,6 +86,8 @@ class LlmClient:
             "user": username,
             "metadata": {"tags": [f"squad:{tenant.name}"]},
         }
+        model = self._settings.litellm_model
+        started = time.perf_counter()
         try:
             response = await self._http().post(
                 "/chat/completions",
@@ -91,11 +95,18 @@ class LlmClient:
                 headers={"Authorization": f"Bearer {self._api_key(tenant)}"},
             )
         except httpx.HTTPError as exc:
+            LLM_CALLS.labels(model, "unreachable").inc()
             raise LlmError(f"cannot reach LiteLLM: {exc}") from exc
+        finally:
+            LLM_DURATION.labels(model).observe(time.perf_counter() - started)
 
         if response.status_code >= 400:
+            LLM_CALLS.labels(model, f"http_{response.status_code // 100}xx").inc()
             raise LlmError(f"LiteLLM returned {response.status_code}: {response.text[:500]}")
         try:
-            return response.json()["choices"][0]["message"]["content"] or ""
+            content = response.json()["choices"][0]["message"]["content"] or ""
         except (KeyError, IndexError, ValueError) as exc:
+            LLM_CALLS.labels(model, "malformed").inc()
             raise LlmError(f"malformed LiteLLM response: {exc}") from exc
+        LLM_CALLS.labels(model, "ok").inc()
+        return content

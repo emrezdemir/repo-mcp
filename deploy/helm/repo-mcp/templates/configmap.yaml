@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "repo-mcp.fullname" . }}-config
+  labels:
+    {{- include "repo-mcp.labels" . | nindent 4 }}
+data:
+  tenants.yaml: |
+    {{- toYaml .Values.tenants | nindent 4 }}
+  scan.yaml: |
+    {{- toYaml .Values.scan | nindent 4 }}

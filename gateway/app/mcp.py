@@ -20,6 +20,7 @@ from .auth import Principal
 from .cbm import CbmError, CbmPool
 from .config import Settings
 from .llm import LlmClient, LlmError
+from .metrics import REQUESTS, TOOL_CALLS, TOOL_DURATION
 from .roles import TOOL_CAPABILITY, Capability, Role, capabilities_for
 from .smart_tools import (
     HANDLERS,
@@ -54,6 +55,11 @@ PROJECT_ARG_TOOLS = frozenset(
         "ask_codebase",
     }
 )
+
+
+#: Methods that get their own metric label; everything else is "other", so a
+#: client probing random method names cannot inflate label cardinality.
+_KNOWN_METHODS = frozenset({"initialize", "tools/list", "tools/call", "ping"})
 
 
 class AccessDenied(Exception):
@@ -146,6 +152,7 @@ class McpRouter:
         if message_id is None:  # notification: no response
             return None
 
+        label = method if method in _KNOWN_METHODS else "other"
         try:
             if method == "initialize":
                 result = self._initialize()
@@ -156,12 +163,16 @@ class McpRouter:
             elif method == "ping":
                 result = {}
             else:
+                REQUESTS.labels(label, "unknown_method").inc()
                 return _error(message_id, -32601, f"unknown method: {method}")
         except AccessDenied as exc:
+            REQUESTS.labels(label, "denied").inc()
             return _error(message_id, -32001, str(exc))
         except (CbmError, LlmError) as exc:
+            REQUESTS.labels(label, "error").inc()
             return _error(message_id, -32000, str(exc))
 
+        REQUESTS.labels(label, "ok").inc()
         return {"jsonrpc": "2.0", "id": message_id, "result": result}
 
     # ── methods ──────────────────────────────────────────────────────
@@ -198,12 +209,15 @@ class McpRouter:
             extra={"role": session.role.value},
         )
 
+        tool_label = name if name in TOOL_CAPABILITY or name in SMART_TOOL_NAMES else "unknown"
+
         try:
             self._authorize(session, name, args)
         except AccessDenied as exc:
             event.outcome = "denied"
             event.reason = str(exc)
             emit(event)
+            TOOL_CALLS.labels(tool_label, session.tenant.name, session.role.value, "denied").inc()
             raise
 
         cbm = await self._pool.session(session.tenant)
@@ -228,10 +242,15 @@ class McpRouter:
             event.outcome = "error"
             event.reason = str(exc)
             emit(event)
+            TOOL_CALLS.labels(tool_label, session.tenant.name, session.role.value, "error").inc()
             raise
 
         event.duration_ms = timer.ms
         emit(event)
+        TOOL_DURATION.labels(tool_label).observe(timer.ms / 1000)
+        TOOL_CALLS.labels(
+            tool_label, session.tenant.name, session.role.value, event.outcome
+        ).inc()
         return result
 
     # ── authorization ────────────────────────────────────────────────

@@ -8,14 +8,19 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
+    name: test (${{ matrix.service }}, py${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         service: [gateway, indexer]
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.11", "3.12", "3.13"]
 
     defaults:
       run:
@@ -28,31 +33,159 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
+          cache-dependency-path: ${{ matrix.service }}/pyproject.toml
 
       - name: Install
         run: pip install -e '.[dev]'
 
       - name: Lint
-        run: ruff check .
+        run: ruff check --output-format=github .
 
       - name: Test
         run: pytest -q
 
-  build-image:
+  shell:
+    name: shell scripts
     runs-on: ubuntu-latest
-    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Syntax check
+        run: for f in scripts/*.sh; do bash -n "$f"; done
+
+      - name: ShellCheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          severity: warning
+          scandir: ./scripts
+
+      - name: Scripts are executable
+        run: |
+          missing=0
+          for f in scripts/*.sh; do
+            case "$f" in */lib.sh) continue ;; esac
+            [ -x "$f" ] || { echo "not executable: $f"; missing=1; }
+          done
+          exit $missing
+
+  config:
+    name: example configuration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+
+      - name: Install
+        run: |
+          pip install -e './gateway[dev]'
+          pip install -e './indexer[dev]'
+
+      # A broken example fails at container start otherwise, which is a much
+      # worse place to discover it.
+      - name: Validate the shipped examples
+        run: |
+          python - <<'PY'
+          import sys
+          from pathlib import Path
+
+          sys.path.insert(0, "gateway")
+          sys.path.insert(0, "indexer")
+          from app.tenants import TenantRegistry
+
+          registry = TenantRegistry.load(Path("deploy/tenants.example.yaml"))
+          print("tenants:", [t.name for t in registry.tenants])
+          PY
+          python - <<'PY'
+          import sys
+          from pathlib import Path
+
+          sys.path.insert(0, "indexer")
+          from app.repos import ScanConfig
+
+          config = ScanConfig.load(Path("deploy/scan.example.yaml"), Path("/tmp"))
+          print("connectors:", [c.name for c in config.connectors])
+          PY
+
+  helm:
+    name: helm chart
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.3
+
+      - name: Lint
+        run: helm lint deploy/helm/repo-mcp
+
+      - name: Render with defaults
+        run: helm template repo-mcp deploy/helm/repo-mcp > /dev/null
+
+      - name: Render with autoscaling and ReadWriteMany
+        run: |
+          helm template repo-mcp deploy/helm/repo-mcp \
+            --set gateway.autoscaling.enabled=true \
+            --set persistence.cache.accessMode=ReadWriteMany \
+            --set ingress.enabled=true \
+            --set networkPolicy.enabled=true \
+            --set metrics.serviceMonitor.enabled=true > /dev/null
+
+      # Horizontal gateway scaling without shared storage silently answers
+      # queries from an empty graph, so the chart must refuse to render it.
+      - name: Autoscaling without shared storage is refused
+        run: |
+          if helm template repo-mcp deploy/helm/repo-mcp \
+               --set gateway.autoscaling.enabled=true \
+               --set persistence.cache.accessMode=ReadWriteOnce >/dev/null 2>&1; then
+            echo "expected the chart to fail, but it rendered"
+            exit 1
+          fi
+          echo "refused as expected"
+
+  docker:
+    name: image (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    needs: [test]
     strategy:
       matrix:
         service: [gateway, indexer]
     steps:
       - uses: actions/checkout@v4
 
-      # Builds without pushing, to catch Dockerfile breakage in review. The
-      # CBM download is pinned by CBM_VERSION so the image stays reproducible.
-      - name: Build image
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile
+          build-args: |
+            SERVICE=${{ matrix.service }}
+            CBM_VERSION=${{ vars.CBM_VERSION || 'latest' }}
+            VERSION=${{ github.sha }}
+            VCS_REF=${{ github.sha }}
+          tags: repo-mcp-${{ matrix.service }}:ci
+          load: true
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+      - name: The image contains a working engine
+        run: docker run --rm --entrypoint codebase-memory-mcp repo-mcp-${{ matrix.service }}:ci --version
+
+      - name: The service starts and answers its health probe
         run: |
-          docker build \
-            --file deploy/Dockerfile \
-            --build-arg SERVICE=${{ matrix.service }} \
-            --tag repo-mcp-${{ matrix.service }}:ci \
-            .
+          docker run -d --name svc -p 8080:8080 \
+            -e TENANTS_FILE=/etc/repo-mcp/tenants.yaml \
+            -e SCAN_CONFIG=/etc/repo-mcp/scan.yaml \
+            -v "$PWD/deploy/tenants.example.yaml:/etc/repo-mcp/tenants.yaml:ro" \
+            -v "$PWD/deploy/scan.example.yaml:/etc/repo-mcp/scan.yaml:ro" \
+            repo-mcp-${{ matrix.service }}:ci
+          for _ in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8080/healthz && break
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:8080/healthz
+          curl -fsS http://127.0.0.1:8080/metrics | grep -q repo_mcp_
+          docker logs svc
+          docker rm -f svc

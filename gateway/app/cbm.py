@@ -20,6 +20,7 @@ import time
 from dataclasses import dataclass
 
 from .config import Settings
+from .metrics import CBM_RESTARTS, CBM_SESSIONS
 from .tenants import Tenant
 
 log = logging.getLogger(__name__)
@@ -57,6 +58,7 @@ class CbmSession:
         self._lock = asyncio.Lock()
         self._next_id = 0
         self._stderr_task: asyncio.Task | None = None
+        self._started_before = False
         self.last_used = time.monotonic()
 
     # ── lifecycle ────────────────────────────────────────────────────
@@ -88,20 +90,39 @@ class CbmSession:
         if proc is not None and proc.returncode is None:
             return proc
 
-        os.makedirs(self.cache_dir, exist_ok=True)
+        try:
+            os.makedirs(self.cache_dir, exist_ok=True)
+        except OSError as exc:
+            raise CbmError(f"cannot create cache directory {self.cache_dir}: {exc}") from exc
+
         argv = [self._settings.cbm_binary, *self._tenant.cbm_profile_flag()]
+        reason = "restart" if self._started_before else "first_start"
         log.info("starting CBM for tenant=%s argv=%s", self._tenant.name, argv)
-        proc = await asyncio.create_subprocess_exec(
-            *argv,
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env=self._env(),
-            limit=_MAX_LINE_BYTES,
-        )
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *argv,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=self._env(),
+                limit=_MAX_LINE_BYTES,
+            )
+        except FileNotFoundError as exc:
+            # A missing or unreadable engine binary is a deployment problem.
+            # Surfacing it as a JSON-RPC error names the cause; letting it
+            # escape produces an opaque HTTP 500.
+            raise CbmError(
+                f"engine binary not found: {self._settings.cbm_binary} "
+                f"(set CBM_BINARY, or install codebase-memory-mcp)"
+            ) from exc
+        except OSError as exc:
+            raise CbmError(f"cannot start the engine ({self._settings.cbm_binary}): {exc}") from exc
         self._proc = proc
         self._next_id = 0
+        self._started_before = True
         self._stderr_task = asyncio.create_task(self._drain_stderr(proc))
+        CBM_RESTARTS.labels(self._tenant.name, reason).inc()
+        CBM_SESSIONS.inc()
         await self._handshake()
         return proc
 
@@ -136,6 +157,7 @@ class CbmSession:
             self._stderr_task = None
         if proc is None or proc.returncode is not None:
             return
+        CBM_SESSIONS.dec()
         try:
             proc.terminate()
             await asyncio.wait_for(proc.wait(), timeout=10)

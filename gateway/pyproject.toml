@@ -2,7 +2,7 @@
 name = "repo-mcp-gateway"
 version = "0.1.0"
 description = "Multi-tenant MCP gateway for centralized code intelligence"
-readme = "../README.md"
+readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 dependencies = [
@@ -10,6 +10,7 @@ dependencies = [
     "uvicorn[standard]>=0.29",
     "httpx>=0.27",
     "python-jose[cryptography]>=3.3",
+    "prometheus-client>=0.20",
     "pyyaml>=6.0",
 ]
 
@@ -30,6 +31,7 @@ include = ["app*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+asyncio_mode = "auto"
 
 [tool.ruff]
 line-length = 100

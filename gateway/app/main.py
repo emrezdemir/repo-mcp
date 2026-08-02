@@ -6,7 +6,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Header, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from .audit import AuditEvent, emit
 from .auth import Authenticator, AuthError
@@ -14,6 +14,7 @@ from .cbm import CbmPool
 from .config import Settings
 from .llm import LlmClient
 from .mcp import McpRouter, TenantSelectionError, build_session
+from .metrics import AUTH_FAILURES, render
 from .tenants import TenantRegistry
 
 log = logging.getLogger(__name__)
@@ -56,6 +57,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "smart_tools": llm.enabled,
         }
 
+    @app.get("/metrics")
+    async def metrics() -> Response:
+        payload, content_type = render()
+        return Response(content=payload, media_type=content_type)
+
     @app.post("/mcp")
     async def mcp_endpoint(
         request: Request,
@@ -66,6 +72,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             principal = await auth.authenticate(authorization)
         except AuthError as exc:
             emit(AuditEvent(event="auth", principal="?", outcome="denied", reason=str(exc)))
+            AUTH_FAILURES.labels("authentication").inc()
             return JSONResponse({"error": str(exc)}, status_code=401)
 
         try:
@@ -79,6 +86,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     reason=str(exc),
                 )
             )
+            AUTH_FAILURES.labels("tenant_selection").inc()
             return JSONResponse({"error": str(exc)}, status_code=403)
 
         try:

@@ -1,0 +1,162 @@
+{{- if .Values.gateway.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "repo-mcp.fullname" . }}-gateway
+  labels:
+    {{- include "repo-mcp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+spec:
+  {{- if not .Values.gateway.autoscaling.enabled }}
+  replicas: {{ .Values.gateway.replicaCount }}
+  {{- end }}
+  strategy:
+    # Not RollingUpdate: the engine refuses to run mixed builds against one
+    # cache root, so old and new pods must not overlap.
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "repo-mcp.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: gateway
+  template:
+    metadata:
+      labels:
+        {{- include "repo-mcp.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: gateway
+        {{- with .Values.podLabels }}{{- toYaml . | nindent 8 }}{{- end }}
+      annotations:
+        # Restart when the tenant configuration changes; role and squad edits
+        # are read once at startup.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if .Values.metrics.enabled }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+        {{- end }}
+        {{- with .Values.podAnnotations }}{{- toYaml . | nindent 8 }}{{- end }}
+    spec:
+      serviceAccountName: {{ include "repo-mcp.serviceAccountName" . }}
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: gateway
+          image: {{ include "repo-mcp.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            {{- include "repo-mcp.commonEnv" . | nindent 12 }}
+            {{- include "repo-mcp.secretEnv" . | nindent 12 }}
+            - name: TENANTS_FILE
+              value: /etc/repo-mcp/tenants.yaml
+            - name: WEB_CONCURRENCY
+              value: {{ .Values.gateway.webConcurrency | quote }}
+            - name: OIDC_ISSUER
+              value: {{ .Values.gateway.config.oidcIssuer | quote }}
+            - name: OIDC_AUDIENCE
+              value: {{ .Values.gateway.config.oidcAudience | quote }}
+            - name: OIDC_GROUPS_CLAIM
+              value: {{ .Values.gateway.config.oidcGroupsClaim | quote }}
+            - name: CBM_IDLE_TIMEOUT_S
+              value: {{ .Values.gateway.config.cbmIdleTimeoutSeconds | quote }}
+            - name: CBM_CALL_TIMEOUT_S
+              value: {{ .Values.gateway.config.cbmCallTimeoutSeconds | quote }}
+            - name: CBM_LOG_LEVEL
+              value: {{ .Values.gateway.config.logLevel | quote }}
+            - name: SMART_TOOLS_ENABLED
+              value: {{ .Values.gateway.config.smartToolsEnabled | quote }}
+            - name: LITELLM_BASE_URL
+              value: {{ .Values.litellm.baseUrl | quote }}
+            - name: LITELLM_MODEL
+              value: {{ .Values.litellm.model | quote }}
+            - name: LITELLM_TIMEOUT_S
+              value: {{ .Values.litellm.timeoutSeconds | quote }}
+            {{- with .Values.gateway.extraEnv }}{{- toYaml . | nindent 12 }}{{- end }}
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          startupProbe:
+            httpGet: { path: /healthz, port: http }
+            failureThreshold: 30
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.gateway.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/repo-mcp
+              readOnly: true
+            # Mounted read-write although the indexer is the only logical
+            # writer: SQLite in WAL mode creates -wal and -shm files to read,
+            # and the engine keeps its own state under the cache root. The
+            # tenant tool profile is what prevents writes.
+            - name: cache
+              mountPath: /var/lib/repo-mcp/cache
+            - name: repos
+              mountPath: /var/lib/repo-mcp/repos
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "repo-mcp.fullname" . }}-config
+        - name: cache
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.cache.existingClaim | default (printf "%s-cache" (include "repo-mcp.fullname" .)) }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: repos
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.repos.existingClaim | default (printf "%s-repos" (include "repo-mcp.fullname" .)) }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        # The engine's coordination daemon uses an owner-only socket under the
+        # runtime directory; it needs a writable /tmp.
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.gateway.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.gateway.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.gateway.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "repo-mcp.fullname" . }}-gateway
+  labels:
+    {{- include "repo-mcp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+  {{- with .Values.gateway.service.annotations }}
+  annotations: {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.gateway.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.gateway.service.port }}
+      targetPort: http
+  selector:
+    {{- include "repo-mcp.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+{{- end }}

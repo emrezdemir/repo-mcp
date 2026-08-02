@@ -1,70 +1,115 @@
-# Local evaluation stack. Not a production deployment: see
-# docs/deployment.md for what changes when you go to Kubernetes.
+# Local evaluation stack. For production see docs/deployment.md and
+# docs/scaling.md; the Helm chart in deploy/helm is the supported path.
 
 name: repo-mcp
 
+x-service-defaults: &defaults
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+
+x-build-args: &build-args
+  context: ..
+  dockerfile: deploy/Dockerfile
+
 services:
   keycloak:
+    <<: *defaults
     image: quay.io/keycloak/keycloak:26.0
     command: ["start-dev", "--import-realm"]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
-      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set KEYCLOAK_ADMIN_PASSWORD}
       KC_HEALTH_ENABLED: "true"
-    ports:
-      - "8081:8080"
+    ports: ["8081:8080"]
     volumes:
-      # Drop a realm export here with the LDAP user federation and the group
-      # mapper already configured. See docs/deployment.md.
+      # Drop a realm export here with LDAP federation and the group mapper
+      # already configured. See docs/deployment.md.
       - ./keycloak:/opt/keycloak/data/import:ro
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '\"UP\"'"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
 
   litellm:
+    <<: *defaults
     image: ghcr.io/berriai/litellm:main-stable
     command: ["--config", "/app/config.yaml", "--port", "4000"]
     environment:
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?set LITELLM_MASTER_KEY}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
-    ports:
-      - "4000:4000"
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      VLLM_BASE_URL: ${VLLM_BASE_URL:-}
+      VLLM_API_KEY: ${VLLM_API_KEY:-}
+    ports: ["4000:4000"]
     volumes:
       - ./litellm-config.yaml:/app/config.yaml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:4000/health/liveliness',timeout=3)\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
-  # Optional: a fully local model backend. Remove this and point LiteLLM at
-  # your own proxy if you already run one.
+  # Optional local model backend. Remove it and point LiteLLM at your own
+  # proxy if you already run one.
   ollama:
+    <<: *defaults
     image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
+    ports: ["11434:11434"]
     volumes:
       - ollama-models:/root/.ollama
+    deploy:
+      resources:
+        limits: { memory: ${OLLAMA_MEMORY_LIMIT:-16g} }
 
   gateway:
+    <<: *defaults
     build:
-      context: ..
-      dockerfile: deploy/Dockerfile
+      <<: *build-args
       args:
         SERVICE: gateway
         CBM_VERSION: ${CBM_VERSION:-latest}
-    depends_on: [keycloak, litellm]
+    depends_on:
+      litellm: { condition: service_healthy }
     environment:
-      OIDC_ISSUER: http://keycloak:8080/realms/engineering
-      OIDC_AUDIENCE: repo-mcp
+      OIDC_ISSUER: ${OIDC_ISSUER:-http://keycloak:8080/realms/engineering}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-repo-mcp}
       TENANTS_FILE: /etc/repo-mcp/tenants.yaml
       LITELLM_BASE_URL: http://litellm:4000
       LITELLM_API_KEY: ${LITELLM_MASTER_KEY}
       LITELLM_MODEL: ${LITELLM_MODEL:-ollama/qwen2.5-coder:14b}
-      SMART_TOOLS_ENABLED: "true"
-    ports:
-      - "8080:8080"
+      SMART_TOOLS_ENABLED: ${SMART_TOOLS_ENABLED:-true}
+      # Local evaluation without Keycloak: set DEV_INSECURE_AUTH=true and a
+      # DEV_STATIC_TOKEN in deploy/.env. Never do this in production.
+      DEV_INSECURE_AUTH: ${DEV_INSECURE_AUTH:-false}
+      DEV_STATIC_TOKEN: ${DEV_STATIC_TOKEN:-}
+      DEV_STATIC_GROUPS: ${DEV_STATIC_GROUPS:-}
+      CBM_IDLE_TIMEOUT_S: ${CBM_IDLE_TIMEOUT_S:-900}
+      CBM_CALL_TIMEOUT_S: ${CBM_CALL_TIMEOUT_S:-120}
+      # One worker per container: each worker process would spawn its own
+      # engine process per tenant. Scale with replicas, not workers.
+      WEB_CONCURRENCY: 1
+    ports: ["8080:8080"]
     volumes:
-      - ./tenants.example.yaml:/etc/repo-mcp/tenants.yaml:ro
+      - ./tenants.yaml:/etc/repo-mcp/tenants.yaml:ro
+      # Mounted read-write even though the indexer is the only logical writer:
+      # SQLite in WAL mode needs to create -wal and -shm files to *read*, and
+      # the engine keeps its own config and logs under the cache root. Writes
+      # are prevented by the tenant tool profile, not by the mount.
       - cbm-cache:/var/lib/repo-mcp/cache
       - repo-workdirs:/var/lib/repo-mcp/repos
+    deploy:
+      resources:
+        limits: { memory: ${GATEWAY_MEMORY_LIMIT:-4g} }
 
   indexer:
+    <<: *defaults
     build:
-      context: ..
-      dockerfile: deploy/Dockerfile
+      <<: *build-args
       args:
         SERVICE: indexer
         CBM_VERSION: ${CBM_VERSION:-latest}
@@ -79,14 +124,17 @@ services:
       CI_TRIGGER_TOKEN: ${CI_TRIGGER_TOKEN:-}
       RESCAN_INTERVAL_S: ${RESCAN_INTERVAL_S:-86400}
       INDEX_CONCURRENCY: ${INDEX_CONCURRENCY:-2}
-    ports:
-      - "8082:8080"
+      WEB_CONCURRENCY: 1
+    ports: ["8082:8080"]
     volumes:
-      - ./scan.example.yaml:/etc/repo-mcp/scan.yaml:ro
+      - ./scan.yaml:/etc/repo-mcp/scan.yaml:ro
       # Both services share the cache root, which is why they must run the
-      # same CBM build (exact-build admission barrier).
+      # same engine build (exact-build admission barrier).
       - cbm-cache:/var/lib/repo-mcp/cache
       - repo-workdirs:/var/lib/repo-mcp/repos
+    deploy:
+      resources:
+        limits: { memory: ${INDEXER_MEMORY_LIMIT:-8g} }
 
 volumes:
   cbm-cache:

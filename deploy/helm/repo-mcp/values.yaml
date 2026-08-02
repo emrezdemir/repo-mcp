@@ -1,0 +1,221 @@
+# Default values for repo-mcp.
+#
+# Read docs/scaling.md before raising gateway.replicaCount or
+# indexer.replicaCount — the storage topology constrains both.
+
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  repository: ghcr.io/emrezdemir/repo-mcp
+  # Tag defaults to the chart's appVersion.
+  tag: ""
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+# The engine enforces an exact-build admission barrier across every process
+# sharing a cache root. Both services therefore run one pinned image; a
+# half-upgraded release fails with a version cohort conflict, which is why the
+# gateway uses Recreate rather than RollingUpdate.
+engine:
+  version: "latest"
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop: ["ALL"]
+
+# ── gateway ───────────────────────────────────────────────────────────
+gateway:
+  enabled: true
+  replicaCount: 1
+
+  # One uvicorn worker per pod. Each worker would spawn its own engine process
+  # per tenant, so concurrency comes from replicas, not workers.
+  webConcurrency: 1
+
+  service:
+    type: ClusterIP
+    port: 8080
+    annotations: {}
+
+  resources:
+    requests: { cpu: 200m, memory: 512Mi }
+    limits: { memory: 4Gi }
+
+  # Reads the graph. Safe to scale out only when every tenant uses a read-only
+  # tool profile (analysis or scout) — see docs/scaling.md.
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+
+  config:
+    oidcIssuer: ""
+    oidcAudience: repo-mcp
+    oidcGroupsClaim: groups
+    cbmIdleTimeoutSeconds: 900
+    cbmCallTimeoutSeconds: 120
+    smartToolsEnabled: true
+    logLevel: info
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  extraEnv: []
+
+# ── indexer ───────────────────────────────────────────────────────────
+indexer:
+  enabled: true
+  # The queue and its per-project locks live in process. Running more than one
+  # replica means two pods can index the same project at once and contend on
+  # the engine's mutation lock. Keep this at 1 until a shared queue exists
+  # (docs/roadmap.md).
+  replicaCount: 1
+
+  service:
+    type: ClusterIP
+    port: 8080
+    annotations: {}
+
+  resources:
+    requests: { cpu: 500m, memory: 2Gi }
+    limits: { memory: 8Gi }
+
+  config:
+    # Concurrent indexing jobs inside the pod. Indexing is RAM-first, so raise
+    # this together with the memory limit.
+    concurrency: 2
+    rescanIntervalSeconds: 86400
+    logLevel: info
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  extraEnv: []
+
+# ── storage ───────────────────────────────────────────────────────────
+persistence:
+  enabled: true
+
+  cache:
+    # The graph stores. SQLite in WAL mode: many readers, one writer, on a
+    # POSIX filesystem. Do NOT put this on NFS — WAL locking is unreliable
+    # there and the stores will corrupt.
+    size: 100Gi
+    storageClass: ""
+    # ReadWriteOnce keeps everything on one node, which is correct for a
+    # single gateway replica. Scaling the gateway out needs ReadWriteMany on a
+    # block-backed filesystem, or the synced topology in docs/scaling.md.
+    accessMode: ReadWriteOnce
+    existingClaim: ""
+
+  repos:
+    # Working copies. Cloned with --filter=blob:none, so this is far smaller
+    # than the sum of full clones.
+    size: 200Gi
+    storageClass: ""
+    accessMode: ReadWriteOnce
+    existingClaim: ""
+
+# ── configuration ─────────────────────────────────────────────────────
+# Rendered into a ConfigMap. See docs/roles-and-permissions.md.
+tenants:
+  roles:
+    admin: [platform-admins]
+    developer: [engineers]
+  tenants:
+    default:
+      ldap_groups: [engineers, platform-admins]
+      tool_profile: analysis
+      projects: ["*"]
+
+# Rendered into a ConfigMap. Tokens are referenced by environment variable
+# name and resolved from the secret below.
+scan:
+  connectors: []
+  # - name: acme-github
+  #   type: github
+  #   org: acme
+  #   token_env: GITHUB_TOKEN
+  #   tenant: default
+  #   mode: moderate
+
+# ── secrets ───────────────────────────────────────────────────────────
+secrets:
+  # Provide an existing secret instead of the values below. Recommended:
+  # it keeps tokens out of values files and CI logs.
+  existingSecret: ""
+  create: true
+  data:
+    GITHUB_TOKEN: ""
+    GITLAB_TOKEN: ""
+    BITBUCKET_APP_PASSWORD: ""
+    WEBHOOK_SECRET_GITHUB: ""
+    WEBHOOK_SECRET_GITLAB: ""
+    WEBHOOK_SECRET_BITBUCKET: ""
+    CI_TRIGGER_TOKEN: ""
+    LITELLM_API_KEY: ""
+
+# ── model backend ─────────────────────────────────────────────────────
+litellm:
+  # URL of an existing LiteLLM proxy. Self-hosted backends (Ollama, vLLM) are
+  # configured there, not here.
+  baseUrl: ""
+  model: gpt-4o-mini
+  timeoutSeconds: 90
+
+# ── ingress ───────────────────────────────────────────────────────────
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: repo-mcp.example.com
+      paths:
+        - path: /mcp
+          pathType: Prefix
+          service: gateway
+        - path: /webhook
+          pathType: Prefix
+          service: indexer
+  tls: []
+
+# ── observability ─────────────────────────────────────────────────────
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    labels: {}
+
+# ── network policy ────────────────────────────────────────────────────
+networkPolicy:
+  enabled: false
+  # Namespaces allowed to reach the gateway.
+  allowedNamespaces: []
+  # Egress is needed for: git providers, the OIDC issuer and LiteLLM.
+  allowExternalEgress: true

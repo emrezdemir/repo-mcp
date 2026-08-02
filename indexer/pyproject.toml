@@ -2,13 +2,14 @@
 name = "repo-mcp-indexer"
 version = "0.1.0"
 description = "Repository discovery and scheduled indexing for repo-mcp"
-readme = "../README.md"
+readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 dependencies = [
     "fastapi>=0.110",
     "uvicorn[standard]>=0.29",
     "httpx>=0.27",
+    "prometheus-client>=0.20",
     "pyyaml>=6.0",
 ]
 
@@ -29,6 +30,7 @@ include = ["app*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+asyncio_mode = "auto"
 
 [tool.ruff]
 line-length = 100

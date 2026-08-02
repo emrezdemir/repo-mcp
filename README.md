@@ -73,21 +73,18 @@ Full detail in [docs/architecture.md](docs/architecture.md).
 
 ```bash
 git clone https://github.com/emrezdemir/repo-mcp
-cd repo-mcp/deploy
+cd repo-mcp
 
-cp tenants.example.yaml tenants.yaml     # roles, squads, project allowlists
-cp scan.example.yaml scan.yaml           # which orgs/groups to index
-
-export LITELLM_MASTER_KEY=$(openssl rand -hex 24)
-export GITHUB_TOKEN=ghp_...              # read-only, for discovery
-export CI_TRIGGER_TOKEN=$(openssl rand -hex 24)
-
-docker compose up --build
+make setup      # virtualenvs, dependencies, config files, generated secrets
+# edit deploy/.env (add a provider token) and deploy/scan.yaml
+make up         # build and start the Docker stack
+make smoke      # verify it end to end
 ```
 
 Then discover and index:
 
 ```bash
+source deploy/.env
 curl -X POST http://localhost:8082/rescan -H "Authorization: Bearer $CI_TRIGGER_TOKEN"
 curl http://localhost:8082/repos
 ```
@@ -95,6 +92,11 @@ curl http://localhost:8082/repos
 Point an MCP client at `http://localhost:8080/mcp` with an OIDC bearer token
 and an `X-Tenant` header. The full walkthrough, including Keycloak and LDAP
 setup, is in [docs/deployment.md](docs/deployment.md).
+
+If something does not work, `make debug` checks the toolchain, the engine, the
+configuration, storage, both services, an MCP round trip and the model
+backend — and reports everything it finds rather than stopping at the first
+problem.
 
 ## Configuration
 
@@ -137,6 +139,8 @@ connectors:
 | [Engine constraints](docs/cbm-constraints.md) | source-verified CBM behaviours that shape the design |
 | [Roles and permissions](docs/roles-and-permissions.md) | capabilities, roles, chapters, how the axes combine |
 | [Deployment](docs/deployment.md) | Keycloak/LDAP, webhooks, CI, production notes |
+| [Scaling](docs/scaling.md) | storage topologies, what to watch, capacity planning |
+| [Development](docs/development.md) | the scripts, the test layers, how to debug |
 | [Roadmap](docs/roadmap.md) | done, next, and explicitly not planned |
 | [Decision records](docs/adr/) | why the design is what it is |
 
@@ -150,9 +154,21 @@ read it before assuming a feature exists.
 ## Development
 
 ```bash
-cd gateway && pip install -e '.[dev]' && pytest
-cd ../indexer && pip install -e '.[dev]' && pytest
+make setup      # virtualenvs and dependencies
+make test       # lint and unit tests for both services
+make dev        # run both services locally, no Docker, auto-reload
+make debug      # diagnose whatever is not working
+make e2e        # build images, index a real repository, query it, tear down
+make help       # everything else
 ```
+
+Every target is a script in [`scripts/`](scripts/) — run them directly if you
+prefer. Details in [docs/development.md](docs/development.md).
+
+Kubernetes deployment uses the Helm chart in
+[`deploy/helm/repo-mcp`](deploy/helm/repo-mcp); read
+[docs/scaling.md](docs/scaling.md) before raising any replica count, because
+the storage topology constrains it.
 
 Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 

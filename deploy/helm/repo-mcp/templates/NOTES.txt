@@ -1,0 +1,43 @@
+repo-mcp {{ .Chart.AppVersion }} installed as {{ .Release.Name }}.
+
+Endpoints (in-cluster):
+{{- if .Values.gateway.enabled }}
+  gateway   http://{{ include "repo-mcp.fullname" . }}-gateway.{{ .Release.Namespace }}:{{ .Values.gateway.service.port }}/mcp
+{{- end }}
+{{- if .Values.indexer.enabled }}
+  indexer   http://{{ include "repo-mcp.fullname" . }}-indexer.{{ .Release.Namespace }}:{{ .Values.indexer.service.port }}
+{{- end }}
+
+Check it:
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "repo-mcp.fullname" . }}-gateway {{ .Values.gateway.service.port }}
+  curl -s localhost:{{ .Values.gateway.service.port }}/readyz
+
+Start the first discovery pass:
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "repo-mcp.fullname" . }}-indexer {{ .Values.indexer.service.port }}
+  curl -X POST localhost:{{ .Values.indexer.service.port }}/rescan -H "Authorization: Bearer $CI_TRIGGER_TOKEN"
+
+{{- if not .Values.gateway.config.oidcIssuer }}
+
+WARNING: gateway.config.oidcIssuer is empty. The gateway cannot verify tokens
+and every request will be rejected. Point it at your Keycloak realm.
+{{- end }}
+{{- if not .Values.scan.connectors }}
+
+WARNING: scan.connectors is empty. Nothing will be discovered or indexed.
+See docs/deployment.md for connector examples.
+{{- end }}
+{{- if and .Values.secrets.create (not .Values.secrets.existingSecret) }}
+
+NOTE: secrets were rendered from values. For anything beyond evaluation, use
+secrets.existingSecret so tokens stay out of values files and CI logs.
+{{- end }}
+{{- if gt (int .Values.indexer.replicaCount) 1 }}
+
+WARNING: indexer.replicaCount is {{ .Values.indexer.replicaCount }}. The job queue and its
+per-project locks are in-process, so replicas will contend on the engine's
+mutation lock. Keep this at 1 — see docs/scaling.md.
+{{- end }}
+
+Docs: https://github.com/emrezdemir/repo-mcp/blob/main/docs/scaling.md

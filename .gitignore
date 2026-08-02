@@ -20,3 +20,10 @@ deploy/keycloak/
 *.db-wal
 *.db-shm
 *.zst
+
+# Service virtualenvs
+gateway/.venv/
+indexer/.venv/
+
+# Local dev data
+.dev/

@@ -19,6 +19,14 @@ Honest status. Anything not marked *done* is not built yet.
   rescan, and a CI trigger endpoint.
 - **Reasoning layer.** LiteLLM-backed `explain_change_impact` and
   `ask_codebase`; hosted, vLLM or Ollama backends are proxy configuration.
+- **Observability.** Prometheus metrics on both services: queue depth, tool
+  and index latency, engine process count and restarts, model backend
+  outcomes.
+- **Packaging.** Multi-stage images with a pinned engine build, a Helm chart
+  covering autoscaling, PDBs, ServiceMonitors, NetworkPolicies and ingress,
+  and a Compose stack for evaluation.
+- **Scripts.** Setup, test, dev, debug, smoke and end-to-end runs — see
+  [development.md](development.md).
 
 ## Next
 
@@ -43,7 +51,13 @@ since it is the one path where a single request can cost minutes of CPU.
 
 **4. Durable job queue.** The indexer currently coalesces and serialises
 in-process. That is correct for a single replica; horizontal scaling needs
-Redis or NATS, and per-project locking that survives a restart.
+Redis or NATS, and per-project locking that survives a restart. This is what
+keeps `indexer.replicaCount` pinned to 1 today.
+
+**4b. Synced gateway replicas.** Topology 3 in [scaling.md](scaling.md): the
+indexer publishes `graph.db.zst` artifacts and each gateway replica keeps a
+local copy, removing shared storage from horizontal scaling entirely. Designed
+in [ADR-0005](adr/0005-storage-topology.md), not implemented.
 
 **5. The organisation-wide shared layer.** `cross-repo-intelligence` runs and
 the `structural_only` tenant flag exist, but the nightly job that builds

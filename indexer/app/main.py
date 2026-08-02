@@ -10,8 +10,9 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Header, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
+from .metrics import DISCOVERED_REPOS, DISCOVERY_RUNS, WEBHOOKS, render
 from .repos import Binding, ScanConfig
 from .webhooks import (
     PushEvent,
@@ -54,8 +55,10 @@ class BindingCache:
                     provider = connector.build()
                 except ValueError as exc:
                     log.error("connector %s is misconfigured: %s", connector.name, exc)
+                    DISCOVERY_RUNS.labels(connector.name, "misconfigured").inc()
                     continue
                 count = 0
+                outcome = "ok"
                 try:
                     async for repo in provider.discover():
                         if not connector.matches(repo):
@@ -66,6 +69,9 @@ class BindingCache:
                 except Exception:  # noqa: BLE001 - one bad connector must not
                     # invalidate the others; keep whatever it already yielded.
                     log.exception("discovery failed for connector %s", connector.name)
+                    outcome = "error"
+                DISCOVERY_RUNS.labels(connector.name, outcome).inc()
+                DISCOVERED_REPOS.labels(connector.name, connector.tenant).set(count)
                 log.info("connector %s matched %d repositories", connector.name, count)
             self._bindings = discovered
             return len(discovered)
@@ -124,6 +130,11 @@ def create_app() -> FastAPI:
     @app.get("/healthz")
     async def healthz() -> dict:
         return {"status": "ok", "queue_depth": indexer.depth}
+
+    @app.get("/metrics")
+    async def metrics() -> Response:
+        payload, content_type = render()
+        return Response(content=payload, media_type=content_type)
 
     @app.get("/repos")
     async def repos() -> dict:
@@ -188,13 +199,16 @@ def create_app() -> FastAPI:
             )
         except WebhookError as exc:
             log.warning("rejected %s webhook: %s", provider, exc)
+            WEBHOOKS.labels(provider, "rejected").inc()
             return JSONResponse({"error": str(exc)}, status_code=400)
 
         if is_deletion(event):
+            WEBHOOKS.labels(provider, "ignored_deletion").inc()
             return JSONResponse({"queued": False, "reason": "branch deletion"})
 
         binding = await cache.lookup(event.full_name)
         if binding is None:
+            WEBHOOKS.labels(provider, "out_of_scope").inc()
             return JSONResponse(
                 {"queued": False, "reason": f"{event.full_name} is not in scope"}
             )
@@ -202,11 +216,13 @@ def create_app() -> FastAPI:
         # Only the default branch feeds the shared graph. Feature branches are
         # handled on demand by the gateway, not by the central index.
         if event.ref and not event.ref.endswith(f"/{binding.default_branch}"):
+            WEBHOOKS.labels(provider, "ignored_branch").inc()
             return JSONResponse({"queued": False, "reason": "not the default branch"})
 
         queued = indexer.enqueue(
             IndexJob(binding=binding, sha=event.sha, trigger=f"webhook:{provider}")
         )
+        WEBHOOKS.labels(provider, "queued" if queued else "coalesced").inc()
         return JSONResponse({"queued": queued, "project": binding.project})
 
     return app
