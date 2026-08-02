@@ -26,7 +26,6 @@ TENANT="${TENANT:-}"
 # Small, permissively licensed and stable — indexes in seconds.
 SAMPLE_REPO="${SAMPLE_REPO:-https://github.com/pallets/click}"
 SAMPLE_NAME="${SAMPLE_NAME:-smoke-click}"
-KEEP=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -35,7 +34,6 @@ while [[ $# -gt 0 ]]; do
     --name)   SAMPLE_NAME="$2"; shift ;;
     --tenant) TENANT="$2"; shift ;;
     --token)  TOKEN="$2"; shift ;;
-    --keep)   KEEP=1 ;;
     -h|--help) sed -n '2,17p' "$0" | sed 's/^# \?//'; exit 0 ;;
     *) die "unknown argument: $1 (try --help)" ;;
   esac

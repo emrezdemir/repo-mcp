@@ -144,11 +144,15 @@ trap cleanup EXIT INT TERM
 
 start() {
   local service="$1" port="$2"
-  cd "$REPO_ROOT/$service"
-  "$(py_for "$service")" -m uvicorn app.asgi:app \
-    --host 127.0.0.1 --port "$port" --reload --reload-dir app &
+  # A subshell rather than cd-and-cd-back: uvicorn needs the service directory
+  # on its path, and a failed return would leave the next service starting from
+  # the wrong tree.
+  (
+    cd "$REPO_ROOT/$service" || die "cannot enter $service"
+    exec "$(py_for "$service")" -m uvicorn app.asgi:app \
+      --host 127.0.0.1 --port "$port" --reload --reload-dir app
+  ) &
   PIDS+=($!)
-  cd "$REPO_ROOT"
 }
 
 [[ "$WHICH" == "gateway" || "$WHICH" == "both" ]] && start gateway 8080

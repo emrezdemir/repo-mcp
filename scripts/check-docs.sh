@@ -18,7 +18,7 @@ for arg in "$@"; do
   esac
 done
 
-cd "$REPO_ROOT"
+cd "$REPO_ROOT" || die "cannot enter $REPO_ROOT"
 
 FAILURES=()
 note() { FAILURES+=("$1"); }
