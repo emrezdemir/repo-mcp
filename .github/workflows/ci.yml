@@ -42,11 +42,51 @@ jobs:
           if [ "${{ matrix.service }}" != "common" ]; then pip install -e ../common; fi
           pip install -e '.[dev]'
 
+      # The interface is built rather than committed, and the gateway's tests
+      # cover how it is served. Without this they skip, which would hide a
+      # route that stopped working.
+      - uses: actions/setup-node@v4
+        if: matrix.service == 'gateway'
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: gateway/webui/package-lock.json
+
+      - name: Build the interface
+        if: matrix.service == 'gateway'
+        working-directory: gateway/webui
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+          rm -rf ../app/ui && cp -r dist ../app/ui
+
       - name: Lint
         run: ruff check --output-format=github .
 
       - name: Test
         run: pytest -q
+
+  webui:
+    name: web interface
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gateway/webui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: gateway/webui/package-lock.json
+      - name: Install
+        run: npm ci --no-audit --no-fund
+      - name: Types
+        run: npx tsc -b
+      - name: Test
+        run: npm test
+      - name: Build
+        run: npm run build
 
   branch:
     name: branch name

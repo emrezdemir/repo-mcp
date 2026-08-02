@@ -71,6 +71,15 @@ def settings(**overrides) -> Settings:
     return replace(base, **overrides)
 
 
+#: The interface is built, not committed, so a checkout that has not run the
+#: build has nothing for these to serve. Skipping with the command to run
+#: beats a stack of FileNotFoundError that says nothing about the cause.
+built = pytest.mark.skipif(
+    not (UI_DIR / "index.html").is_file(),
+    reason="the interface is not built — run: cd gateway/webui && npm ci && npm run build",
+)
+
+
 def client(*, ready: bool = True, **overrides) -> TestClient:
     config = RuntimeConfig(
         generation=1,
@@ -203,12 +212,14 @@ def test_session_tools_are_the_ones_the_role_and_the_squad_both_allow():
 # ── serving the interface ────────────────────────────────────────────
 
 
+@built
 def test_the_root_serves_the_page():
     response = client().get("/ui")
     assert response.status_code == 200
     assert "<title>repo-mcp</title>" in response.text
 
 
+@built
 def test_the_built_assets_are_served():
     """The interface is a Vite build: one hashed bundle per kind, under
     assets/. A route that only served the top level would return the page and
@@ -220,6 +231,7 @@ def test_the_built_assets_are_served():
         assert client().get(f"/ui/assets/{asset.name}").status_code == 200, asset.name
 
 
+@built
 @pytest.mark.parametrize(
     "path",
     [
@@ -234,6 +246,7 @@ def test_nothing_outside_the_interface_directory_is_served(path):
     assert client().get(f"/ui/{path}").status_code == 404
 
 
+@built
 def test_a_file_with_the_wrong_kind_is_not_served():
     """Only the kinds a browser needs. Anything else in that directory — a
     stray note, a source map left behind, a build manifest — is not a
@@ -242,10 +255,12 @@ def test_a_file_with_the_wrong_kind_is_not_served():
     assert client().get("/ui/assets/manifest.json").status_code == 404
 
 
+@built
 def test_a_missing_file_is_a_404_rather_than_an_error():
     assert client().get("/ui/assets/nosuch.js").status_code == 404
 
 
+@built
 def test_the_interface_is_served_without_a_token():
     """It is the sign-in screen; it cannot require having signed in."""
     asset = sorted((UI_DIR / "assets").glob("*.js"))[0]
