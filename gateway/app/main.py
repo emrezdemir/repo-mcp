@@ -9,6 +9,7 @@ from fastapi import FastAPI, Header, Request
 from fastapi.responses import JSONResponse, Response
 from repo_mcp_common.bootstrap import NotBootstrapped, inspect_state
 from repo_mcp_common.db import Database, DatabaseUnavailable
+from repo_mcp_common.env import EnvError, secrets_key
 
 from .admin_api import build_router
 from .answer_cache import AnswerCache
@@ -48,6 +49,11 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
                 "Never run this in production."
             )
         try:
+            # Before the database, because a missing key is a deployment
+            # mistake rather than a transient one: the service would start,
+            # serve requests, and fail on the first credential it had to
+            # decrypt — somewhere far from the cause.
+            secrets_key()
             await database.wait_until_ready()
             bootstrap_state = await inspect_state(database)
             state["ready"] = bootstrap_state.ready
@@ -56,7 +62,7 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
                 log.error("not ready: %s", bootstrap_state.explain())
             else:
                 await provider.current()
-        except (DatabaseUnavailable, NotBootstrapped) as exc:
+        except (DatabaseUnavailable, NotBootstrapped, EnvError) as exc:
             # Keep answering /healthz so an orchestrator reports "unhealthy"
             # with a readable reason rather than a crash loop with none.
             state["ready"] = False

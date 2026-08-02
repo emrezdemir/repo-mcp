@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse, Response
 from repo_mcp_common.answer_cache import bump_epoch, purge, purge_superseded
 from repo_mcp_common.bootstrap import inspect_state
 from repo_mcp_common.db import Database, DatabaseUnavailable
+from repo_mcp_common.env import EnvError, secrets_key
 from repo_mcp_common.store import ConfigStore
 
 from .metrics import DISCOVERED_REPOS, DISCOVERY_RUNS, WEBHOOKS, render
@@ -182,6 +183,11 @@ def create_app(database: Database | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         try:
+            # Before the database, because a missing key is a deployment
+            # mistake rather than a transient one: the service would start,
+            # serve requests, and fail on the first credential it had to
+            # decrypt — somewhere far from the cause.
+            secrets_key()
             await database.wait_until_ready()
             bootstrap_state = await inspect_state(database)
             state["ready"] = bootstrap_state.ready
@@ -195,7 +201,7 @@ def create_app(database: Database | None = None) -> FastAPI:
                     git_timeout_s=float(snapshot.setting("indexer.git_timeout_seconds")),
                     index_timeout_s=float(snapshot.setting("indexer.index_timeout_seconds")),
                 )
-        except DatabaseUnavailable as exc:
+        except (DatabaseUnavailable, EnvError) as exc:
             state["ready"] = False
             state["reason"] = str(exc)
             log.error("%s", exc)

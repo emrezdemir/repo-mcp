@@ -18,7 +18,7 @@ from . import bootstrap as boot
 from .admin import AdminError, set_setting
 from .crypto import generate_key
 from .db import Database, DatabaseUnavailable
-from .env import EnvError, migrate_on_start
+from .env import EnvError, migrate_on_start, secrets_key
 from .passwords import WeakPassword, validate
 
 
@@ -168,6 +168,14 @@ async def cmd_status(_args) -> int:
     state = await boot.inspect_state(database)
     _print(f"schema:   {'present' if state.schema_present else 'missing'}")
     _print(f"admins:   {state.admin_count}")
+
+    # Deliberately does not fail without it: diagnosing a deployment whose key
+    # is missing is exactly when this command is worth running.
+    try:
+        secrets_key()
+        _print("key:      set")
+    except EnvError:
+        _print("key:      MISSING — services will refuse to serve (SECRETS_KEY)")
 
     if state.ready:
         from .store import ConfigStore
