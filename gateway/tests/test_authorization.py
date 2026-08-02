@@ -53,6 +53,9 @@ def settings(tmp_path=None) -> Settings:
         answer_cache_embedding_model="",
         answer_cache_threshold=0.95,
         answer_cache_ttl_s=604800.0,
+        headroom_enabled=False,
+        headroom_base_url="",
+        headroom_fallback=True,
     )
 
 

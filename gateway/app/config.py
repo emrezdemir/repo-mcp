@@ -46,6 +46,11 @@ class Settings:
     answer_cache_threshold: float
     answer_cache_ttl_s: float
 
+    # --- prompt compression (docs/adr/0010-headroom-plugin.md) ---
+    headroom_enabled: bool
+    headroom_base_url: str
+    headroom_fallback: bool
+
     @classmethod
     def from_env(cls) -> Settings:
         groups = os.getenv("DEV_STATIC_GROUPS", "")
@@ -71,4 +76,7 @@ class Settings:
             answer_cache_embedding_model=os.getenv("ANSWER_CACHE_EMBEDDING_MODEL", ""),
             answer_cache_threshold=float(os.getenv("ANSWER_CACHE_THRESHOLD", "0.95")),
             answer_cache_ttl_s=float(os.getenv("ANSWER_CACHE_TTL_S", "604800")),
+            headroom_enabled=_bool("HEADROOM_ENABLED", False),
+            headroom_base_url=os.getenv("HEADROOM_BASE_URL", ""),
+            headroom_fallback=_bool("HEADROOM_FALLBACK_TO_LITELLM", True),
         )

@@ -70,6 +70,9 @@ def make_settings(tmp_path: Path, binary: str, call_timeout: float = 10.0) -> Se
         answer_cache_embedding_model="",
         answer_cache_threshold=0.95,
         answer_cache_ttl_s=604800.0,
+        headroom_enabled=False,
+        headroom_base_url="",
+        headroom_fallback=True,
     )
 
 

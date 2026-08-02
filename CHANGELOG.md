@@ -8,6 +8,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Prompt compression, as a plugin.** Headroom runs as its own pinned
+  container in front of LiteLLM, enabled by `headroom.enabled` and disabled by
+  the same setting. Nothing is vendored: updating it is bumping an image tag,
+  and the chart refuses to deploy it unpinned. An unreachable proxy falls back
+  to LiteLLM rather than failing a tool call, embeddings never pass through it
+  — compressing the text would move the vector the answer cache keys on — and
+  raw engine output cannot reach it at all, because tool results never pass
+  through a model. [ADR-0010](docs/adr/0010-headroom-plugin.md).
+
 - **Answer cache.** `ask_codebase` answers are cached per squad and keyed on
   the project's index epoch, so a repeated question costs one indexed row read
   instead of thousands of tokens, and a reindex retires every answer computed
@@ -143,6 +152,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- `deploy/docker-compose.yml` did not parse — `limits: { memory: ${VAR:-16g} }`
+  is not valid YAML unquoted, and a duplicate `ENVIRONMENT` key had crept in.
+  Nothing read the file, so nothing said so; `make test` now validates it with
+  `docker compose config` when Docker is present.
 - Migration `0001` created the schema by calling `Base.metadata.create_all`,
   so it built whatever the models happened to contain — including tables added
   by later revisions, which then failed on a table that already existed. It is

@@ -81,6 +81,12 @@ CACHE_LOOKUP_SECONDS = Histogram(
 )
 
 
+COMPRESSION_FALLBACKS = Counter(
+    "repo_mcp_compression_fallbacks_total",
+    "Chat completions that bypassed an unreachable compression proxy.",
+)
+
+
 def render() -> tuple[bytes, str]:
     """Return the exposition payload and its content type."""
     return generate_latest(), CONTENT_TYPE_LATEST

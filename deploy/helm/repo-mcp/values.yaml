@@ -209,6 +209,51 @@ secrets:
     WEBHOOK_SECRET_BITBUCKET: ""
     CI_TRIGGER_TOKEN: ""
 
+# ── prompt compression ────────────────────────────────────────────────
+# Headroom sits between the gateway and LiteLLM and compresses the evidence
+# sent to the model. Upstream software, run from its own pinned image — this
+# chart deploys it, it does not contain it. Updating it is bumping the tag.
+#
+# Deploying it is not the same as using it: point the platform at it and turn
+# it on through the admin API, which is also how it is turned off.
+#
+#   repo-mcp-admin set headroom.base_url http://<release>-headroom:8787/v1
+#   repo-mcp-admin set headroom.enabled true
+#
+# See docs/adr/0010-headroom-plugin.md.
+headroom:
+  enabled: false
+  replicaCount: 1
+  port: 8787
+
+  image:
+    repository: ghcr.io/chopratejas/headroom
+    # No default: the chart refuses to deploy an unpinned compression proxy.
+    # One that changes underneath you changes what the model is told, silently.
+    tag: ""
+    pullPolicy: IfNotPresent
+
+  command: ["headroom", "proxy", "--port", "8787"]
+
+  # Headroom's own configuration, passed through untouched. Point it at
+  # LiteLLM here; the variable names are Headroom's, and documented by it.
+  extraEnv:
+    - name: HEADROOM_UPDATE_CHECK
+      value: "off"
+    - name: HEADROOM_OUTPUT_SHAPER
+      value: "1"
+    # - name: OPENAI_BASE_URL
+    #   value: http://litellm.example:4000/v1
+    # - name: OPENAI_API_KEY
+    #   valueFrom: { secretKeyRef: { name: repo-mcp-production, key: LITELLM_API_KEY } }
+
+  resources:
+    requests: { cpu: 200m, memory: 512Mi }
+    limits: { memory: 2Gi }
+
+  nodeSelector: {}
+  tolerations: []
+
 # ── ingress ───────────────────────────────────────────────────────────
 ingress:
   enabled: false

@@ -222,6 +222,45 @@ to false stops it.
 Why there is no vector database here, and when there should be, is in
 [ADR-0009](adr/0009-answer-cache.md).
 
+## Prompt compression
+
+Optional, off by default. [Headroom](https://github.com/headroomlabs-ai/headroom)
+sits between the gateway and LiteLLM and compresses the evidence sent to the
+model — mostly JSON, which is what it is best at. It is upstream software run
+from its own pinned image: this repository deploys it and contains none of it,
+so updating it is bumping a tag.
+
+```bash
+# Compose: its own profile, so the default stack is unchanged.
+docker compose --profile headroom up -d
+
+# Kubernetes: headroom.enabled=true, with a pinned tag. The chart refuses an
+# unpinned one — a proxy that changes underneath you changes what the model is
+# told, silently.
+```
+
+Deploying it is not the same as using it. Point the platform at it and turn it
+on, which is also how it is turned off:
+
+```bash
+repo-mcp-admin set headroom.base_url http://headroom:8787/v1
+repo-mcp-admin set headroom.enabled true
+```
+
+Two properties are worth knowing before enabling it. If it is unreachable, the
+gateway answers through LiteLLM directly and logs it —
+`repo_mcp_compression_fallbacks_total` counts that, and
+`headroom.fallback_to_litellm` turns the behaviour off for an operator who
+wants compression or nothing. And embeddings never go through it: compressing
+the text would move the vector the answer cache keys on.
+
+Raw engine output — `get_code_snippet` included — never reaches it either, and
+not by policy: tool results are returned to the client without passing through
+a model at all, so there is no path from them to a compression proxy.
+
+The reasoning, and what compression can cost you, is in
+[ADR-0010](adr/0010-headroom-plugin.md).
+
 ## Kubernetes and more than one environment
 
 The Helm chart deploys one environment. Configuration is not part of it —

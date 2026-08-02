@@ -51,6 +51,14 @@ DEFAULT_SETTINGS: dict[str, object] = {
     # plausible, about a different question, and very hard to notice.
     "answer_cache.similarity_threshold": 0.95,
     "answer_cache.ttl_seconds": 604800,
+    # Headroom, the prompt compression proxy — docs/adr/0010-headroom-plugin.md.
+    # Off by default: it changes what the model is told, which is an
+    # administrator's decision to make knowingly.
+    "headroom.enabled": False,
+    "headroom.base_url": "",
+    # On an unreachable proxy, answer through LiteLLM directly rather than
+    # failing. A compression layer must not be able to take down answering.
+    "headroom.fallback_to_litellm": True,
 }
 
 

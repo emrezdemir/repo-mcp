@@ -83,6 +83,7 @@ external system. Treat their behaviour as unproven.
 | The bootstrap hook Job | Never run in a cluster; the same `repo-mcp-admin init` command was run directly |
 | End-to-end script | Never run; needs Docker |
 | Keycloak/LDAP federation | Documented, never stood up |
+| Headroom | Never started. The routing, the fallback and the embedding bypass are unit-tested against a mock transport; no Headroom container has run, and its own upstream configuration is its documentation, not ours |
 | The answer cache's semantic tier | A real embedding model. The storage, scoring, isolation and invalidation are unit-tested with synthetic vectors; no `/embeddings` call has been made |
 
 **First real deployment should start here.** These are where surprises live.
@@ -128,6 +129,7 @@ Not bugs — consequences of decisions, recorded so nobody rediscovers them.
 | The chart supplied no `DATABASE_URL`, so an install could not have started | Reading the chart while adding environments | Database, secret key and environment label added; ConfigMap removed |
 | The chart pointed both deployments at one image | The same read | Repository is a base, component is a suffix — matching CI |
 | `scripts/dev.sh` and the CI smoke started services with no database | Running `make dev` | `dev.sh` creates and seeds a local SQLite database; CI runs against PostgreSQL |
+| `deploy/docker-compose.yml` did not parse: unquoted `${VAR:-default}` in a flow mapping, and a duplicate `ENVIRONMENT` key | Running `docker compose config` while adding a service | Quoted, deduplicated, and `make test` validates the file now |
 | Migration 0001 built the schema from the live models, so it created 0002's tables and 0002 then failed | Adding the second migration | 0001 transcribed explicitly, plus a test comparing the migrated schema to the models |
 | Four administrator-editable `indexer.*` settings were read by nothing | Checking which chart values were still real | The indexer reads them from the store, re-reading the rescan interval each pass |
 

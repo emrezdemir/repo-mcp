@@ -20,7 +20,7 @@ import time
 import httpx
 
 from .config import Settings
-from .metrics import LLM_CALLS, LLM_DURATION
+from .metrics import COMPRESSION_FALLBACKS, LLM_CALLS, LLM_DURATION
 from .tenants import Tenant
 
 log = logging.getLogger(__name__)
@@ -30,22 +30,35 @@ class LlmError(RuntimeError):
     """An LLM call failed or is not configured."""
 
 
+class LlmUnreachable(LlmError):
+    """The endpoint could not be reached, or answered with a server error.
+
+    Separate from `LlmError` because it is the only failure worth retrying
+    elsewhere: a 400 from the model means the same thing on every route.
+    """
+
+
 class LlmClient:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
-        self._client: httpx.AsyncClient | None = None
-        self._stale: httpx.AsyncClient | None = None
+        #: One client per base URL. Chat completions may go through the
+        #: compression proxy while embeddings go straight to LiteLLM, so there
+        #: is more than one endpoint in play.
+        self._clients: dict[str, httpx.AsyncClient] = {}
+        self._stale: list[httpx.AsyncClient] = []
 
     def update(self, settings: Settings) -> None:
         """Adopt configuration an administrator changed.
 
-        The base URL is baked into the client, so a change to it has to
-        discard the old one rather than silently keep talking to the previous
-        endpoint.
+        A base URL is baked into its client, so a change has to discard the old
+        one rather than silently keep talking to the previous endpoint.
         """
-        if settings.litellm_base_url != self._settings.litellm_base_url:
-            self._stale = self._client
-            self._client = None
+        live = {
+            settings.litellm_base_url.rstrip("/"),
+            settings.headroom_base_url.rstrip("/"),
+        }
+        for url in [u for u in self._clients if u not in live]:
+            self._stale.append(self._clients.pop(url))
         self._settings = settings
 
     @property
@@ -53,19 +66,29 @@ class LlmClient:
         return bool(self._settings.smart_tools_enabled and self._settings.litellm_base_url)
 
     async def aclose(self) -> None:
-        for client in (self._client, self._stale):
-            if client is not None:
-                await client.aclose()
-        self._client = None
-        self._stale = None
+        for client in [*self._clients.values(), *self._stale]:
+            await client.aclose()
+        self._clients.clear()
+        self._stale.clear()
 
-    def _http(self) -> httpx.AsyncClient:
-        if self._client is None:
-            self._client = httpx.AsyncClient(
-                base_url=self._settings.litellm_base_url.rstrip("/"),
-                timeout=self._settings.litellm_timeout_s,
+    def _http(self, base_url: str) -> httpx.AsyncClient:
+        url = base_url.rstrip("/")
+        if url not in self._clients:
+            self._clients[url] = httpx.AsyncClient(
+                base_url=url, timeout=self._settings.litellm_timeout_s
             )
-        return self._client
+        return self._clients[url]
+
+    def _chat_route(self) -> str | None:
+        """The compression proxy, when an administrator turned it on.
+
+        Embeddings deliberately do not use it: compressing the text first would
+        move the vector, and the answer cache keys on that vector.
+        See docs/adr/0010-headroom-plugin.md.
+        """
+        if not self._settings.headroom_enabled:
+            return None
+        return self._settings.headroom_base_url.rstrip("/") or None
 
     def _api_key(self, tenant: Tenant) -> str:
         if tenant.litellm_key_env:
@@ -101,28 +124,47 @@ class LlmClient:
             "user": username,
             "metadata": {"tags": [f"squad:{tenant.name}"]},
         }
-        model = self._settings.litellm_model
+        headers = {"Authorization": f"Bearer {self._api_key(tenant)}"}
+        route = self._chat_route()
+
+        if route is not None:
+            try:
+                return await self._chat(route, payload, headers)
+            except LlmUnreachable as exc:
+                if not self._settings.headroom_fallback:
+                    raise
+                # The caller asked a question about a codebase; whether a
+                # compression proxy was involved is the operator's concern,
+                # not theirs. Loud here, invisible there.
+                log.warning("compression proxy unavailable, answering directly: %s", exc)
+                COMPRESSION_FALLBACKS.inc()
+
+        return await self._chat(self._settings.litellm_base_url, payload, headers)
+
+    async def _chat(self, base_url: str, payload: dict, headers: dict) -> str:
+        model = str(payload["model"])
         started = time.perf_counter()
         try:
-            response = await self._http().post(
-                "/chat/completions",
-                json=payload,
-                headers={"Authorization": f"Bearer {self._api_key(tenant)}"},
+            response = await self._http(base_url).post(
+                "/chat/completions", json=payload, headers=headers
             )
         except httpx.HTTPError as exc:
             LLM_CALLS.labels(model, "unreachable").inc()
-            raise LlmError(f"cannot reach LiteLLM: {exc}") from exc
+            raise LlmUnreachable(f"cannot reach {base_url}: {exc}") from exc
         finally:
             LLM_DURATION.labels(model).observe(time.perf_counter() - started)
 
+        if response.status_code >= 500:
+            LLM_CALLS.labels(model, "http_5xx").inc()
+            raise LlmUnreachable(f"{base_url} returned {response.status_code}")
         if response.status_code >= 400:
             LLM_CALLS.labels(model, f"http_{response.status_code // 100}xx").inc()
-            raise LlmError(f"LiteLLM returned {response.status_code}: {response.text[:500]}")
+            raise LlmError(f"{base_url} returned {response.status_code}: {response.text[:500]}")
         try:
             content = response.json()["choices"][0]["message"]["content"] or ""
         except (KeyError, IndexError, ValueError) as exc:
             LLM_CALLS.labels(model, "malformed").inc()
-            raise LlmError(f"malformed LiteLLM response: {exc}") from exc
+            raise LlmError(f"malformed response from {base_url}: {exc}") from exc
         LLM_CALLS.labels(model, "ok").inc()
         return content
 
@@ -140,7 +182,8 @@ class LlmClient:
 
         started = time.perf_counter()
         try:
-            response = await self._http().post(
+            # Straight to LiteLLM, never through the compression proxy.
+            response = await self._http(self._settings.litellm_base_url).post(
                 "/embeddings",
                 json={"model": model, "input": text, "user": username},
                 headers={"Authorization": f"Bearer {self._api_key(tenant)}"},
