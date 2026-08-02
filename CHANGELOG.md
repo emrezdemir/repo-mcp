@@ -169,6 +169,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The image shipped the wrong engine build. The glibc one needs GLIBC 2.38 and
+  GLIBCXX 3.4.32; Debian bookworm has 2.36, so it downloaded and verified
+  happily and then failed on its first run with a version-not-found from the
+  dynamic linker. `CBM_VARIANT` now defaults to `-portable`, which is
+  statically linked and depends on nothing — and the build says which flag to
+  change if the binary ever refuses to run again.
+- The image never copied `common/`, so pip went looking for the path-only
+  `repo-mcp-common` on PyPI. Both projects are in the build context now and
+  install in one command.
 - The image build downloaded the engine from a URL that does not exist. The
   release publishes `codebase-memory-mcp-linux-<arch>.tar.gz`, not a bare
   executable, so every image build failed with `curl` exit 22 and no
