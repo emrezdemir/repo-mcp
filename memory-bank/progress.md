@@ -74,9 +74,14 @@ away.
 **Administration**
 - `repo-mcp-admin` and the console cover the same operations through the same
   functions: squads, roles, connectors, secrets, settings, audit,
-  administrator accounts, answer cache. 18 tests, including one that fails if
-  an API operation arrives without a matching command, and one that a CLI
-  change reaches a running service through the generation counter.
+  administrator accounts, answer cache. Tests include one that fails if an API
+  operation arrives without a matching command, and one that a CLI change
+  reaches a running service through the generation counter.
+- `connector check` on both surfaces: runs real discovery against the provider
+  and reports what it can see, or names which of provider / container name /
+  token / patterns is wrong. Verified against a stand-in GitHub API through
+  the real HTTP endpoint and the real command — six failure paths, each with
+  its own sentence. Exits non-zero when the connector does not work.
 
 **Indexer**
 - Discovery for GitHub organisations, GitLab groups (nested subgroups) and
@@ -100,17 +105,27 @@ away.
 - Argon2id passwords, Fernet-encrypted credentials.
 
 **Tooling**
-- `make setup` / `test` / `dev` / `debug` / `stack` / `check-secrets` — all run
-  end to end in a clean checkout.
+- `make setup` / `test` / `verify` / `dev` / `debug` / `stack` / `site` /
+  `check-secrets` — all run end to end in a clean checkout **here**. Note the
+  qualifier: `make setup` ran cleanly in this sandbox for twelve sessions and
+  still failed on the maintainer's Ubuntu server, because `venv` ships
+  separately there. A green run in one environment is not a green run.
+- `make setup ARGS=--config-only` writes configuration and installs no Python
+  at all, for a server that only runs the Docker stack.
 - Secret scanning: verified in both directions — zero false positives across
   the tracked tree, every planted secret caught, and a live commit blocked by
   the hook.
-- 50 unit tests, `ruff` clean.
+- 176 Python tests (92 common, 63 gateway, 21 indexer) and 34 interface tests,
+  `ruff` clean.
 
 **Documentation**
 - Architecture, engine constraints (with source references), roles and
-  permissions, deployment, scaling, development, branching, roadmap, 5 ADRs.
-- `AGENTS.md`, `CLAUDE.md`, this memory bank, code standards.
+  permissions, deployment, scaling, development, branching, roadmap,
+  administration, web interface, code standards — 12 documents and 11 ADRs.
+- All of it rendered onto the project site from the same markdown by
+  `scripts/render-docs.py`; 901 local references across 26 built pages
+  resolve. The site is live and publishes from the default branch.
+- `AGENTS.md`, `CLAUDE.md`, this memory bank.
 
 ## Built, unverified
 
@@ -129,7 +144,7 @@ external system. Treat their behaviour as unproven.
 | Image publishing and the release workflow | No push to a registry has happened; the tag guard, the packaged chart and the `dev-<sha>` publish are all unexercised |
 | The bootstrap hook Job | Never run in a cluster; the same `repo-mcp-admin init` command was run directly |
 | End-to-end script | Never run; needs Docker |
-| Keycloak/LDAP federation | Documented, never stood up |
+| LDAP federation | A real directory. Keycloak 26 itself *was* stood up here — the realm imported, groups and both clients created, a user made by `scripts/keycloak-user.sh` — but no LDAP server has ever been federated into it, so group mapping from a directory is unproven |
 | Headroom | Never started. The routing, the fallback and the embedding bypass are unit-tested against a mock transport; no Headroom container has run, and its own upstream configuration is its documentation, not ours |
 | The answer cache's semantic tier | A real embedding model. The storage, scoring, isolation and invalidation are unit-tested with synthetic vectors; no `/embeddings` call has been made |
 
@@ -200,3 +215,12 @@ Stated plainly so nobody assumes otherwise:
   been cut. The release workflow's guards are unexercised.
 - The engine binary was never available here; the bridge is tested against a
   fake engine that speaks the same protocol.
+- No provider was ever contacted for real. Every connector and discovery test,
+  including `connector check`, ran against a stand-in GitHub API on loopback.
+  The request shapes come from the provider documentation, not from a live
+  round trip against github.com.
+- **The maintainer is now deploying to a real Ubuntu server.** That is the
+  first environment outside this sandbox, and it has already produced one
+  defect this sandbox could never have shown (`make setup` and Debian's
+  separate `venv` package). Expect more of that class, and prefer their report
+  over anything asserted here.

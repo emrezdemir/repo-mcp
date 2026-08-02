@@ -5,73 +5,94 @@
 
 ## Where things stand
 
-Configuration lives in PostgreSQL, with an administrative API, a first-boot
-administrator and encrypted credentials. Both services read it at runtime and
-pick up changes without a restart.
+Everything the platform promises is built and running. Configuration lives in
+PostgreSQL with an administrative API, a first-boot administrator and encrypted
+credentials; both services read it at runtime and pick up changes without a
+restart. The MCP surface, the three authorization layers, the per-tenant engine
+bridge, the answer cache and the composite tools are in place.
 
-Deployment now has a shape: branches produce images, images are promoted to
+The **web interface** is built and is the engine project's own, adopted rather
+than written here (ADR-0011). It signs in with OIDC, picks a squad, draws the
+graph, asks questions, and administers squads/roles/connectors/secrets/
+settings/audit — the same functions `repo-mcp-admin` calls.
+
+The **project site** is live at `emrezdemir.github.io/repo-mcp/`, and the whole
+reference documentation is rendered onto it from `docs/` by
+`scripts/render-docs.py`.
+
+Deployment has a shape: branches produce images, images are promoted to
 environments, and configuration is never promoted. CI publishes `:dev-<sha>`
 from `dev`; a version tag publishes `:vX.Y.Z` and packages the chart.
 
-`main` now carries two releases; the maintainer merges `dev` into it, and
-`sync-dev.yml` fast-forwards `dev` back so the two never drift. `dev` is the
-repository's **default branch**, which matters for anything that deploys — see
-session 13.
+### Branch state, as of this writing
+
+- `dev` is the **default branch** and carries everything. Head: `b8e26c3`.
+- `main` is behind, at the merge of PR #9, and **its CI is red** — it predates
+  the `NodeDetailPanel` test fix. The next `dev → main` merge turns it green;
+  nothing else is needed.
+- The maintainer merges `dev` into `main` and deletes branches; `sync-dev.yml`
+  fast-forwards `dev` back afterwards so the two never drift.
+
+### Open question for the maintainer
+
+The reference documents under `docs/` are **English**; the landing pages (site
+and README) are Turkish. Translating the reference set was raised and not
+decided, because it means choosing which language is the source — one English
+source rendered to the site, or Turkish as the source with English derived.
+Do not start translating without that answer: two hand-maintained copies drift,
+which `AGENTS.md` forbids.
 
 ## What the last sessions did
 
-**Session 13 — the project site, shorter READMEs, and two branch problems.**
-Both READMEs were 699 lines, which is a manual rather than a landing page.
-They became 127 each — what it is, the six things that matter, four commands,
-the interface in pictures, links — and everything cut moved to `site/`, a
-hand-written two-page site published to GitHub Pages, sharing the interface's
-palette so the site and the product look like one thing.
+**Session 13 — the site, the connector check, and four things that were
+quietly broken.** A long session; grouped by subject rather than by order.
 
-Then the two branch problems, which are separate and were easy to confuse.
-The first: merging through a pull request leaves a merge commit on `main` that
-`dev` never receives, so the history diverged by one commit per release while
-the content stayed identical. `sync-dev.yml` fast-forwards `dev` after every
-push to `main`, and refuses rather than forces if `dev` has moved on.
+*The READMEs and the site.* Both READMEs were 699 lines, which is a manual
+rather than a landing page. They became 127 each, and everything cut moved to
+`site/` — a hand-written landing page in Turkish and English sharing the
+interface's palette. Then the whole reference documentation was rendered onto
+it too, by `scripts/render-docs.py`: the markdown under `docs/` stays the
+single source, and a document missing from that script's `ORDER` fails the
+build rather than being published with nothing linking to it. Finally the
+Turkish itself, which read as a translation of the English — calqued sentence
+shapes, an archaic participle, headings that were not sentences — was
+rewritten on the landing page and in the README.
 
-The second: the site still 404'd, and the Pages workflow looked green in the
-build job. GitHub creates the `github-pages` deployment environment with a
-branch policy that admits **only the default branch**, and the workflow
-published from `main` while the default branch is `dev`. A job whose
-environment refuses its ref runs no steps and fails in one second with no
-message at all, so it reads as a build failure and is not one. The workflow
-now publishes from whichever branch is the default and skips visibly
-elsewhere, so no repository setting is needed and changing the default branch
-cannot break it again. Confirmed by dispatch on `dev`: `deploy-pages` reported
-success and the URL is live.
+*The connector check.* The connector form existed but left two gaps: the token
+secret had to be created on another tab first, and nothing confirmed the
+connector worked — a wrong organisation and an expired token both surfaced
+hours later as "nothing indexed". `repo-mcp-admin connector check` and a
+**Check** button now run real discovery and report it in words; a token can be
+stored from the form. Repository discovery moved to `common/` because the
+gateway needs it. Verified against a stand-in GitHub API through the real
+endpoint and the real command: every failure path returns its own sentence.
 
-Then the connector form, which existed but left two gaps: the token secret had
-to be created on another tab first, and nothing confirmed the connector worked
-— a wrong organisation and an expired token both showed up hours later as
-"nothing indexed". `connector check` runs real discovery and reports it in
-words, on both surfaces; a token can be stored from the form. Discovery moved
-to `common/` because the gateway needs it now. Verified against a stand-in
-GitHub API through the real endpoint and the real command: every failure path
-returns its own sentence.
+*Two branch problems, separate and easy to confuse.* Merging through a pull
+request leaves a merge commit on `main` that `dev` never receives, so history
+diverged by one commit per release while content stayed identical —
+`sync-dev.yml` fast-forwards `dev` after every push to `main`, refusing rather
+than forcing if `dev` moved on. Separately, the site 404'd while the Pages
+build job was green: GitHub creates the `github-pages` environment with a
+branch policy admitting **only the default branch**, and the workflow published
+from `main` while the default is `dev`. A job whose environment refuses its ref
+runs no steps and fails in one second with no message, so it reads as a build
+failure and is not one. It now publishes from whichever branch is the default.
 
-That work also found the interface test suite red — `NodeDetailPanel`'s "Show
-code" test broke when session 12 put the button behind `useCan`, and CI's
-`web interface` job had been failing since. It was the only red job.
+*Four things found broken while doing the above* — worth reading as a pattern,
+because three of the four were green:
 
-Last, the site. The Turkish on it and in the README was a translation rather
-than Turkish, so both were rewritten; and the site linked out to thirteen
-files on GitHub, which meant the documentation did not actually live there.
-`scripts/render-docs.py` now renders all of `docs/` into the site — the
-markdown stays the single source, and a document missing from the script's
-index fails the build. That surfaced a second hollow check: `check-docs.sh`
-looked for a `## Documentation` heading that the Turkish README stopped having
-months ago, so it had been passing without checking anything.
-
-Then the first report from outside this sandbox: `make setup` failed on a
-fresh Ubuntu server. `venv` is a separate package there, so `python3 -m venv`
-creates the directory and then fails — and setup guarded on the directory, so
-the first failure became permanent. Fixed, and `--config-only` added, because
-a machine that only runs `make up` needs no virtualenvs at all and should not
-have to install a Python toolchain to get a `.env` file.
+- `NodeDetailPanel`'s "Show code" test broke when session 12 put the button
+  behind `useCan`. CI's `web interface` job had been red since, unnoticed.
+- `check-docs.sh` read the README section under `## Documentation`, and the
+  Turkish README's heading is `## Belgeler` — so it had been passing without
+  checking anything since the README was translated.
+- `docs/architecture.md` still said the web UI was "on the roadmap".
+- `make setup` guarded venv creation on `[[ -d .venv ]]`, and on Debian and
+  Ubuntu a failed `python3 -m venv` leaves the directory behind — so the first
+  failure became permanent. Reported by the maintainer from a fresh Ubuntu
+  server, the first report from outside this sandbox. Fixed, and
+  `--config-only` added: a machine that only runs `make up` needs no
+  virtualenvs and should not install a Python toolchain to get a `.env`.
 
 **Session 12 — auditing the adopted interface, and the Ask tab.** Driving
 every surface against the real engine found that the interface was hiding
@@ -255,7 +276,9 @@ discusses engine internals — with source references, so claims are checkable.
 
 ## Watch out for
 
-- **`main` is at the initial commit.** Do not assume it contains the code.
+- **`main` carries releases now** — it was at the initial commit for a long
+  time and this note said so, which stopped being true and stayed here anyway.
+  It currently trails `dev` and its CI is red for that reason alone.
 - **The engine binary is usually not installed locally.** Everything except
   tool execution works; the error message says so explicitly. To get it:
   `curl -fsSL <releases>/latest/download/codebase-memory-mcp-linux-amd64.tar.gz`,
@@ -276,18 +299,24 @@ discusses engine internals — with source references, so claims are checkable.
 
 ## Suggested next steps
 
-Roughly in order of value per unit of effort:
+The maintainer is **deploying to an Ubuntu server** right now, so the first
+item is whatever that run turns up. `make setup ARGS=--config-only` then
+`make up` is the path for a machine that only runs the stack; `make debug`
+diagnoses a broken one and is worth reaching for before guessing.
 
-0. **Wire up the `org/public` shared layer.** The `cross-repo-intelligence`
+After that, roughly in order of value per unit of effort:
+
+1. **Engine capability gaps in the interface.** Ranked when the maintainer
+   asked and never started: a rich project overview from `get_architecture`
+   first, then `explain_change_impact` as a pull request blast radius, then
+   `trace_path`.
+2. **Wire up the `org/public` shared layer.** The `cross-repo-intelligence`
    mode and the `structural_only` tenant flag both exist; the nightly job that
    builds the layer does not. Small job, unlocks cross-squad topology answers.
 3. **Durable job queue** (Redis or NATS) with per-project leases, so the
    indexer can run more than one replica.
 4. **Graph history**, per [ADR-0004](../docs/adr/0004-graph-history.md):
    publish snapshots to object storage and add a diff service.
-5. **Engine capability gaps in the interface.** Ranked when the maintainer
-   asked: a rich project overview from `get_architecture` first, then
-   `explain_change_impact` as a pull request blast radius, then `trace_path`.
 
 Before starting any of these, read
 [systemPatterns.md](systemPatterns.md) — items 3 and 4 touch invariants.
