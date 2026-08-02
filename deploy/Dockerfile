@@ -83,12 +83,20 @@ WORKDIR /build
 
 RUN pip install --no-cache-dir --upgrade pip
 
-COPY ${SERVICE}/pyproject.toml ./pyproject.toml
-COPY ${SERVICE}/app ./app
+# Both services depend on repo-mcp-common, which is a path dependency and is
+# not published anywhere. `[tool.uv.sources]` says where it lives, but pip does
+# not read that — so the source has to be in the build context, and the two
+# projects have to be installed in one command. Installed separately, the
+# second run resolves repo-mcp-common against PyPI and fails.
+COPY common/pyproject.toml common/README.md ./common/
+COPY common/repo_mcp_common ./common/repo_mcp_common
+
+COPY ${SERVICE}/pyproject.toml ${SERVICE}/README.md ./service/
+COPY ${SERVICE}/app ./service/app
 
 # Installed into a self-contained prefix so the runtime stage copies one
 # directory instead of rebuilding anything.
-RUN pip install --no-cache-dir --prefix=/install .
+RUN pip install --no-cache-dir --prefix=/install ./common ./service
 
 # ── runtime ───────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime
