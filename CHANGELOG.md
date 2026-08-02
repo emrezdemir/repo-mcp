@@ -19,7 +19,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   assembles `site/` and `docs/images/` into `_site/`, so the screenshots have
   one copy in git and a local preview is exactly what is published;
   `make site --serve` previews it. The workflow fails if any page references a
-  file that is not there.
+  file that is not there, and turns Pages on for the repository itself rather
+  than relying on a settings change nobody remembers to make.
 - **An Ask tab.** `ask_codebase` is the thing this platform has that a local
   graph viewer does not, and it had no interface. It runs `get_architecture`
   and `search_graph` first and answers from what they returned, citing
