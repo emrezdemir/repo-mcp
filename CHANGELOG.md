@@ -8,6 +8,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **A project site**, at `site/`, published to GitHub Pages by
+  `.github/workflows/pages.yml`. Turkish and English, sharing one stylesheet
+  that takes its palette from the interface's own, so the site and the product
+  look like the same thing. It carries what a README should not: the showcase,
+  the use cases and the screenshots at a size worth looking at.
+
+  Hand-written HTML rather than a static site generator — two pages that
+  change a few times a release do not repay a toolchain. `scripts/build-site.sh`
+  assembles `site/` and `docs/images/` into `_site/`, so the screenshots have
+  one copy in git and a local preview is exactly what is published;
+  `make site --serve` previews it. The workflow fails if any page references a
+  file that is not there.
 - **An Ask tab.** `ask_codebase` is the thing this platform has that a local
   graph viewer does not, and it had no interface. It runs `get_architecture`
   and `search_graph` first and answers from what they returned, citing
@@ -17,6 +29,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`GET /api/ui-config`**, backed by a new `ui.language` setting, so an
   installation can pin the interface's language instead of following the
   browser. The interface asked for this endpoint on every load and got a 404.
+
+### Changed
+
+- **Both READMEs are a landing page, not a manual.** 699 lines each became
+  127: what it is, the six things that matter, four commands to install, the
+  interface in pictures, and links. Everything cut is on the site or in
+  `docs/`, which is where it was already duplicated from.
 
 ### Fixed
 
