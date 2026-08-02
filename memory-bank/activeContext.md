@@ -66,6 +66,13 @@ index fails the build. That surfaced a second hollow check: `check-docs.sh`
 looked for a `## Documentation` heading that the Turkish README stopped having
 months ago, so it had been passing without checking anything.
 
+Then the first report from outside this sandbox: `make setup` failed on a
+fresh Ubuntu server. `venv` is a separate package there, so `python3 -m venv`
+creates the directory and then fails — and setup guarded on the directory, so
+the first failure became permanent. Fixed, and `--config-only` added, because
+a machine that only runs `make up` needs no virtualenvs at all and should not
+have to install a Python toolchain to get a `.env` file.
+
 **Session 12 — auditing the adopted interface, and the Ask tab.** Driving
 every surface against the real engine found that the interface was hiding
 refusals: a squad on the analysis profile cannot call `manage_adr`, and the

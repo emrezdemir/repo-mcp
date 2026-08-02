@@ -17,8 +17,8 @@ help: ## Show this help
 # ── development ───────────────────────────────────────────────────────
 
 .PHONY: setup
-setup: ## Create virtualenvs, install dependencies, choose components, generate configuration
-	@scripts/setup.sh
+setup: ## Create virtualenvs, install dependencies, choose components, generate configuration (ARGS=--config-only for a Docker-only server)
+	@scripts/setup.sh $(ARGS)
 
 .PHONY: dev
 dev: ## Run both services locally with auto-reload

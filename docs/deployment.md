@@ -60,6 +60,24 @@ make setup      # generates POSTGRES_PASSWORD, SECRETS_KEY and the rest
 make up         # PostgreSQL, migrations, the first administrator, both services
 ```
 
+### On a server, where you only want the stack
+
+`make setup` also builds three virtualenvs, because that is what running the
+tests and `make dev` needs. A machine that will only ever run `make up` needs
+none of them — the stack is entirely containers — and on a fresh Debian or
+Ubuntu it would have to install a Python toolchain first, since `venv` ships
+as its own package there.
+
+```bash
+make setup ARGS=--config-only    # writes deploy/.env and the two YAML files
+make up
+```
+
+It skips the dependencies and the configuration check that needs them; the
+services validate their own configuration at startup, so a mistake surfaces
+when `make up` fails rather than silently. Run plain `make setup` on a machine
+where you also intend to develop.
+
 The `init` container applies migrations and creates the first administrator
 before either service starts. With `ADMIN_PASSWORD` empty in `deploy/.env` a
 password is generated and printed once:

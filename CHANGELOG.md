@@ -64,6 +64,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and the job fails with the offending commits printed rather than discarding
   them. Rehearsed against a throwaway repository first: the normal flow, a
   second run, and the case where `dev` has diverged.
+- **`make setup ARGS=--config-only`**, for a server that will only run
+  `make up`. It writes `deploy/.env` and the two YAML files and installs no
+  Python packages at all — the stack is entirely containers, and the
+  virtualenvs exist for developing and testing here. Without it a deployment
+  had to install a Python toolchain to produce a `.env` file.
 
 ### Changed
 
@@ -90,6 +95,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **`make setup` could put itself in a state it never recovered from.** On
+  Debian and Ubuntu `venv` is a separate package, and without it
+  `python3 -m venv` creates the directory and *then* fails for want of
+  `ensurepip`. Setup tested `[[ -d .venv ]]`, so it took that wreckage for a
+  finished environment and went straight to `./.venv/bin/pip: No such file or
+  directory` — and every re-run did the same, because the directory was still
+  there. Reported from a fresh Ubuntu server install.
+
+  It now checks for `ensurepip` before doing any work and names the package to
+  install; tests for the pip binary rather than the directory, so a half-made
+  environment is rebuilt rather than trusted; checks the exit status of every
+  `venv` and `pip` call, which none of them did; and warns when the interpreter
+  is newer than the 3.13 CI tests against, since a dependency with no wheel for
+  it fails during `pip` in a way that looks like a fault here.
 - **The site published nothing and the URL answered 404.** The workflow ran on
   pushes to `main`; GitHub creates the `github-pages` deployment environment
   with a branch policy that admits the default branch alone, and this
