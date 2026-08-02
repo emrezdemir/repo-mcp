@@ -13,6 +13,46 @@ the environment. See [ADR-0006](adr/0006-configuration-in-the-database.md).
 | `CBM_*` paths and the engine binary | connectors and provider tokens |
 | `PORT`, `WEB_CONCURRENCY`, log level | OIDC and LiteLLM settings, tunables |
 
+## Choosing which components run
+
+Four services are optional: Keycloak, LiteLLM, Ollama and headroom. They are
+Compose profiles rather than a second compose file — separate files would
+duplicate the four services that are not optional, and the two copies would
+drift.
+
+`scripts/wizard.sh` asks five questions and writes the answer to
+`deploy/.env` as a `COMPOSE_PROFILES` line. Compose reads that variable
+itself, so `docker compose up` starts exactly those services afterwards.
+`make setup` runs it on first install; `make wizard` re-runs it.
+
+```bash
+make wizard                          # ask, then rewrite deploy/.env
+
+scripts/wizard.sh --force \
+  --identity external --models external --provider github   # or say it directly
+
+scripts/wizard.sh --show             # what is currently selected
+```
+
+| Answer | Profiles added | What it means |
+| --- | --- | --- |
+| `--identity keycloak` | `keycloak` | Keycloak runs on :8081, federated from LDAP |
+| `--identity external` | none | Point `oidc.issuer` at your own provider |
+| `--identity dev` | none | JWT verification off, a static token — evaluation only |
+| `--models bundled` | `litellm ollama` | LiteLLM on :4000 in front of a local Ollama |
+| `--models external` | none | Point `litellm.base_url` at your own proxy |
+| `--models none` | none | The two composite tools stay unavailable |
+| `--compression on` | `headroom` | Deployed, still off until `headroom.enabled` is set |
+| `--database external` | none | Writes `DATABASE_URL` instead of using the bundled PostgreSQL |
+
+Without a terminal the wizard asks nothing and writes the full bundled stack,
+so `make setup` still works inside a script.
+
+Two secrets — `KEYCLOAK_ADMIN_PASSWORD` and `LITELLM_MASTER_KEY` — are always
+written even when their profile is off. Compose interpolates every service
+definition regardless of profile, so a missing one would break the whole file;
+writing them also means turning a profile on later needs no other edit.
+
 ## Local evaluation
 
 ```bash

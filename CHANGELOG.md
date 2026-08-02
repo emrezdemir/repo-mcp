@@ -8,6 +8,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **The optional components are now optional in practice.** Keycloak, LiteLLM,
+  Ollama and headroom are Compose profiles, so a deployment with its own
+  identity provider and its own model proxy runs four containers instead of
+  eight. Profiles rather than a second compose file: separate files would
+  duplicate the services that are not optional and then drift apart.
+- **`scripts/wizard.sh`** — five questions (database, identity, model backend,
+  compression, provider) written to `deploy/.env` as a `COMPOSE_PROFILES`
+  line, which Compose reads on its own, so `make up` needs no extra flags. It
+  is also the only thing that writes `deploy/.env` now; `scripts/setup.sh`
+  calls it rather than generating a second version. Without a terminal it asks
+  nothing and writes the full bundled stack, and every answer can be given as
+  a flag instead. `make wizard` re-runs it, `--show` prints the current
+  selection.
+
 - **One authoritative version.** `VERSION` at the repository root, propagated
   to the three Python packages and the Helm chart by `scripts/version.sh`.
   `--check` runs in `make verify` and in the release workflow, and it fails

@@ -143,10 +143,14 @@ Stack aşağıdaki container'ları başlatır:
 | ollama | `ollama/ollama:latest` | 11434 |
 | headroom | `ghcr.io/chopratejas/headroom` | 8787 |
 
-Keycloak, LiteLLM, Ollama ve headroom isteğe bağlıdır. Kendi OIDC sağlayıcısı
-veya kendi LiteLLM proxy'si olan bir kurulumda ilgili servisler compose
-dosyasından çıkarılabilir. headroom yalnızca `--profile headroom` ile
-başlatılır.
+Son dördü isteğe bağlıdır ve Compose profili olarak tanımlıdır. Hangilerinin
+çalışacağı `deploy/.env` içindeki `COMPOSE_PROFILES` satırı ile belirlenir;
+`make setup` bu satırı birkaç soruyla yazar. Profil kapalıyken o servisin
+image'ı indirilmez ve container'ı başlatılmaz.
+
+Yalnızca postgres, init, gateway ve indexer ile çalışan bir kurulum
+mümkündür. Bu durumda kimlik doğrulama için kendi OIDC sağlayıcısı, composite
+tool'lar için kendi LiteLLM proxy'si kullanılır.
 
 **Bellek.** Compose stack'inde gateway için 4 GB, indexer için 8 GB, Ollama
 için 16 GB üst sınır tanımlıdır. Bu değerler `GATEWAY_MEMORY_LIMIT`,
@@ -191,20 +195,45 @@ dahili bir mirror kullanılabilir.
 
 ### Docker Compose
 
-Tüm bağımlılıkları içeren en hızlı yol.
+En hızlı yol.
 
 ```bash
 git clone https://github.com/emrezdemir/repo-mcp
 cd repo-mcp
 
-make setup      # virtualenv'ler, bağımlılıklar, örnek config dosyaları ve
-                # üretilmiş secret'lar ile deploy/.env
+make setup      # virtualenv'ler, bağımlılıklar, örnek config dosyaları
 ```
 
-`make setup` çalıştıktan sonra iki dosyanın düzenlenmesi gerekir:
-`deploy/.env` içine en az bir provider token'ı (`GITHUB_TOKEN`,
-`GITLAB_TOKEN` veya `BITBUCKET_APP_PASSWORD`), `deploy/scan.yaml` içine kendi
-organizasyonunu gösteren bir connector. Ardından:
+`make setup` sırasında hangi bileşenlerin çalışacağı sorulur:
+
+```
+PostgreSQL          bundled | external
+Identity            keycloak | external | dev
+Model backend       bundled | external | none
+Prompt compression  off | on
+Repository provider github | gitlab | bitbucket | none
+```
+
+Cevaplar `deploy/.env` dosyasına `COMPOSE_PROFILES` satırı olarak yazılır.
+Compose bu değişkeni kendisi okur, bu yüzden `make up` ek bir parametre
+istemez. Seçim sonradan `make wizard` ile veya bu satırı elle düzenleyerek
+değiştirilebilir.
+
+Terminal yoksa — bir pipeline veya script içinde — soru sorulmaz ve tüm
+bileşenleri içeren varsayılan kurulum yazılır. Aynı seçimler komut satırından
+da verilebilir:
+
+```bash
+scripts/wizard.sh --force \
+  --identity external --models external --provider github
+```
+
+Postgres, init, gateway ve indexer her durumda çalışır. Keycloak, LiteLLM,
+Ollama ve headroom seçime bağlıdır; kendi OIDC sağlayıcısı ve kendi LiteLLM
+proxy'si olan bir kurulumda dördü de kapatılabilir.
+
+Ardından `deploy/.env` içine bir provider token'ı ve `deploy/scan.yaml` içine
+kendi organizasyonunu gösteren bir connector girilir:
 
 ```bash
 make up         # stack'i başlatır
@@ -215,8 +244,8 @@ Stack ilk açılışta veritabanı şemasını oluşturur ve ilk admin hesabın�
 yaratır. `deploy/.env` içinde `ADMIN_PASSWORD` boş bırakılırsa parola üretilir
 ve `init` container'ının log'una bir kez yazılır.
 
-Bu iki dosya `.gitignore` içindedir ve repository'ye gönderilmez; karşılıkları
-olan `deploy/.env.example` ve `deploy/scan.example.yaml` izlenen dosyalardır.
+`deploy/.env` ve `deploy/scan.yaml` `.gitignore` içindedir; karşılıkları olan
+`deploy/.env.example` ve `deploy/scan.example.yaml` izlenen dosyalardır.
 
 ### Kaynak koddan, Docker olmadan
 

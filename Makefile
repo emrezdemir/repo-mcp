@@ -17,7 +17,7 @@ help: ## Show this help
 # ── development ───────────────────────────────────────────────────────
 
 .PHONY: setup
-setup: ## Create virtualenvs, install dependencies, generate configuration
+setup: ## Create virtualenvs, install dependencies, choose components, generate configuration
 	@scripts/setup.sh
 
 .PHONY: dev
@@ -60,6 +60,10 @@ check-docs: ## Enforce the documentation rules (docs/code-standards.md §5)
 .PHONY: check-secrets
 check-secrets: ## Scan every tracked file for secrets and forbidden paths
 	@scripts/check-secrets.sh --all
+
+.PHONY: wizard
+wizard: ## Choose which optional components the stack runs, and write deploy/.env
+	@scripts/wizard.sh --force
 
 .PHONY: version
 version: ## Print the project version (scripts/version.sh --set X.Y.Z to change it)

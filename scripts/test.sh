@@ -119,15 +119,27 @@ then ok "scan.example.yaml parses"; else FAILURES+=("scan.example.yaml"); fi
 # The Compose file was unparseable for a while and nobody noticed, because
 # nothing here read it. Interpolation needs values, so supply throwaway ones:
 # the question is whether the file is valid, not what is in it.
+#
+# Checked with no profiles and with all of them. A service a profile excludes
+# is still interpolated, so a mistake inside an optional service breaks the
+# file even for someone who never starts it.
 if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-  if POSTGRES_PASSWORD=check SECRETS_KEY=check LITELLM_MASTER_KEY=check \
-     docker compose -f "$REPO_ROOT/deploy/docker-compose.yml" --profile headroom \
-     config --quiet >/dev/null 2>&1; then
-    ok "docker-compose.yml is valid"
+  compose_check() {
+    COMPOSE_PROFILES="$1" \
+    POSTGRES_PASSWORD=check SECRETS_KEY=check \
+    KEYCLOAK_ADMIN_PASSWORD=check LITELLM_MASTER_KEY=check \
+      docker compose -f "$REPO_ROOT/deploy/docker-compose.yml" config --quiet
+  }
+  compose_ok=1
+  for profiles in "" "keycloak,litellm,ollama,headroom"; do
+    if ! compose_check "$profiles" >/dev/null 2>&1; then
+      compose_check "$profiles" || true
+      compose_ok=0
+    fi
+  done
+  if (( compose_ok )); then
+    ok "docker-compose.yml is valid, with and without the optional profiles"
   else
-    POSTGRES_PASSWORD=check SECRETS_KEY=check LITELLM_MASTER_KEY=check \
-      docker compose -f "$REPO_ROOT/deploy/docker-compose.yml" --profile headroom \
-      config --quiet || true
     FAILURES+=("docker-compose.yml")
   fi
 else

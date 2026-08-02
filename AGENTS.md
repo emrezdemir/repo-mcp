@@ -51,6 +51,7 @@ reinventing the invocation.
 | Command | Purpose |
 | --- | --- |
 | `make setup` | Virtualenvs, dependencies, config from examples, generated secrets, pre-commit hook |
+| `make wizard` | Re-choose which optional components the Docker stack runs |
 | `make test` | Lint and unit tests for both services, plus example-config validation |
 | `make lint` / `make fmt` | Lint only / apply autofixes |
 | `make dev` | Both services locally, auto-reload, no Docker, JWT verification off |

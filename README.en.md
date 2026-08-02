@@ -142,9 +142,14 @@ starts these containers:
 | ollama | `ollama/ollama:latest` | 11434 |
 | headroom | `ghcr.io/chopratejas/headroom` | 8787 |
 
-Keycloak, LiteLLM, Ollama and headroom are optional. An installation with its
-own OIDC provider or its own LiteLLM proxy can remove those services from the
-compose file. headroom only starts with `--profile headroom`.
+The last four are optional and defined as Compose profiles. Which ones run is
+set by the `COMPOSE_PROFILES` line in `deploy/.env`, which `make setup` writes
+from a few questions. While a profile is off, that service's image is not
+pulled and its container is not started.
+
+An installation with only postgres, init, gateway and indexer is supported. It
+uses an external OIDC provider for authentication and an external LiteLLM
+proxy for the composite tools.
 
 **Memory.** The compose stack sets limits of 4 GB for the gateway, 8 GB for
 the indexer and 16 GB for Ollama. These can be changed with
@@ -189,20 +194,44 @@ There are three installation forms.
 
 ### Docker Compose
 
-The quickest path, with every dependency included.
+The quickest path.
 
 ```bash
 git clone https://github.com/emrezdemir/repo-mcp
 cd repo-mcp
 
-make setup      # virtualenvs, dependencies, example config files, and
-                # deploy/.env with generated secrets
+make setup      # virtualenvs, dependencies, example config files
 ```
 
-After `make setup`, two files need editing: `deploy/.env` needs at least one
-provider token (`GITHUB_TOKEN`, `GITLAB_TOKEN` or `BITBUCKET_APP_PASSWORD`),
-and `deploy/scan.yaml` needs a connector pointing at a real organisation.
-Then:
+`make setup` asks which components should run:
+
+```
+PostgreSQL          bundled | external
+Identity            keycloak | external | dev
+Model backend       bundled | external | none
+Prompt compression  off | on
+Repository provider github | gitlab | bitbucket | none
+```
+
+The answers are written to `deploy/.env` as a `COMPOSE_PROFILES` line. Compose
+reads that variable itself, so `make up` needs no extra flags. The choice can
+be changed later with `make wizard`, or by editing that line by hand.
+
+Without a terminal — inside a pipeline or a script — nothing is asked and the
+default installation with every component is written. The same choices can be
+passed on the command line:
+
+```bash
+scripts/wizard.sh --force \
+  --identity external --models external --provider github
+```
+
+Postgres, init, gateway and indexer always run. Keycloak, LiteLLM, Ollama and
+headroom are optional; an installation with its own OIDC provider and its own
+LiteLLM proxy can turn all four off.
+
+Then a provider token goes into `deploy/.env` and a connector pointing at a
+real organisation into `deploy/scan.yaml`:
 
 ```bash
 make up         # start the stack
@@ -213,9 +242,8 @@ On first start the stack creates the database schema and the first admin
 account. If `ADMIN_PASSWORD` is left empty in `deploy/.env`, a password is
 generated and written once to the `init` container's log.
 
-Both of those files are in `.gitignore` and never reach the repository; their
-counterparts `deploy/.env.example` and `deploy/scan.example.yaml` are the
-tracked ones.
+`deploy/.env` and `deploy/scan.yaml` are in `.gitignore`; their counterparts
+`deploy/.env.example` and `deploy/scan.example.yaml` are the tracked ones.
 
 ### From source, without Docker
 
