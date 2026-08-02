@@ -209,12 +209,15 @@ def test_the_root_serves_the_page():
     assert "<title>repo-mcp</title>" in response.text
 
 
-def test_nested_modules_are_served():
-    """The interface is ES modules in real directories; the browser fetches
-    each one by path, so a route that only served the top level would break
-    the page with no error anyone could act on."""
-    for path in ("core.js", "auth.js", "pages/map.js", "pages/admin/squads.js"):
-        assert client().get(f"/ui/{path}").status_code == 200, path
+def test_the_built_assets_are_served():
+    """The interface is a Vite build: one hashed bundle per kind, under
+    assets/. A route that only served the top level would return the page and
+    then 404 everything it asks for, which looks like a blank screen and no
+    error anyone can act on."""
+    assets = sorted((UI_DIR / "assets").glob("*.js"))
+    assert assets, "no built interface — run npm run build in gateway/webui"
+    for asset in assets:
+        assert client().get(f"/ui/assets/{asset.name}").status_code == 200, asset.name
 
 
 @pytest.mark.parametrize(
@@ -222,7 +225,7 @@ def test_nested_modules_are_served():
     [
         "../webui.py",
         "../../app/webui.py",
-        "pages/../../webui.py",
+        "assets/../../webui.py",
         "....//webui.py",
         "/etc/passwd",
     ],
@@ -232,15 +235,18 @@ def test_nothing_outside_the_interface_directory_is_served(path):
 
 
 def test_a_file_with_the_wrong_kind_is_not_served():
-    """checksums.txt lives beside the vendored bundles and is not a download."""
-    assert (UI_DIR / "vendor" / "checksums.txt").exists()
-    assert client().get("/ui/vendor/checksums.txt").status_code == 404
+    """Only the kinds a browser needs. Anything else in that directory — a
+    stray note, a source map left behind, a build manifest — is not a
+    download this route offers."""
+    assert client().get("/ui/notes.txt").status_code == 404
+    assert client().get("/ui/assets/manifest.json").status_code == 404
 
 
 def test_a_missing_file_is_a_404_rather_than_an_error():
-    assert client().get("/ui/pages/nosuch.js").status_code == 404
+    assert client().get("/ui/assets/nosuch.js").status_code == 404
 
 
 def test_the_interface_is_served_without_a_token():
     """It is the sign-in screen; it cannot require having signed in."""
-    assert client().get("/ui/app.js").status_code == 200
+    asset = sorted((UI_DIR / "assets").glob("*.js"))[0]
+    assert client().get(f"/ui/assets/{asset.name}").status_code == 200

@@ -4,7 +4,7 @@ The gateway serves a browser interface at `/ui`. It exists so that the graph
 can be looked at by a person, and so that the platform can be configured
 without a terminal — not as a second product with its own rules.
 
-![The map](images/ui-map.png)
+![The graph](images/ui-graph.png)
 
 ## What it is, and what it deliberately is not
 
@@ -112,90 +112,75 @@ redirect rather than before it.
 
 ## The pages
 
-### Overview
+### Projects
 
-`get_architecture` for the selected project: node and edge counts, languages,
-packages, hotspots, boundaries, layers.
+What this squad has indexed: node and edge counts per project, its health, and
+its ADR. Selecting one opens the graph.
 
-![Overview](images/ui-overview.png)
+![Projects](images/ui-projects.png)
 
-### Search
+Adding a project is not offered here. A repository is discovered by a
+connector and cloned by the indexer under the squad's own root — there is no
+path a person should be choosing by hand on a shared platform, and the gateway
+refuses one outside that root regardless.
 
-`search_graph` by name, and `get_code_snippet` for whichever result is
-selected. A result can be sent to the map, which draws the graph if it is not
-drawn and moves the camera to that symbol.
+### Graph
 
-![Search](images/ui-search.png)
+The project's graph in 3D, drawn with Three.js.
 
-A role without `READ_SOURCE` gets the results and not the source. The
-interface does not hide the button on a guess — it asks `/api/session` — but
-the refusal comes from the gateway either way.
+The layout is not computed in the browser. The engine computes it in C,
+reading the graph database directly, and serves it on a loopback port; the
+gateway authorizes the request — the caller's token, their squad, the
+`READ_GRAPH` capability and the squad's project allowlist — and only then
+proxies to that port. Reimplementing 860 lines of C in Python would be slower
+and would drift from what the engine knows.
 
-### Map
+That port has no authentication of its own. It binds `127.0.0.1`, the gateway
+chooses it, and it is never published, so the trust boundary is the one the
+stdio pipe already has: the engine process is trusted, and reaching it is not.
 
-`query_graph` for every edge in the project, drawn with WebGL.
+Filtering is by node type, relationship type, folder, and by status — dead
+code, entry points, tests. The node budget is the user's to raise; the count
+actually drawn is always stated next to the total.
 
-The rendering is Sigma over graphology. A real codebase graph is tens of
-thousands of nodes and edges, which is past the point where Canvas 2D and the
-SVG-based graph libraries stop being usable: one draw call class for all nodes
-and one for all edges, with the GPU doing the work, is what makes that
-tractable at all.
-
-The ForceAtlas2 layout runs in a Web Worker, so the main thread only draws and
-the graph can be panned and zoomed while it is still settling. A deployment
-whose content security policy forbids `worker-src blob:` falls back to slicing
-the same layout between frames on the main thread — slower and less smooth,
-but not broken.
-
-Filtering by node label and edge type happens in the render reducers rather
-than by removing anything from the model, so a filter is instant, reversible,
-and never moves the layout.
-
-The request is capped at 60 000 edges. The cap is reported in the status line
-when it bites: a partial graph that says so is useful, and one that does not
-is misleading.
-
-The map needs the `QUERY_RAW` capability. A role without it gets a sentence
-explaining that, not an empty canvas.
+This needs the engine build that includes the interface
+(`CBM_EDITION=-ui`, the default). Without it the graph page says so, and the
+rest of the interface works.
 
 ### Admin
 
 The administrative console. Documented in
 [administration.md](administration.md).
 
-![Admin](images/ui-admin.png)
+![The administrative console](images/ui-admin.png)
 
 ## How it is built
 
-No build step, no bundler, no Node toolchain in this repository.
-
-- The interface's own code is native ES modules. The browser resolves the
-  imports, so the code is split into real files with explicit dependencies and
-  there is still nothing to compile.
-- The three browser libraries are committed under
-  `gateway/app/ui/vendor/` as pre-built UMD bundles. `scripts/update-vendor.sh`
-  reports the pinned and latest versions, downloads and verifies against
-  `checksums.txt`, and is what keeps "committed" from meaning "forgotten".
-- Nothing is fetched from a CDN, so an air-gapped installation works.
+The interface is the engine project's own, adopted rather than rewritten —
+see [ADR-0011](adr/0011-adopt-the-upstream-interface.md). React 19, Three.js
+through @react-three/fiber, Tailwind 4, built with Vite.
 
 ```
-gateway/app/ui/
-├── index.html
-├── style.css
-├── core.js            shared state, DOM helpers, the calls to /mcp
-├── auth.js            the OIDC flow
-├── graph.js           the WebGL renderer and the layout
-├── pages/
-│   ├── overview.js  search.js  map.js  admin.js
-│   └── admin/       squads.js roles.js connectors.js secrets.js
-│                    settings.js cache.js audit.js accounts.js
-└── vendor/            sigma, graphology, graphology-library
+gateway/webui/            the source, and what was changed (README.md there)
+└── src/
+    ├── api/              rpc.ts (/mcp), auth.ts (PKCE), session.ts,
+    │                     platform.ts (the endpoints, as tool calls), admin.ts
+    ├── components/       GraphTab, StatsTab, AdminTab, SignIn, SquadPicker …
+    └── hooks/            useGraphData — fetches the layout
 ```
 
-Files under `ui/` are served without authentication — the sign-in screen
-cannot require having signed in, and nothing there reveals anything about a
-codebase. The route resolves the requested path and refuses anything that
-lands outside the directory.
+`npm run build` produces `dist/`, which the image copies to
+`/usr/local/lib/repo-mcp-ui`; `REPO_MCP_UI_DIR` points the gateway at it. The
+build output is not committed — reviewing minified output is not reviewing.
+
+Nothing is fetched from a CDN at runtime, so an air-gapped installation works.
+An air-gapped *build* needs an npm mirror as well as a Python one, which is a
+real cost of this choice and is recorded as such in the ADR.
+
+Files under the interface directory are served without authentication — the
+sign-in screen cannot require having signed in, and nothing there reveals
+anything about a codebase. The route resolves the requested path and refuses
+anything that lands outside the directory.
 
 ## Regenerating the screenshots
 

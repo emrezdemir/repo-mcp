@@ -50,23 +50,26 @@ codebase-memory-mcp — the indexing engine
   SOFTWARE.
 
 --------------------------------------------------------------------------------
-sigma, graphology, graphology-library — the graph rendering in the web interface
+graph-ui — the web interface
 --------------------------------------------------------------------------------
 
-  Upstream:  https://github.com/jacomyal/sigma.js
-             https://github.com/graphology/graphology
-  Licence:   MIT (all three)
-  Used as:   pre-built UMD bundles committed under
-             gateway/app/ui/vendor/, served from repo-mcp's own origin.
+  Upstream:  https://github.com/DeusData/codebase-memory-mcp, graph-ui/
+  Adopted:   commit d6be58ef9d43c574a2d1b0827ecc1e3c4846f0fe
+  Licence:   MIT
+  Used as:   source, under gateway/webui/, modified.
 
-  Versions and checksums are recorded in gateway/app/ui/vendor/README.md and
-  gateway/app/ui/vendor/checksums.txt; scripts/update-vendor.sh downloads,
-  verifies and reports on them.
+  The interface repo-mcp serves at /ui is the engine project's own, adopted
+  rather than rewritten. What was changed and why is recorded in
+  gateway/webui/README.md, and the reasoning is in
+  docs/adr/0011-adopt-the-upstream-interface.md. In short: its JSON-RPC client
+  was pointed at repo-mcp's authorized /mcp endpoint instead of the engine's
+  loopback server, sign-in and squad selection were added, and the surfaces
+  that only make sense on a single machine were removed.
 
-  They are committed rather than installed because the web interface has no
-  build step: no bundler, no lockfile and no Node stage in the image, and
-  therefore nothing fetched from a CDN at runtime, so the interface works in
-  an air-gapped installation.
+  Its own dependencies — React, Three.js, Tailwind and the rest — are declared
+  in gateway/webui/package.json and pinned in package-lock.json. They are
+  installed at image build time rather than vendored here, and their licences
+  travel with them.
 
   MIT License
 

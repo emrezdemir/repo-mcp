@@ -1,6 +1,6 @@
 [project]
 name = "repo-mcp-indexer"
-version = "0.2.0"
+version = "0.3.0"
 description = "Repository discovery and scheduled indexing for repo-mcp"
 readme = "README.md"
 requires-python = ">=3.11"

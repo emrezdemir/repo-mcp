@@ -3,7 +3,7 @@
 A service that centrally indexes repositories on GitHub, GitLab and Bitbucket
 and exposes the resulting code graph over MCP.
 
-Version 0.2.0 · [Türkçe](README.md) (primary) · [Changelog](CHANGELOG.md)
+Version 0.3.0 · [Türkçe](README.md) (primary) · [Changelog](CHANGELOG.md)
 
 ## Overview
 
@@ -95,9 +95,10 @@ through the admin API increments a generation counter; the services check that
 counter periodically and re-read the configuration when it moves. No restart
 is needed.
 
-**A web interface.** At `/ui`, for exploring the graph, searching for symbols
-and administering the platform. It signs in through the identity provider,
-asks every question about a codebase over `/mcp`, and has no build step.
+**A web interface.** At `/ui`, for exploring the graph in 3D and administering
+the platform. The engine project's own interface, adopted and pointed at this
+platform: it signs in through the identity provider and asks every question
+about a codebase over `/mcp`.
 
 **Two administrative surfaces, one behaviour.** The `repo-mcp-admin` command
 and the console in the web interface perform the same operations through the
@@ -405,50 +406,49 @@ that artifact instead of indexing from scratch.
 
 ## The web interface
 
-The gateway serves a browser interface at `/ui`. It has four pages: an
-overview of what the engine computed about a project, symbol search with
-source, a WebGL map of the graph, and the administrative console.
+The gateway serves a browser interface at `/ui`. Three tabs: projects, the
+graph in 3D, and the administrative console.
 
-![The map](docs/images/ui-map.png)
+![The graph](docs/images/ui-graph.png)
 
-The interface has no read path of its own. Every question about a codebase
-goes to `POST /mcp` with the signed-in user's own token, so anything the
-browser can do an MCP client can do, authorized and audited by exactly the
-same code. A second read API beside the first would be a second place for the
-tenancy rules to be wrong.
+It was not written here. The engine project's own interface — `graph-ui`, MIT,
+React and Three.js — was adopted and pointed at this platform. The reasoning
+is in [docs/adr/0011-adopt-the-upstream-interface.md](docs/adr/0011-adopt-the-upstream-interface.md);
+what changed and why is in [gateway/webui/README.md](gateway/webui/README.md).
 
-Two endpoints exist that MCP has no answer for. `GET /api/auth` says how to
-sign in, and is public because it is answered before anyone is signed in.
-`GET /api/session` reports the caller's squad, role and tool list on this
-platform.
+One thing changed fundamentally: the transport. Upstream talked to the
+engine's loopback server at `POST /rpc`; it now talks to `POST /mcp` — the
+same JSON-RPC protocol and the same tool names, but through the gateway, so
+every call carries the caller's token and squad and is checked against role
+capabilities, the project allowlist and the engine's tool profile. The
+interface has no read path of its own.
+
+Upstream's single-machine surfaces — the filesystem browser, the process and
+log views — are gone, replaced by the administrative console. The rest of its
+HTTP endpoints became tool calls, and each is therefore behind a capability:
+project health and index status via `index_status`, ADRs via `manage_adr`,
+indexing via `index_repository`, deletion via `delete_project`.
+
+**The 3D layout** is the one thing MCP has no tool for. The engine computes it
+in C and serves it on a loopback port; the gateway authorizes the request the
+same way it authorizes a tool call — token, squad, `READ_GRAPH`, the project
+allowlist — and only then proxies to that port. Reimplementing 860 lines of C
+in Python would be slower and would drift.
+
+That port has no authentication of its own, which is why it binds
+`127.0.0.1`, is chosen by the gateway, and is never published. The trust
+boundary is the one the stdio pipe already has.
 
 **Signing in.** With `oidc.issuer` and `oidc.browser_client_id` set, the
 interface runs Authorization Code with PKCE: the browser is a public client
-holding no secret, and the gateway is not in the flow. The token that arrives
-on `/mcp` is verified by the code that verifies an MCP client's. Without a
-browser client the token box remains; in development mode the screen says
-plainly that tokens are not being verified.
+holding no secret. Without a browser client the token box remains; in
+development mode the screen says plainly that tokens are not being verified.
+Tokens live in `sessionStorage` and nowhere else.
 
-Access and refresh tokens live in `sessionStorage` and nowhere else — no
-cookie, no `localStorage`. Closing the tab ends the session and nothing is
-written to disk.
-
-**The map.** Rendering is Sigma over graphology, using WebGL. A real codebase
-graph is tens of thousands of nodes and edges, well past the point where
-Canvas 2D and the SVG-based graph libraries stop being usable. The ForceAtlas2
-layout runs in a Web Worker so the main thread only draws and the graph can be
-navigated while it is still settling; under a content security policy that
-forbids `worker-src blob:`, the same layout runs sliced between frames on the
-main thread.
-
-Filtering by node label and edge type happens during rendering rather than by
-changing the model, so a filter is instant, reversible and never moves the
-layout.
-
-There is no build step: the interface's own code is native ES modules, and the
-three browser libraries are committed under `gateway/app/ui/vendor/` as
-pre-built UMD bundles. Nothing is fetched from a CDN, so an air-gapped
-installation works.
+The source is under `gateway/webui/` and is built with Vite; the build output
+is not committed. Nothing is fetched from a CDN at runtime, so an air-gapped
+installation works — an air-gapped *build* needs an npm mirror as well as a
+Python one, which is the accepted cost of this choice.
 
 The details are in [docs/web-interface.md](docs/web-interface.md).
 

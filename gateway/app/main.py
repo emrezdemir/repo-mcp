@@ -82,7 +82,19 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
     app.include_router(build_router(database, provider))
     # The interface asks the platform the same questions an MCP client does,
     # over the same endpoint. See gateway/app/webui.py.
-    app.include_router(webui.build_router(provider.current, lambda: bool(state["ready"])))
+    async def engine_ui_port(tenant) -> int | None:
+        """Start this tenant's engine if it is not running, and report its port.
+
+        Asking for the port is what starts the engine, which is the same thing
+        a tool call does — the graph page is not a special case.
+        """
+        session = await pool.session(tenant)
+        await session.ensure_started()
+        return session.ui_port
+
+    app.include_router(
+        webui.build_router(provider.current, lambda: bool(state["ready"]), engine_ui_port)
+    )
 
     @app.get("/healthz")
     async def healthz() -> dict:

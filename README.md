@@ -4,7 +4,7 @@ GitHub, GitLab ve Bitbucket üzerindeki repository'leri merkezi olarak
 indeksleyen ve elde edilen kod graph'ını MCP üzerinden erişilebilir hale
 getiren bir servis.
 
-Sürüm 0.2.0 · [English](README.en.md) · [Değişiklikler](CHANGELOG.md)
+Sürüm 0.3.0 · [English](README.en.md) · [Değişiklikler](CHANGELOG.md)
 
 ## Genel bakış
 
@@ -97,9 +97,9 @@ tutulur. Admin API üzerinden yapılan her değişiklik bir generation sayacın�
 artırır; servisler bu sayacı belirli aralıklarla kontrol eder ve değiştiyse
 yapılandırmayı yeniden okur. Restart gerekmez.
 
-**Web arayüzü.** `/ui` adresinde; graph'ı gezmek, sembol aramak ve sistemi
-yönetmek için. Kimlik sağlayıcı üzerinden giriş yapar, codebase hakkındaki her
-sorusunu `/mcp` üzerinden sorar ve build adımı yoktur.
+**Web arayüzü.** `/ui` adresinde; graph'ı 3D gezmek ve sistemi yönetmek için.
+Motorun kendi arayüzü alınıp bu platforma bağlandı: kimlik sağlayıcı üzerinden
+giriş yapar ve codebase hakkındaki her sorusunu `/mcp` üzerinden sorar.
 
 **İki yönetim yüzeyi, tek davranış.** `repo-mcp-admin` komutu ile web
 arayüzündeki konsol aynı işlemleri aynı fonksiyonlar üzerinden yapar. Hangisini
@@ -405,49 +405,49 @@ zorunda kalmaz.
 
 ## Web arayüzü
 
-Gateway `/ui` adresinde bir tarayıcı arayüzü sunar. Dört sayfası vardır:
-projenin genel yapısı, sembol araması ve kaynak kod, graph'ın WebGL ile
-çizilen haritası ve yönetim konsolu.
+Gateway `/ui` adresinde bir tarayıcı arayüzü sunar. Üç sekme: projeler,
+graph'ın 3D haritası ve yönetim konsolu.
 
-![Graph haritası](docs/images/ui-map.png)
+![Graph](docs/images/ui-graph.png)
 
-Arayüzün ayrı bir okuma yolu yoktur. Bir codebase hakkındaki her soru,
-kullanıcının kendi token'ı ile `POST /mcp` üzerinden gider. Yani tarayıcının
-yapabildiği her şeyi bir MCP istemcisi de yapabilir ve ikisi aynı kodla
-yetkilendirilip aynı şekilde audit'e yazılır. İkinci bir okuma API'si, tenant
-kurallarının yanlış olabileceği ikinci bir yer demek olurdu.
+Bu arayüz sıfırdan yazılmadı — motorun kendi arayüzü (`graph-ui`, MIT,
+React + Three.js) alınıp bu platforma bağlandı. Gerekçesi
+[docs/adr/0011-adopt-the-upstream-interface.md](docs/adr/0011-adopt-the-upstream-interface.md)
+içinde; neyin neden değiştiğini
+[gateway/webui/README.md](gateway/webui/README.md) anlatıyor.
 
-MCP'nin cevaplayamadığı iki endpoint vardır: `GET /api/auth` nasıl giriş
-yapılacağını söyler (kimse giriş yapmadan önce cevaplandığı için herkese
-açıktır), `GET /api/session` ise çağıranın bu platformdaki takımını, rolünü ve
-tool listesini döner.
+Değişen tek temel şey transport oldu. Upstream motorun loopback sunucusuna
+`POST /rpc` ile konuşuyordu; artık `POST /mcp` ile konuşuyor — aynı JSON-RPC
+protokolü, aynı tool isimleri, ama gateway üzerinden. Yani her çağrı
+kullanıcının token'ını ve takımını taşıyor; rol yetkileri, proje allowlist'i
+ve motor tool profili kontrol ediliyor. Arayüzün ayrı bir okuma yolu yok.
 
-**Giriş.** `oidc.issuer` ve `oidc.browser_client_id` ayarlıysa arayüz PKCE ile
-Authorization Code akışını çalıştırır: tarayıcı public client'tır, client
-secret yoktur, gateway akışın içinde değildir. Sonuçta gelen token `/mcp`
-üzerinde bir MCP istemcisinin token'ı ile aynı kodla doğrulanır. Browser
-client tanımlı değilse token kutusu kalır; geliştirme modunda ise ekran
-token'ların doğrulanmadığını açıkça yazar.
+Upstream'in tek makineye özel yüzeyleri (dosya sistemi gezme, process ve log
+görüntüleme) kaldırıldı; yerine yönetim konsolu geldi. Diğer HTTP uçları
+tool çağrılarına bağlandı: proje sağlığı ve indeks durumu `index_status`,
+ADR'ler `manage_adr`, indeksleme `index_repository`, silme `delete_project`.
+Böylece hepsi bir yetkinin arkasında.
 
-Access ve refresh token yalnızca `sessionStorage` içinde tutulur — cookie yok,
-`localStorage` yok. Sekme kapanınca oturum biter, diske hiçbir şey yazılmaz.
+**3D yerleşim.** MCP'de karşılığı olmayan tek şey bu: motor yerleşimi C
+tarafında hesaplayıp bir loopback portunda sunuyor. Gateway isteği tıpkı bir
+tool çağrısı gibi yetkilendiriyor — token, takım, `READ_GRAPH` yetkisi, proje
+allowlist'i — ve ancak ondan sonra o porta proxy yapıyor. 860 satırlık C
+kodunu Python'da yeniden yazmak hem yavaş olurdu hem de zamanla sapardı.
 
-**Harita.** Çizim Sigma (WebGL) ve graphology ile yapılır; gerçek bir kod
-graph'ı on binlerce node ve edge demektir ve bu, Canvas 2D ile SVG tabanlı
-graph kütüphanelerinin kullanışlı olmayı bıraktığı noktanın çok ötesindedir.
-ForceAtlas2 yerleşimi bir Web Worker içinde çalışır, böylece ana thread
-yalnızca çizim yapar ve graph yerleşirken bile gezilebilir. `worker-src blob:`
-izni olmayan bir content security policy altında aynı yerleşim ana thread
-üzerinde parçalara bölünerek çalışır.
+O portun kendi kimlik doğrulaması yok; bu yüzden `127.0.0.1`'e bağlanıyor,
+portu gateway seçiyor ve hiçbir zaman dışarı açılmıyor. Güven sınırı stdio
+borusununkiyle aynı.
 
-Node etiketi ve edge tipine göre filtreleme render aşamasında yapılır, model
-değişmez; bu yüzden filtre anında uygulanır, geri alınabilir ve yerleşimi
-bozmaz.
+**Giriş.** `oidc.issuer` ve `oidc.browser_client_id` ayarlıysa PKCE ile
+Authorization Code akışı çalışır; tarayıcı public client'tır, client secret
+yoktur. Browser client tanımlı değilse token kutusu kalır, geliştirme modunda
+ekran token'ların doğrulanmadığını açıkça yazar. Token'lar yalnızca
+`sessionStorage`'da tutulur.
 
-Arayüzün build adımı yoktur: kendi kodu native ES module'dür, üç tarayıcı
-kütüphanesi `gateway/app/ui/vendor/` altında hazır UMD bundle olarak
-tutulur. CDN'den hiçbir şey çekilmez, dolayısıyla internet erişimi olmayan bir
-kurulumda da çalışır.
+Arayüz kaynağı `gateway/webui/` altında, Vite ile derleniyor; derleme çıktısı
+repoya konmuyor. Çalışma anında CDN'den bir şey çekilmiyor, dolayısıyla
+internet erişimi olmayan bir kurulumda çalışır — ama internet erişimi olmayan
+bir *derleme* için npm aynası gerekir. Bu, seçimin bilinçli bedeli.
 
 Ayrıntılar [docs/web-interface.md](docs/web-interface.md) içinde.
 

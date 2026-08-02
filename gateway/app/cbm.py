@@ -1,9 +1,13 @@
 """Bridge to the indexing engine.
 
-The engine speaks line-delimited JSON-RPC over stdio and nothing else — there is no
-network transport (see docs/engine.md). This module keeps one engine
-process per tenant, serialises calls onto its single stdio stream, and reaps
-processes that have gone idle.
+The engine speaks line-delimited JSON-RPC over stdio for its tools, and this
+module keeps one engine process per tenant, serialises calls onto its single
+stdio stream, and reaps processes that have gone idle.
+
+A build of the engine with the interface included also serves a 3D graph
+layout over HTTP, on loopback only. The gateway starts that on a port of its
+choosing and proxies to it after authorizing the request — see ``ui_port`` and
+``webui.py``.
 
 Isolation is per process: every tenant gets its own ``CBM_CACHE_DIR``,
 ``CBM_ALLOWED_ROOT`` and tool profile.
@@ -16,6 +20,7 @@ import contextlib
 import json
 import logging
 import os
+import socket
 import time
 from dataclasses import dataclass
 
@@ -26,6 +31,19 @@ from .tenants import Tenant
 log = logging.getLogger(__name__)
 
 PROTOCOL_VERSION = "2025-06-18"
+
+
+def _free_loopback_port() -> int:
+    """A port the operating system says is free, on loopback.
+
+    Racy in principle — something could take it between the close and the
+    engine's bind. In practice the window is microseconds inside one
+    container, and the alternative, a fixed range, collides for real as soon
+    as two tenants start at once.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
 
 #: The engine can emit very large single-line responses (a full architecture dump on
 #: a big monorepo). The default asyncio stream limit of 64 KiB would truncate
@@ -59,7 +77,23 @@ class CbmSession:
         self._next_id = 0
         self._stderr_task: asyncio.Task | None = None
         self._started_before = False
+        self._ui_port: int | None = None
         self.last_used = time.monotonic()
+
+    @property
+    def ui_port(self) -> int | None:
+        """The loopback port this tenant's engine serves its layout on."""
+        return self._ui_port
+
+    async def ensure_started(self) -> None:
+        """Start the engine if it is not running. Idempotent.
+
+        A tool call does this on its way past; the graph page needs it done
+        without making a call, because the layout it wants is served by the
+        process rather than answered over the stdio pipe.
+        """
+        async with self._lock:
+            await self._ensure_started()
 
     # ── lifecycle ────────────────────────────────────────────────────
 
@@ -96,6 +130,20 @@ class CbmSession:
             raise CbmError(f"cannot create cache directory {self.cache_dir}: {exc}") from exc
 
         argv = [self._settings.cbm_binary, *self._tenant.cbm_profile_flag()]
+
+        # The engine can also serve the 3D layout its own interface uses, over
+        # HTTP. That layout is 860 lines of C reading the graph database
+        # directly; reimplementing it here would be slower and would drift.
+        #
+        # The server binds 127.0.0.1 only and has no authentication of its
+        # own — which is why the port is chosen by us, kept in this process,
+        # and never published. The gateway authorizes a request and then
+        # proxies it, so the trust boundary is the same one the stdio pipe
+        # already has: the engine process is trusted, and reaching it is not.
+        if self._settings.engine_ui_enabled:
+            self._ui_port = _free_loopback_port()
+            argv += [f"--port={self._ui_port}", "--ui=true"]
+
         reason = "restart" if self._started_before else "first_start"
         log.info("starting engine for tenant=%s argv=%s", self._tenant.name, argv)
         try:
