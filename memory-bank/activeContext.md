@@ -1,7 +1,7 @@
 # Active context
 
 **Last updated:** 2026-08-02
-**Branch:** `feature/adopt-graph-ui`, off `dev`
+**Branch:** `feature/interface-polish`, off `dev`
 
 ## Where things stand
 
@@ -17,6 +17,23 @@ from `dev`; a version tag publishes `:vX.Y.Z` and packages the chart.
 nothing else pushes there.
 
 ## What the last sessions did
+
+**Session 12 — auditing the adopted interface, and the Ask tab.** Driving
+every surface against the real engine found that the interface was hiding
+refusals: a squad on the analysis profile cannot call `manage_adr`, and the
+dialog opened empty with a save button that did nothing. Refusals now appear
+in the platform's own words, and controls it would certainly refuse are
+disabled with the reason on them rather than vanishing.
+
+Two more from the same pass: selecting a symbol from the search results only
+highlighted a dot in three dimensions, which made the source view effectively
+unreachable; and the dialogs could not be closed by keyboard at all.
+
+Then the biggest missing capability. `ask_codebase` is what this platform has
+that a local graph viewer does not, and it had no interface. Adding one
+exposed that `/api/session` reported only the engine's tools while
+`tools/list` also offers the composite ones — so the tab would have been
+hidden forever. Both now call one function.
 
 **Session 11 — the interface was rewritten, and it should not have been.**
 The maintainer had asked for the upstream project to be used as the base. It

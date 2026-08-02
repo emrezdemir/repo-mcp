@@ -422,6 +422,7 @@ export function GraphTab({ project }: GraphTabProps) {
         <Sidebar
           nodes={filteredData.nodes}
           onSelectPath={handleSelectPath}
+          onSelectNode={handleNodeClick}
           selectedPath={selectedPath}
         />
       </div>

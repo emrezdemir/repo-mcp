@@ -406,8 +406,8 @@ that artifact instead of indexing from scratch.
 
 ## The web interface
 
-The gateway serves a browser interface at `/ui`. Three tabs: projects, the
-graph in 3D, and the administrative console.
+The gateway serves a browser interface at `/ui`. Four tabs: projects, the
+graph in 3D, asking a question in words, and the administrative console.
 
 ![The graph](docs/images/ui-graph.png)
 
@@ -438,6 +438,20 @@ in Python would be slower and would drift.
 That port has no authentication of its own, which is why it binds
 `127.0.0.1`, is chosen by the gateway, and is never published. The trust
 boundary is the one the stdio pipe already has.
+
+**Asking.** `ask_codebase` runs `get_architecture` and `search_graph` first
+and answers from what they returned, citing the qualified name of every symbol
+it mentions. The model is never asked to guess the graph, which is what makes
+the answer checkable. Without a model backend the page says which settings
+turn it on.
+
+![Ask](docs/images/ui-ask.png)
+
+**Refusals.** A control the platform is certain to refuse is not hidden — it
+is disabled with the reason on it, because an administrator debugging
+permissions needs something to look at. A refusal that arrives is shown in the
+platform's own words: `'manage_adr' is not available in this session (role:
+lead, squad: payments)`. Nothing fails silently.
 
 **Signing in.** With `oidc.issuer` and `oidc.browser_client_id` set, the
 interface runs Authorization Code with PKCE: the browser is a public client

@@ -74,6 +74,10 @@ def main() -> int:
         page.wait_for_timeout(20000)
         shot(page, "ui-graph")
 
+        page.click("nav button:text-is('Ask')")
+        page.wait_for_timeout(1500)
+        shot(page, "ui-ask")
+
         page.click("nav button:text-is('Admin')")
         page.wait_for_timeout(800)
         page.fill("input[autocomplete=current-password]", args.admin_password)

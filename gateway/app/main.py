@@ -82,6 +82,16 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
     app.include_router(build_router(database, provider))
     # The interface asks the platform the same questions an MCP client does,
     # over the same endpoint. See gateway/app/webui.py.
+    def _llm_enabled(live: Settings) -> bool:
+        """Whether a model backend is configured, as of right now.
+
+        `llm.update` is idempotent and cheap; calling it here means the
+        interface sees an administrator enabling the backend on the next page
+        load rather than after the next tool call.
+        """
+        llm.update(live)
+        return llm.enabled
+
     async def engine_ui_port(tenant) -> int | None:
         """Start this tenant's engine if it is not running, and report its port.
 
@@ -93,7 +103,12 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
         return session.ui_port
 
     app.include_router(
-        webui.build_router(provider.current, lambda: bool(state["ready"]), engine_ui_port)
+        webui.build_router(
+            provider.current,
+            lambda: bool(state["ready"]),
+            engine_ui_port,
+            _llm_enabled,
+        )
     )
 
     @app.get("/healthz")

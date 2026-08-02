@@ -197,10 +197,9 @@ class McpRouter:
         cbm = await self._pool.session(session.tenant)
         tools = [t for t in await cbm.list_tools() if t.get("name") in allowed]
 
-        if self._llm.enabled and Capability.USE_SMART_TOOLS in session.capabilities:
-            for definition in SMART_TOOL_DEFINITIONS:
-                if SMART_TOOL_REQUIREMENTS[definition["name"]] <= allowed:
-                    tools.append(definition)
+        for definition in SMART_TOOL_DEFINITIONS:
+            if definition["name"] in smart_tools_for(session, self._llm.enabled):
+                tools.append(definition)
         return tools
 
     async def _tools_call(self, session: Session, params: dict) -> dict:
@@ -337,6 +336,26 @@ class McpRouter:
             expected_root = str(self._settings.cbm_repo_root / session.tenant.name)
             if not repo_path.startswith(expected_root + "/"):
                 raise AccessDenied(f"repo_path must live under {expected_root}")
+
+
+def smart_tools_for(session: Session, llm_enabled: bool) -> frozenset[str]:
+    """Which composite tools this session can actually reach.
+
+    Three conditions, all of them: a model backend exists, the role may use
+    smart tools, and the session can already call the primitives each one is
+    built from — a tenant that cannot call `search_graph` cannot reach it
+    through `ask_codebase` either.
+
+    Shared with `/api/session` so the interface offers exactly what
+    `tools/list` would return. Two places computing this separately is how an
+    interface ends up showing a button that is always refused.
+    """
+    if not llm_enabled or Capability.USE_SMART_TOOLS not in session.capabilities:
+        return frozenset()
+    allowed = session.effective_tools
+    return frozenset(
+        name for name, needs in SMART_TOOL_REQUIREMENTS.items() if needs <= allowed
+    )
 
 
 def _error(message_id, code: int, message: str) -> dict:

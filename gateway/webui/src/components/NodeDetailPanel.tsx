@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { colorForLabel } from "../lib/colors";
 import { callTool } from "../api/rpc";
+import { useCan } from "../hooks/useCan";
 import type { GraphNode, GraphEdge, RepoInfo } from "../lib/types";
 
 interface Connection {
@@ -65,7 +66,10 @@ export function NodeDetailPanel({
     setCodeLoading(false);
   }, [node.id]);
 
-  const canFetchCode = Boolean(project && node.qualified_name);
+  // Both must hold: the node has to have a qualified name to ask about, and
+  // this caller's role and squad profile have to allow reading source at all.
+  const maySeeSource = useCan("get_code_snippet");
+  const canFetchCode = Boolean(project && node.qualified_name) && maySeeSource;
   const ghUrl = githubUrl(node, repoInfo);
 
   const loadCode = async () => {
@@ -166,7 +170,14 @@ export function NodeDetailPanel({
           )}
         </div>
 
-        {codeError && <p className="text-[11px] text-red-400/80 mt-2">{codeError}</p>}
+        {!maySeeSource && node.qualified_name && (
+          <p className="text-[11px] text-foreground/30 mt-2">
+            This squad's tool profile does not return source code.
+          </p>
+        )}
+        {codeError && (
+          <p role="alert" className="text-[11px] text-red-400/80 mt-2">{codeError}</p>
+        )}
         {code && (
           <pre className="mt-2 max-h-[300px] overflow-auto rounded-md bg-black/40 border border-white/[0.06] p-2.5 text-[10.5px] leading-relaxed font-mono text-foreground/75 whitespace-pre">
             {code}

@@ -22,10 +22,30 @@ Two endpoints exist that MCP has no answer for:
 | --- | --- |
 | `GET /api/auth` | How to sign in: the redirect flow, the token box, or development mode. Public, because it is answered before anyone is signed in. |
 | `GET /api/session` | Who the caller is here: which squad, which role, which tools. Used to decide which buttons to show. |
+| `GET /api/ui-config` | Presentation only — the interface's language, if an installation pins one. Public, because it is read while rendering the sign-in screen. |
+| `GET /api/layout` | The 3D layout, proxied from this squad's engine after the same authorization a tool call gets. |
 
 `/api/session` is a convenience, not a permission. Getting it wrong would show
 a button that then fails with a clear refusal — the authorization decision is
 made in `mcp.py`, on the request, every time.
+
+It reports exactly what `tools/list` would: both call `smart_tools_for`, so a
+composite tool is offered here only when it would actually be answered there.
+
+## What happens when the platform refuses
+
+A control the platform is certain to refuse is rendered disabled, with the
+reason on it, rather than hidden — an administrator debugging permissions
+needs something to look at. A refusal that does arrive is shown in the
+platform's own words, because those name what is missing:
+
+```
+'manage_adr' is not available in this session (role: lead, squad: payments)
+no access to project 'acme-checkout-web' (allowed: acme-ledger, acme-payments-*)
+```
+
+Nothing fails silently. A save that appears to work and did not is worse than
+one that says so.
 
 The administrative console is the exception: it talks to `/admin/*`, the same
 routes `repo-mcp-admin` uses, with a separate local session. See
@@ -146,6 +166,23 @@ actually drawn is always stated next to the total.
 This needs the engine build that includes the interface
 (`CBM_EDITION=-ui`, the default). Without it the graph page says so, and the
 rest of the interface works.
+
+### Ask
+
+A question in words, answered from the graph.
+
+![Ask](images/ui-ask.png)
+
+`ask_codebase` runs `get_architecture` and `search_graph` first and answers
+from what they returned, citing the qualified name of every symbol it
+mentions. The model is never asked to guess the graph — which is why the
+answer is checkable, and why a question about a project nobody has indexed
+gets "the evidence is insufficient" rather than an invention.
+
+It needs three things at once: a model backend, a role that may use smart
+tools, and a squad whose profile allows the primitives it is built from. When
+any of them is missing the page says which, rather than offering a box that
+fails.
 
 ### Admin
 

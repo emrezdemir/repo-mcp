@@ -83,7 +83,7 @@ export interface SchemaInfo {
 /* "control" upstream was engine processes, logs and a filesystem browser —
  * single-machine surfaces. On a shared platform it is the administrative
  * console instead. */
-export type TabId = "graph" | "stats" | "admin";
+export type TabId = "graph" | "stats" | "ask" | "admin";
 
 export interface ProcessInfo {
   pid: number;
