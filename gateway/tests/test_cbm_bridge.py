@@ -66,6 +66,10 @@ def make_settings(tmp_path: Path, binary: str, call_timeout: float = 10.0) -> Se
         litellm_model="test",
         litellm_timeout_s=30.0,
         smart_tools_enabled=False,
+        answer_cache_enabled=False,
+        answer_cache_embedding_model="",
+        answer_cache_threshold=0.95,
+        answer_cache_ttl_s=604800.0,
     )
 
 

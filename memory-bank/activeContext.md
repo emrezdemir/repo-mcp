@@ -1,7 +1,7 @@
 # Active context
 
 **Last updated:** 2026-08-02
-**Branch:** `feature/environment-promotion`, off `dev`
+**Branch:** `feature/answer-cache`, off `dev`
 
 ## Where things stand
 
@@ -17,6 +17,18 @@ from `dev`; a version tag publishes `:vX.Y.Z` and packages the chart.
 nothing else pushes there.
 
 ## What the last sessions did
+
+**Session 7 — the answer cache.** A per-squad cache of `ask_codebase`
+answers, keyed on a new per-project index epoch that the indexer bumps after
+every successful run. Exact-question tier first, semantic tier only when an
+embedding model is set. ADR-0009 records the vector-store research: pgvector
+is the eventual answer, Qdrant is not, and neither is justified at the current
+candidate-set size — with the number and the metric that would change that.
+
+Adding the second migration exposed that revision one built the schema from
+the live models, so it created revision two's tables and revision two then
+failed. Revision one is now transcribed, and a test compares the migrated
+schema to the models in both directions.
 
 **Session 6 — environments and promotion.** ADR-0008, `docs/environments.md`,
 `MIGRATE_ON_START`, `ENVIRONMENT`, per-environment Helm values examples, image
@@ -111,12 +123,9 @@ discusses engine internals — with source references, so claims are checkable.
 
 Roughly in order of value per unit of effort:
 
-0. **A pgvector-backed answer cache** for `ask_codebase`, per-squad and
-   invalidated by the configuration generation. Cuts both tokens and latency
-   on the repeated questions a squad actually asks.
-1. **Headroom as an updatable plugin** — pinned image tag, a DB setting to
+0. **Headroom as an updatable plugin** — pinned image tag, a DB setting to
    enable it, structural tool outputs only. Never `get_code_snippet`.
-2. **Wire up the `org/public` shared layer.** The `cross-repo-intelligence`
+1. **Wire up the `org/public` shared layer.** The `cross-repo-intelligence`
    mode and the `structural_only` tenant flag both exist; the nightly job that
    builds the layer does not. Small job, unlocks cross-squad topology answers.
 3. **Durable job queue** (Redis or NATS) with per-project leases, so the

@@ -42,6 +42,15 @@ DEFAULT_SETTINGS: dict[str, object] = {
     "indexer.rescan_interval_seconds": 86400,
     "indexer.git_timeout_seconds": 600,
     "indexer.index_timeout_seconds": 3600,
+    # Answer cache — docs/adr/0009-answer-cache.md. Off by default: it stores
+    # synthesised knowledge of a squad's source, which is a decision an
+    # administrator should make rather than inherit.
+    "answer_cache.enabled": False,
+    "answer_cache.embedding_model": "",
+    # High on purpose. A miss costs tokens and seconds; a false hit is fluent,
+    # plausible, about a different question, and very hard to notice.
+    "answer_cache.similarity_threshold": 0.95,
+    "answer_cache.ttl_seconds": 604800,
 }
 
 

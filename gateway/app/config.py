@@ -40,6 +40,12 @@ class Settings:
     litellm_timeout_s: float
     smart_tools_enabled: bool
 
+    # --- answer cache (docs/adr/0009-answer-cache.md) ---
+    answer_cache_enabled: bool
+    answer_cache_embedding_model: str
+    answer_cache_threshold: float
+    answer_cache_ttl_s: float
+
     @classmethod
     def from_env(cls) -> Settings:
         groups = os.getenv("DEV_STATIC_GROUPS", "")
@@ -60,4 +66,9 @@ class Settings:
             litellm_model=os.getenv("LITELLM_MODEL", "gpt-4o-mini"),
             litellm_timeout_s=float(os.getenv("LITELLM_TIMEOUT_S", "90")),
             smart_tools_enabled=_bool("SMART_TOOLS_ENABLED", True),
+            # Defaults only; an administrator sets these in the database.
+            answer_cache_enabled=_bool("ANSWER_CACHE_ENABLED", False),
+            answer_cache_embedding_model=os.getenv("ANSWER_CACHE_EMBEDDING_MODEL", ""),
+            answer_cache_threshold=float(os.getenv("ANSWER_CACHE_THRESHOLD", "0.95")),
+            answer_cache_ttl_s=float(os.getenv("ANSWER_CACHE_TTL_S", "604800")),
         )

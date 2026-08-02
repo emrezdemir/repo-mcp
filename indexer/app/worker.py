@@ -16,11 +16,15 @@ import json
 import logging
 import os
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
 
 from .metrics import COALESCED, JOB_DURATION, JOBS, QUEUE_DEPTH
 from .repos import Binding
+
+#: (tenant, project, commit) → recorded. Awaited after a successful index.
+OnIndexed = Callable[[str, str, str | None], Awaitable[None]]
 
 log = logging.getLogger(__name__)
 
@@ -55,6 +59,7 @@ class Indexer:
         git_timeout_s: float = 600.0,
         index_timeout_s: float = 3600.0,
         concurrency: int = 2,
+        on_indexed: OnIndexed | None = None,
     ) -> None:
         self._cbm = cbm_binary
         self._cache_root = cache_root
@@ -62,6 +67,9 @@ class Indexer:
         self._git_timeout = git_timeout_s
         self._index_timeout = index_timeout_s
         self._concurrency = concurrency
+        #: Called after every successful index. Injected rather than imported
+        #: so the queue tests need no database.
+        self._on_indexed = on_indexed
         self._queue: asyncio.Queue[IndexJob] = asyncio.Queue()
         self._project_locks: dict[str, asyncio.Lock] = {}
         self._pending: set[str] = set()
@@ -127,6 +135,8 @@ class Indexer:
                     self._pending.discard(job.key)
                     result = await self._index(job)
                     self.last_results[job.key] = result
+                    if result.ok:
+                        await self._record_epoch(job)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:  # noqa: BLE001 - a worker must not die
@@ -137,6 +147,26 @@ class Indexer:
                 self._pending.discard(job.key)
                 self._queue.task_done()
                 QUEUE_DEPTH.set(self._queue.qsize())
+
+    async def _record_epoch(self, job: IndexJob) -> None:
+        """Say that this project's graph changed.
+
+        The gateway's answer cache is keyed on the epoch, so every answer
+        computed from the previous graph stops being a candidate here. A
+        failure to record it must not fail the index — it costs staleness, not
+        correctness of the graph — but it is logged loudly, because a silently
+        frozen epoch means the cache serves answers about code that has moved
+        on. See docs/adr/0009-answer-cache.md.
+        """
+        if self._on_indexed is None:
+            return
+        try:
+            await self._on_indexed(job.binding.tenant, job.binding.project, job.sha or None)
+        except Exception:  # noqa: BLE001 - the graph is already updated
+            log.exception(
+                "could not record the index epoch for %s; cached answers may be stale",
+                job.key,
+            )
 
     async def _index(self, job: IndexJob) -> JobResult:
         binding = job.binding

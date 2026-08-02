@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
+from .answer_cache import AnswerCache
 from .audit import AuditEvent, Timer, emit
 from .auth import Principal
 from .cbm import CbmError, CbmPool
@@ -139,6 +140,7 @@ class McpRouter:
         registry: TenantRegistry | None,
         pool: CbmPool,
         llm: LlmClient,
+        cache: AnswerCache | None = None,
     ) -> None:
         #: Paths and process settings, from the environment. Tenancy arrives
         #: per request inside the Session, because an administrator can change
@@ -148,6 +150,8 @@ class McpRouter:
         self._registry = registry
         self._pool = pool
         self._llm = llm
+        #: Optional: tests build a router without a database.
+        self._cache = cache
 
     async def handle(self, session: Session, message: dict) -> dict | None:
         method = message.get("method")
@@ -229,13 +233,7 @@ class McpRouter:
             with Timer() as timer:
                 if name in SMART_TOOL_NAMES:
                     event.llm_model = self._settings.litellm_model
-                    text = await HANDLERS[name](
-                        session=cbm,
-                        llm=self._llm,
-                        tenant=session.tenant,
-                        username=session.principal.username,
-                        args=args,
-                    )
+                    text = await self._smart_tool(session, cbm, name, args, event)
                     result = {"content": [{"type": "text", "text": text}], "isError": False}
                 else:
                     outcome = await cbm.call_tool(name, args)
@@ -256,6 +254,46 @@ class McpRouter:
             tool_label, session.tenant.name, session.role.value, event.outcome
         ).inc()
         return result
+
+    async def _smart_tool(
+        self, session: Session, cbm, name: str, args: dict, event: AuditEvent
+    ) -> str:
+        """Answer from the cache when it applies, otherwise from the model.
+
+        A recalled answer is labelled in the audit record and in the text
+        itself: a developer should be able to tell that an answer describes the
+        graph as of an earlier moment, and ask again if that matters.
+        """
+        if self._cache is not None:
+            hit = await self._cache.lookup(
+                settings=self._settings,
+                tenant=session.tenant,
+                username=session.principal.username,
+                tool=name,
+                args=args,
+            )
+            if hit is not None:
+                event.extra["cache"] = hit.kind
+                event.llm_model = None
+                return _label_cached(hit)
+
+        text = await HANDLERS[name](
+            session=cbm,
+            llm=self._llm,
+            tenant=session.tenant,
+            username=session.principal.username,
+            args=args,
+        )
+        if self._cache is not None:
+            await self._cache.store(
+                settings=self._settings,
+                tenant=session.tenant,
+                username=session.principal.username,
+                tool=name,
+                args=args,
+                answer=text,
+            )
+        return text
 
     # ── authorization ────────────────────────────────────────────────
 
@@ -307,3 +345,16 @@ def _error(message_id, code: int, message: str) -> dict:
         "id": message_id,
         "error": {"code": code, "message": message},
     }
+
+
+def _label_cached(hit) -> str:
+    """Say plainly that an answer was recalled, and how old it is.
+
+    An unlabelled cached answer is indistinguishable from a fresh one, which
+    is exactly the confusion the epoch key exists to avoid on the storage
+    side. The reader deserves the same courtesy.
+    """
+    age = int(hit.age_seconds)
+    when = f"{age // 3600}h" if age >= 3600 else f"{max(age // 60, 1)}m"
+    how = "identical question" if hit.kind == "exact" else f"similar question, {hit.similarity:.2f}"
+    return f"{hit.answer}\n\n_Recalled from the answer cache ({how}, {when} old)._"
