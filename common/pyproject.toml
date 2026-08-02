@@ -1,0 +1,48 @@
+[project]
+name = "repo-mcp-common"
+version = "0.1.0"
+description = "Shared database, configuration and bootstrap layer for repo-mcp"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "sqlalchemy[asyncio]>=2.0",
+    "asyncpg>=0.29",
+    "alembic>=1.13",
+    "cryptography>=42.0",
+    "argon2-cffi>=23.1",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "aiosqlite>=0.20",
+    "ruff>=0.4",
+]
+
+[project.scripts]
+repo-mcp-admin = "repo_mcp_common.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["repo_mcp_common*"]
+
+[tool.setuptools.package-data]
+repo_mcp_common = ["migrations/*", "migrations/**/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]

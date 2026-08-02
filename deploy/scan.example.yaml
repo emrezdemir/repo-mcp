@@ -1,0 +1,43 @@
+# Repository discovery for the indexer.
+#
+# Point a connector at an organisation, group or workspace and every
+# repository underneath is discovered automatically. Secrets are read from the
+# environment; never write tokens into this file.
+
+connectors:
+  - name: acme-github
+    type: github
+    org: acme
+    token_env: GITHUB_TOKEN
+    tenant: payments
+    include:
+      - "payments-*"
+      - "ledger"
+    exclude:
+      - "*-archive"
+    # full      : everything, including similarity and semantic edges
+    # moderate  : filtered files, still with similarity and semantic edges
+    # fast      : filtered files, no similarity or semantic edges
+    mode: moderate
+    # Write .codebase-memory/graph.db.zst so developer machines can bootstrap
+    # from the artifact instead of reindexing from scratch.
+    persistence: true
+
+  - name: acme-gitlab
+    type: gitlab
+    # Nested subgroups are discovered recursively.
+    group: acme/backend
+    base_url: https://gitlab.example.com
+    token_env: GITLAB_TOKEN
+    tenant: checkout
+    mode: moderate
+
+  - name: acme-bitbucket
+    type: bitbucket
+    workspace: acme
+    # Optional: restrict to a single Bitbucket project.
+    project_key: PAY
+    username: ci-bot
+    token_env: BITBUCKET_APP_PASSWORD
+    tenant: payments
+    mode: fast

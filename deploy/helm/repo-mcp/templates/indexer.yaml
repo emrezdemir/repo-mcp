@@ -1,0 +1,138 @@
+{{- if .Values.indexer.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "repo-mcp.fullname" . }}-indexer
+  labels:
+    {{- include "repo-mcp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: indexer
+spec:
+  replicas: {{ .Values.indexer.replicaCount }}
+  strategy:
+    # Recreate for the same reason as the gateway (exact-build admission), and
+    # because two indexers would contend on the engine's per-project lock.
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "repo-mcp.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: indexer
+  template:
+    metadata:
+      labels:
+        {{- include "repo-mcp.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: indexer
+        {{- with .Values.podLabels }}{{- toYaml . | nindent 8 }}{{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if .Values.metrics.enabled }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+        {{- end }}
+        {{- with .Values.podAnnotations }}{{- toYaml . | nindent 8 }}{{- end }}
+    spec:
+      serviceAccountName: {{ include "repo-mcp.serviceAccountName" . }}
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      # Indexing runs can take an hour on a large repository. Give an
+      # in-flight job a chance to finish rather than truncating the graph.
+      terminationGracePeriodSeconds: 120
+      containers:
+        - name: indexer
+          image: {{ include "repo-mcp.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            {{- include "repo-mcp.commonEnv" . | nindent 12 }}
+            {{- include "repo-mcp.secretEnv" . | nindent 12 }}
+            - name: SCAN_CONFIG
+              value: /etc/repo-mcp/scan.yaml
+            - name: INDEX_CONCURRENCY
+              value: {{ .Values.indexer.config.concurrency | quote }}
+            - name: RESCAN_INTERVAL_S
+              value: {{ .Values.indexer.config.rescanIntervalSeconds | quote }}
+            - name: CBM_LOG_LEVEL
+              value: {{ .Values.indexer.config.logLevel | quote }}
+            - name: WEB_CONCURRENCY
+              value: "1"
+            {{- with .Values.indexer.extraEnv }}{{- toYaml . | nindent 12 }}{{- end }}
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            # A busy indexer is still alive; do not restart it mid-job.
+            timeoutSeconds: 10
+            failureThreshold: 6
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          resources:
+            {{- toYaml .Values.indexer.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/repo-mcp
+              readOnly: true
+            - name: cache
+              mountPath: /var/lib/repo-mcp/cache
+            - name: repos
+              mountPath: /var/lib/repo-mcp/repos
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "repo-mcp.fullname" . }}-config
+        - name: cache
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.cache.existingClaim | default (printf "%s-cache" (include "repo-mcp.fullname" .)) }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: repos
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.repos.existingClaim | default (printf "%s-repos" (include "repo-mcp.fullname" .)) }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.indexer.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.indexer.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.indexer.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "repo-mcp.fullname" . }}-indexer
+  labels:
+    {{- include "repo-mcp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: indexer
+  {{- with .Values.indexer.service.annotations }}
+  annotations: {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.indexer.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.indexer.service.port }}
+      targetPort: http
+  selector:
+    {{- include "repo-mcp.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: indexer
+{{- end }}

@@ -1,0 +1,58 @@
+# Role and squad configuration for the gateway.
+#
+# Two independent axes:
+#   roles   — what a person may do (capabilities)
+#   tenants — which data they may do it to (squad scope)
+#
+# See docs/roles-and-permissions.md and docs/adr/0003-rbac-model.md.
+
+roles:
+  # LDAP / Active Directory group names, without any leading slash.
+  admin:
+    - platform-admins
+  lead:
+    - squad-payments-leads
+    - squad-checkout-leads
+  developer:
+    - squad-payments
+    - squad-checkout
+  qa:
+    - chapter-test
+  devops:
+    - chapter-devops
+  viewer:
+    - contractors
+
+tenants:
+  payments:
+    ldap_groups:
+      - squad-payments
+      - squad-payments-leads
+      - chapter-test
+      - chapter-devops
+    # analysis: read-only inspection surface, no indexing or ADR writes.
+    tool_profile: analysis
+    projects:
+      - "acme-payments-*"
+      - "acme-ledger"
+    # Optional: this squad's own LiteLLM virtual key, for separate budgets.
+    litellm_key_env: LITELLM_KEY_PAYMENTS
+
+  checkout:
+    ldap_groups:
+      - squad-checkout
+      - squad-checkout-leads
+    tool_profile: analysis
+    projects:
+      - "acme-checkout-*"
+
+  # The shared organisation-wide layer. Structural only: no tool that returns
+  # source text is exposed, so cross-squad topology questions are answerable
+  # without any code leaving its squad. See docs/adr/0002-tenancy-model.md.
+  org-public:
+    ldap_groups:
+      - all-engineers
+    tool_profile: scout
+    structural_only: true
+    projects:
+      - "*"

@@ -1,0 +1,43 @@
+{{- if and .Values.gateway.enabled .Values.gateway.autoscaling.enabled }}
+{{- if ne .Values.persistence.cache.accessMode "ReadWriteMany" }}
+{{- fail "gateway.autoscaling requires persistence.cache.accessMode=ReadWriteMany (or the synced topology in docs/scaling.md): every replica needs the graph stores" }}
+{{- end }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "repo-mcp.fullname" . }}-gateway
+  labels:
+    {{- include "repo-mcp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "repo-mcp.fullname" . }}-gateway
+  minReplicas: {{ .Values.gateway.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.gateway.autoscaling.maxReplicas }}
+  metrics:
+    {{- with .Values.gateway.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: {{ . }} }
+    {{- end }}
+    {{- with .Values.gateway.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target: { type: Utilization, averageUtilization: {{ . }} }
+    {{- end }}
+  behavior:
+    scaleDown:
+      # Each pod holds warm engine processes per tenant. Scaling down eagerly
+      # throws that away and the next request pays a cold start.
+      stabilizationWindowSeconds: 600
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+    scaleUp:
+      stabilizationWindowSeconds: 60
+{{- end }}

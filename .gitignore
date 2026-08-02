@@ -1,0 +1,42 @@
+# ── Python ────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+gateway/.venv/
+indexer/.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# ── Secrets ───────────────────────────────────────────────────────────
+# Never commit these. scripts/check-secrets.sh enforces it, because
+# .gitignore does not help for a file that is already tracked.
+.env
+.env.*
+*.env
+!deploy/.env.example
+*.pem
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+kubeconfig
+
+# ── Environment-specific configuration ────────────────────────────────
+# Deliberately untracked: these differ per deployment and per branch, so
+# tracking them is what would make main and dev conflict on every merge.
+# The .example files next to them are the tracked reference.
+deploy/tenants.yaml
+deploy/scan.yaml
+deploy/keycloak/
+
+# ── Runtime data ──────────────────────────────────────────────────────
+.dev/
+/var/
+*.db
+*.db-wal
+*.db-shm
+*.zst

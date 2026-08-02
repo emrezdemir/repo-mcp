@@ -1,0 +1,53 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "repo-mcp.fullname" . }}
+  labels:
+    {{- include "repo-mcp.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "repo-mcp.selectorLabels" . | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        {{- range .Values.networkPolicy.allowedNamespaces }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ . }}
+        {{- end }}
+        # Same-namespace traffic, so Prometheus scraping keeps working.
+        - podSelector: {}
+      ports:
+        - port: 8080
+          protocol: TCP
+  egress:
+    # DNS, without which nothing else resolves.
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - podSelector: {}
+    {{- if .Values.networkPolicy.allowExternalEgress }}
+    # Git providers for discovery and cloning, the OIDC issuer for JWKS, and
+    # the LiteLLM proxy. Narrow this to specific CIDRs where you can.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 169.254.169.254/32  # cloud instance metadata
+      ports:
+        - port: 443
+          protocol: TCP
+        - port: 22
+          protocol: TCP
+    {{- end }}
+{{- end }}

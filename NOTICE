@@ -1,0 +1,62 @@
+repo-mcp
+Copyright (c) 2026 repo-mcp contributors
+Licensed under the MIT License. See LICENSE.
+
+================================================================================
+Third-party components
+================================================================================
+
+repo-mcp embeds and redistributes the following component in its container
+images. It is used unmodified; repo-mcp is an independent project and is not
+affiliated with or endorsed by its authors.
+
+--------------------------------------------------------------------------------
+codebase-memory-mcp — the indexing engine
+--------------------------------------------------------------------------------
+
+  Upstream:  https://github.com/DeusData/codebase-memory-mcp
+  Licence:   MIT
+  Used as:   a pre-built binary, downloaded at image build time and invoked
+             over stdio and its command line. No source is vendored into this
+             repository and no changes are made to it.
+
+  What repo-mcp uses it for: parsing repositories into a knowledge graph and
+  answering structural queries against that graph. Everything else — network
+  transport, identity, tenancy, authorization, auditing, repository discovery
+  and the reasoning layer — is repo-mcp's own code.
+
+  See docs/engine.md for the engine behaviours that constrain repo-mcp's
+  design, and docs/adr/0001-wrap-dont-fork.md for why it is wrapped rather
+  than forked.
+
+  MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in
+  all copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+
+================================================================================
+Runtime dependencies
+================================================================================
+
+Python dependencies are declared in gateway/pyproject.toml and
+indexer/pyproject.toml and are installed rather than vendored. The container
+images additionally include Debian packages (ca-certificates, git, tini, curl)
+under their respective licences.
+
+The Compose stack references Keycloak (Apache-2.0), LiteLLM (MIT) and Ollama
+(MIT) as separate services. They are not redistributed by repo-mcp.

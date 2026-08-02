@@ -1,0 +1,54 @@
+name: Bug report
+description: Something does not work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For anything involving authorization, cross-tenant access or data
+        exposure, please follow SECURITY.md instead of filing here.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: Include the exact command or request, and the response.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options: [gateway, indexer, deployment, documentation, not sure]
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: |
+        How it runs (compose, Kubernetes, local), the engine version, and the
+        identity provider if relevant. Please redact tokens and hostnames.
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Audit records and gateway logs are usually the useful part.
+      render: shell

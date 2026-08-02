@@ -1,0 +1,39 @@
+{{- if .Values.persistence.enabled }}
+{{- if not .Values.persistence.cache.existingClaim }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "repo-mcp.fullname" . }}-cache
+  labels:
+    {{- include "repo-mcp.labels" . | nindent 4 }}
+  annotations:
+    # Graph stores are expensive to rebuild — a full reindex of a large
+    # organisation takes hours. Keep the volume across a helm uninstall.
+    helm.sh/resource-policy: keep
+spec:
+  accessModes: [{{ .Values.persistence.cache.accessMode }}]
+  resources:
+    requests:
+      storage: {{ .Values.persistence.cache.size }}
+  {{- with .Values.persistence.cache.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+{{- end }}
+---
+{{- if not .Values.persistence.repos.existingClaim }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "repo-mcp.fullname" . }}-repos
+  labels:
+    {{- include "repo-mcp.labels" . | nindent 4 }}
+spec:
+  accessModes: [{{ .Values.persistence.repos.accessMode }}]
+  resources:
+    requests:
+      storage: {{ .Values.persistence.repos.size }}
+  {{- with .Values.persistence.repos.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+{{- end }}
+{{- end }}

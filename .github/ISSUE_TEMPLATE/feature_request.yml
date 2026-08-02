@@ -1,0 +1,38 @@
+name: Feature request
+description: Suggest a capability or a change in direction
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please check `docs/roadmap.md` first — it lists what is already
+        planned, and what is explicitly not planned along with the reason.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that is hard or impossible today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+      description: Including doing nothing, or solving it outside this project.
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - label: This would change the tenancy or authorization model (an ADR is likely needed)
+        - label: This would require a change in the indexing engine itself
