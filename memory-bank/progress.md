@@ -122,9 +122,10 @@ away.
 - Architecture, engine constraints (with source references), roles and
   permissions, deployment, scaling, development, branching, roadmap,
   administration, web interface, code standards — 12 documents and 11 ADRs.
-- All of it rendered onto the project site from the same markdown by
-  `scripts/render-docs.py`; 901 local references across 26 built pages
-  resolve. The site is live and publishes from the default branch.
+- All of it built onto the project site from the same markdown by **Docusaurus**
+  (`docs-site/`) — a sidebar, breadcrumbs and prev/next; the assembled site's
+  local references all resolve (1037 checked). The site is live and publishes
+  from the default branch.
 - `AGENTS.md`, `CLAUDE.md`, this memory bank.
 
 ## Built, unverified
@@ -198,6 +199,8 @@ Not bugs — consequences of decisions, recorded so nobody rediscovers them.
 | Migration 0001 built the schema from the live models, so it created 0002's tables and 0002 then failed | Adding the second migration | 0001 transcribed explicitly, plus a test comparing the migrated schema to the models |
 | Four administrator-editable `indexer.*` settings were read by nothing | Checking which chart values were still real | The indexer reads them from the store, re-reading the rescan interval each pass |
 | `make setup` guarded venv creation on `[[ -d .venv ]]`, and on Debian/Ubuntu a failed `python3 -m venv` leaves the directory behind — so a first failure became permanent, and no `venv` or `pip` exit status was checked | The maintainer running it on a fresh Ubuntu server | Preflight `ensurepip` check naming the package, test the pip binary rather than the directory, rebuild a half-made environment, check every exit status |
+| gateway and indexer could not install: they depend on `repo-mcp-common`, whose path is in `[tool.uv.sources]` (uv-only), so pip looked for it on PyPI and failed with "No matching distribution found" | The maintainer running `make setup` on the Ubuntu server | Install the local `common` into the gateway and indexer venvs first, so pip sees the dependency already satisfied |
+| Then pip failed with "file:// scheme is supported only on localhost": on a VirtualBox shared folder `pwd` is `//home/...`, and pip read the leading `//` as a URL authority | The next run on the same server | Collapse the common path to a single leading slash before handing it to pip; on Linux `//x` and `/x` are the same directory |
 | `check-docs.sh` read the README section under `## Documentation`, and the Turkish README's heading is `## Belgeler` — so it matched nothing and passed | Moving the README's links to the site and wondering why the check stayed green | Reads both READMEs whole, resolves site URLs back to `docs/*.md`, and fails when it matches implausibly few links |
 | A capability gate added in session 12 hid the button `NodeDetailPanel`'s test clicks, so CI's `web interface` job had been red ever since and nobody looked | Running `npm test` while adding a test beside it | The test mocks a caller whose role may read source; it asserts source is escaped rather than injected, which is worth keeping |
 | Nothing confirmed a connector worked: provider, container name, token scope and patterns all fail the same way — silently, hours later | Asked to make adding a connector from the interface good | `connector check` on both surfaces, running real discovery and naming which of the four is wrong |

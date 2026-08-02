@@ -1,0 +1,105 @@
+/* repo-mcp documentation theme.
+ *
+ * The palette is the product's own — the same teal the landing page and the
+ * web interface use — so the docs read as part of the same thing rather than a
+ * bolted-on Docusaurus default. Dark by default; the light mode is kept usable
+ * for readers who prefer it.
+ */
+
+:root {
+  --ifm-color-primary: #158a69;
+  --ifm-color-primary-dark: #137c5e;
+  --ifm-color-primary-darker: #127559;
+  --ifm-color-primary-darkest: #0f6049;
+  --ifm-color-primary-light: #179874;
+  --ifm-color-primary-lighter: #189f79;
+  --ifm-color-primary-lightest: #1cb88c;
+
+  --ifm-font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter,
+    system-ui, sans-serif;
+  --ifm-font-family-monospace: ui-monospace, SFMono-Regular, 'SF Mono', Menlo,
+    Consolas, monospace;
+
+  --ifm-code-font-size: 92%;
+  --ifm-line-height-base: 1.65;
+  --docusaurus-highlighted-code-line-bg: rgba(29, 162, 126, 0.12);
+}
+
+/* Dark mode — the default, and where the palette really lives. */
+[data-theme='dark'] {
+  --ifm-color-primary: #1da27e;
+  --ifm-color-primary-dark: #1a9272;
+  --ifm-color-primary-darker: #188a6c;
+  --ifm-color-primary-darkest: #147159;
+  --ifm-color-primary-light: #22b48c;
+  --ifm-color-primary-lighter: #2bbd95;
+  --ifm-color-primary-lightest: #4bcaa7;
+
+  --ifm-background-color: #0a161a;
+  --ifm-background-surface-color: #0b1c22;
+  --ifm-navbar-background-color: rgba(10, 22, 26, 0.85);
+  --ifm-footer-background-color: #081215;
+
+  --ifm-font-color-base: #e0eded;
+  --ifm-heading-color: #f2f7f7;
+  --ifm-color-content-secondary: #6a9e9e;
+
+  --ifm-toc-border-color: #1a3a40;
+  --ifm-color-emphasis-200: #14313a;
+  --ifm-color-emphasis-300: #1a3a40;
+
+  --ifm-code-background: #071216;
+  --ifm-pre-background: #071216;
+  --ifm-blockquote-color: #6a9e9e;
+  --ifm-blockquote-border-color: #1c8585;
+  --docusaurus-highlighted-code-line-bg: rgba(29, 162, 126, 0.16);
+}
+
+/* A translucent, blurred navbar like the landing page's. */
+.navbar {
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--ifm-toc-border-color);
+}
+[data-theme='dark'] .navbar { border-bottom-color: #1a3a40; }
+
+.navbar__title { font-weight: 650; letter-spacing: -0.01em; }
+
+/* Tighter, more readable headings than the Infima defaults. */
+.markdown h1 { letter-spacing: -0.02em; }
+.markdown h2 {
+  letter-spacing: -0.015em;
+  margin-top: 2.2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--ifm-toc-border-color);
+}
+.markdown > h2:first-of-type { border-top: none; padding-top: 0; }
+
+/* Code blocks and inline code sit on the darkest panel with a hairline border,
+   matching the landing page's <pre>. */
+[data-theme='dark'] pre,
+[data-theme='dark'] code {
+  border: 1px solid #14313a;
+}
+.theme-code-block { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35); }
+
+/* Sidebar: quieter inactive items, a clear active one. */
+.menu {
+  font-size: 0.92rem;
+  padding: 1rem 0.75rem !important;
+}
+.menu__link { border-radius: 7px; }
+.menu__link--active:not(.menu__link--sublist) {
+  background: rgba(29, 162, 126, 0.12);
+}
+
+/* Tables read as data: monospace first column, like the landing and docs. */
+.markdown table { display: table; width: 100%; }
+.markdown th {
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+}
+
+/* The "Edit this page" and pagination controls, a touch calmer. */
+.pagination-nav__link { border-color: var(--ifm-toc-border-color); }
+.pagination-nav__link:hover { border-color: var(--ifm-color-primary); }

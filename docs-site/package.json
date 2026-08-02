@@ -1,0 +1,32 @@
+{
+  "name": "repo-mcp-docs",
+  "version": "0.3.0",
+  "private": true,
+  "description": "The repo-mcp documentation site (Docusaurus). Content is the markdown under ../docs; sync-docs.mjs copies it in and rewrites out-of-docs links.",
+  "scripts": {
+    "sync": "node scripts/sync-docs.mjs",
+    "start": "npm run sync && docusaurus start",
+    "build": "npm run sync && docusaurus build",
+    "serve": "docusaurus serve",
+    "clear": "docusaurus clear"
+  },
+  "dependencies": {
+    "@docusaurus/core": "3.10.2",
+    "@docusaurus/preset-classic": "3.10.2",
+    "clsx": "^2.1.1",
+    "prism-react-renderer": "^2.4.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "browserslist": {
+    "production": [">0.5%", "not dead", "not op_mini all"],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "engines": {
+    "node": ">=18.0"
+  }
+}
