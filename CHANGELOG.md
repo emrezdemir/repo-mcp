@@ -6,6 +6,68 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-02
+
+### Added
+
+- **A web interface**, served by the gateway at `/ui`. Four pages: an overview
+  of what the engine computed about a project, symbol search with source, a
+  WebGL map of the graph, and the administrative console. It has no read path
+  of its own — every question about a codebase goes to `POST /mcp` with the
+  caller's own token, so the browser and an MCP client are authorized and
+  audited by exactly the same code. A second read API beside the first would
+  be a second place for the tenancy rules to be wrong.
+- **Graph rendering that survives a real codebase.** Sigma over graphology,
+  using WebGL: one draw call class for all nodes and one for all edges. Canvas
+  2D and the SVG-based graph libraries stop being usable in the low thousands,
+  and a real graph is tens of thousands. The ForceAtlas2 layout runs in a Web
+  Worker so the main thread only draws and the graph can be navigated while it
+  settles; a content security policy forbidding `worker-src blob:` falls back
+  to slicing the same layout between frames. Filtering by node label and edge
+  type happens in the render reducers, so it is instant, reversible, and never
+  moves the layout.
+- **Authorization Code with PKCE in the browser.** The interface signs in
+  through the same issuer the gateway already verifies tokens from — a public
+  client with no secret, with the gateway outside the flow. `GET /api/auth`
+  publishes the issuer and the public client id so the sign-in screen matches
+  the deployment rather than a build-time guess; without a browser client
+  configured the token box stays, and in development mode the screen says
+  plainly that tokens are not verified. Tokens live in `sessionStorage` only,
+  and an expiring one is renewed just before the request that would have
+  failed.
+- **The administrative console covers the whole API.** Squads, roles,
+  connectors, secrets, settings, the answer cache, the audit trail and
+  administrator accounts are all editable, through the same routes and
+  therefore the same validation the terminal gets — a refusal arrives verbatim.
+- **`repo-mcp-admin` covers it too.** `squad`, `role`, `connector`, `secret`,
+  `settings`, `audit`, `admins` and `answer-cache` commands, calling the same
+  functions the API calls. Parity is a test, not a promise: one check fails if
+  an API operation ever arrives without a matching command.
+- **[docs/web-interface.md](docs/web-interface.md)** and
+  **[docs/administration.md](docs/administration.md)**, and screenshots taken
+  from the running interface by `scripts/ui-screenshots.py` rather than drawn.
+
+### Changed
+
+- `/admin/config` also returns the role assignments and the connector filters,
+  which the editors need in order to show what they are changing.
+- Static files under `ui/` are served by resolving the path and checking it
+  stays inside the directory, rather than by matching against a list of names
+  that had to be edited every time the interface gained a file.
+- `scripts/dev.sh` no longer forces `DEV_INSECURE_AUTH=true`, so a real
+  identity provider can be pointed at locally.
+- `scripts/check-docs.sh` checks links in tracked files rather than walking the
+  working tree, which had started reading a repository cloned under `.dev/`
+  for testing.
+
+### Fixed
+
+- The `hidden` attribute is honoured by elements that set `display` in a class
+  rule. The sign-in pane stayed on screen underneath the application, because
+  `.pane { display: grid }` outranks the browser's own `[hidden]` rule.
+
+## [0.1.0] - 2026-08-01
+
 ### Added
 
 - **The optional components are now optional in practice.** Keycloak, LiteLLM,

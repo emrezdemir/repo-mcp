@@ -31,6 +31,30 @@ away.
 - Structured audit record per call, including denials. Verified in live logs.
 - Prometheus metrics with bounded label cardinality.
 
+**Web interface** (`/ui`)
+- Four pages — overview, search with source, a WebGL map of the graph, the
+  administrative console — driven in a real browser end to end against a real
+  indexed project (854 nodes, 4454 edges): sign-in, every page, a squad
+  created, a refusal shown verbatim, the squad deleted again. No console
+  errors.
+- Authorization Code with PKCE against a stand-in provider signing RS256
+  tokens the gateway verifies through its ordinary JWKS path. Redirect out and
+  back, code exchanged, groups claim mapped to role and squad, code stripped
+  from the address bar, refresh before expiry, sign-out clearing storage. Also
+  verified: a code with no matching state is refused, and a provider error
+  reaches the screen.
+- Sigma over graphology, ForceAtlas2 in a Web Worker, with a main-thread
+  fallback for a content security policy that forbids blob workers.
+- 21 tests over `/api/auth`, `/api/session` and static serving, including
+  path traversal.
+
+**Administration**
+- `repo-mcp-admin` and the console cover the same operations through the same
+  functions: squads, roles, connectors, secrets, settings, audit,
+  administrator accounts, answer cache. 18 tests, including one that fails if
+  an API operation arrives without a matching command, and one that a CLI
+  change reaches a running service through the generation counter.
+
 **Indexer**
 - Discovery for GitHub organisations, GitLab groups (nested subgroups) and
   Bitbucket workspaces or projects, with include/exclude globs.

@@ -212,6 +212,18 @@ export class GraphView {
     settings.barnesHutOptimize = this.graph.order > 800;
     settings.slowDown = 1 + Math.log10(Math.max(this.graph.order, 10));
 
+    // A code graph is dense and unevenly connected: a few hubs, a long tail.
+    // Linear attraction pulls all of that into one ball, which is a picture of
+    // nothing. Logarithmic attraction separates the clusters instead, which is
+    // the entire reason to draw the graph rather than list it.
+    settings.linLogMode = true;
+    settings.outboundAttractionDistribution = true;
+    settings.gravity = 0.05;
+    settings.scalingRatio = 20;
+    // `adjustSizes` is deliberately left off: with repulsion this strong it
+    // pushes everything onto a ring with a hole in the middle, which looks
+    // like structure and is not.
+
     this.stopped = false;
     if (FA2Layout && this._startWorkerLayout(settings, onTick)) return;
     this._startSlicedLayout(settings, onTick);
@@ -228,7 +240,7 @@ export class GraphView {
       return false;
     }
 
-    const budget = this.graph.order > 8000 ? 14000 : this.graph.order > 2000 ? 9000 : 5000;
+    const budget = this.graph.order > 8000 ? 20000 : this.graph.order > 2000 ? 14000 : 9000;
     const started = performance.now();
 
     const watch = () => {

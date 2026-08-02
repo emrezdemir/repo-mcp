@@ -1,7 +1,7 @@
 # Active context
 
 **Last updated:** 2026-08-02
-**Branch:** `chore/versioning-and-readme`, off `dev`
+**Branch:** `feature/web-interface`, off `dev`
 
 ## Where things stand
 
@@ -17,6 +17,34 @@ from `dev`; a version tag publishes `:vX.Y.Z` and packages the chart.
 nothing else pushes there.
 
 ## What the last sessions did
+
+**Session 10 — the web interface, and administrative parity.** The gateway
+serves a browser interface at `/ui`: overview, search, a WebGL map of the
+graph, and the administrative console. It has no read path of its own —
+everything about a codebase goes to `POST /mcp` with the caller's own token —
+so there is exactly one place the tenancy rules are enforced.
+
+Signing in is Authorization Code with PKCE against the configured issuer. That
+was verified end to end in a real browser against a stand-in provider that
+signs RS256 tokens the gateway verifies through its ordinary JWKS path:
+redirect out and back, code exchanged, groups claim mapped to role and squad,
+code removed from the address bar, refresh before expiry, sign-out clearing
+storage. `scripts/dev.sh` no longer forces `DEV_INSECURE_AUTH`, which is what
+made that test possible.
+
+Rendering is Sigma over graphology with the ForceAtlas2 layout in a Web
+Worker. Four defects were found by actually loading the page rather than by
+reading it: the layout module is `layoutForceAtlas2`, not `layout.forceAtlas2`;
+`query_graph` returns `labels(x)` as the JSON text `["Class"]` rather than an
+array, so every node was grey; `.pane { display: grid }` outranks the
+browser's `[hidden]` rule, so the sign-in pane stayed on screen underneath the
+application; and a node selected while the layout was still running drifted
+off-screen, because Sigma renormalises coordinates as the graph expands.
+
+Parity was the other half. The administrative API could already create squads,
+roles, connectors and secrets; neither the CLI nor the interface could. Both
+now can, through the same functions, with a test that fails if an API
+operation ever arrives without a matching command. Version 0.2.0.
 
 **Session 9 — CI turned red, and it was telling the truth.** The image build
 had never worked: it fetched the engine from a URL that does not exist, and
