@@ -21,6 +21,7 @@ fetched from a CDN at runtime, so an air-gapped installation works.
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 import httpx
@@ -35,11 +36,11 @@ from .roles import TOOL_CAPABILITY, Capability
 
 log = logging.getLogger(__name__)
 
-#: The built interface. `gateway/webui/` is the source; `npm run build` in
-#: that directory produces this, and the image build runs it. Committing the
-#: output rather than the sources would make review meaningless; building at
-#: image time keeps one bundle per release.
-UI_DIR = Path(__file__).parent.resolve() / "ui"
+#: The built interface. `gateway/webui/` is the source; `npm run build` puts
+#: the output here, and the image build puts it somewhere else entirely —
+#: hence the override. Committing the build output would make review
+#: meaningless, so it is produced rather than stored.
+UI_DIR = Path(os.getenv("REPO_MCP_UI_DIR") or (Path(__file__).parent / "ui")).resolve()
 
 #: What the interface is made of. Everything under `ui/` is served without
 #: authentication — it is the login screen and the code behind it, and none of

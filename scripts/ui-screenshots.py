@@ -37,7 +37,6 @@ def main() -> int:
     parser.add_argument("--token", default="devtoken", help="the bearer token to sign in with")
     parser.add_argument("--admin-user", default="admin")
     parser.add_argument("--admin-password", default="devadmin-password")
-    parser.add_argument("--project", help="which indexed project to show")
     parser.add_argument("--browser", help="path to a Chromium binary")
     args = parser.parse_args()
 
@@ -56,66 +55,30 @@ def main() -> int:
 
     with sync_playwright() as play:
         browser = play.chromium.launch(**launch)
-        page = browser.new_page(viewport=VIEWPORT, device_scale_factor=2)
+        page = browser.new_page(viewport=VIEWPORT, device_scale_factor=1)
 
         page.goto(f"{args.base}/ui", wait_until="networkidle")
-        page.wait_for_timeout(800)
+        page.wait_for_timeout(1500)
         shot(page, "ui-signin")
 
-        page.fill("#token", args.token)
-        page.click("#signin-form button[type=submit]")
-        page.wait_for_selector("#app:not([hidden])", timeout=15000)
+        page.fill("input[type=password]", args.token)
+        page.click("button[type=submit]")
+        page.wait_for_selector("text=Indexed Projects", timeout=20000)
         page.wait_for_timeout(2500)
+        shot(page, "ui-projects")
 
-        if args.project:
-            # Two of the three selectors live on pages that are hidden right
-            # now, so they are set directly rather than clicked.
-            page.evaluate(
-                """(name) => {
-                    for (const id of ['overview-project', 'search-project', 'map-project']) {
-                        const select = document.getElementById(id);
-                        if ([...select.options].some((o) => o.value === name)) select.value = name;
-                    }
-                }""",
-                args.project,
-            )
-            page.click("#overview-refresh")
-            page.wait_for_timeout(2500)
-        shot(page, "ui-overview")
+        # The graph: the layout is computed by the engine and streamed, so
+        # this waits for the canvas rather than for a fixed delay.
+        page.click("text=View Graph")
+        page.wait_for_selector("canvas", timeout=60000)
+        page.wait_for_timeout(20000)
+        shot(page, "ui-graph")
 
-        page.click("nav button[data-page=search]")
-        page.fill("#search-query", "session")
-        page.click("#search-go")
+        page.click("nav button:text-is('Admin')")
+        page.wait_for_timeout(800)
+        page.fill("input[autocomplete=current-password]", args.admin_password)
+        page.click("button[type=submit]")
         page.wait_for_timeout(2500)
-        hits = page.query_selector_all("#search-results .hit")
-        if hits:
-            hits[0].click()
-            page.wait_for_timeout(2500)
-        shot(page, "ui-search")
-
-        page.click("nav button[data-page=map]")
-        page.click("#map-go")
-        # Wait for the layout to start and then to finish. Checking only for
-        # "laying out" would pass immediately, while the status still says
-        # "fetching", and photograph a blank canvas.
-        page.wait_for_function(
-            "() => /laying out/.test(document.getElementById('map-status').textContent)",
-            timeout=60000,
-        )
-        page.wait_for_function(
-            "() => !/laying out/.test(document.getElementById('map-status').textContent)",
-            timeout=120000,
-        )
-        page.wait_for_timeout(1500)
-        shot(page, "ui-map")
-
-        page.click("nav button[data-page=admin]")
-        page.wait_for_timeout(400)
-        page.fill("#admin-user", args.admin_user)
-        page.fill("#admin-pass", args.admin_password)
-        page.click("#admin-form button[type=submit]")
-        page.wait_for_selector("#admin-body:not([hidden])", timeout=10000)
-        page.wait_for_timeout(1200)
         shot(page, "ui-admin")
 
         browser.close()

@@ -32,19 +32,22 @@ away.
 - Prometheus metrics with bounded label cardinality.
 
 **Web interface** (`/ui`)
-- Four pages — overview, search with source, a WebGL map of the graph, the
-  administrative console — driven in a real browser end to end against a real
-  indexed project (854 nodes, 4454 edges): sign-in, every page, a squad
-  created, a refusal shown verbatim, the squad deleted again. No console
+- Upstream's `graph-ui`, adopted at d6be58ef and pointed at `/mcp`. Driven in
+  a real browser end to end against a real indexed project (854 nodes, 4454
+  edges): sign-in, the project list, the 3D graph rendering through the
+  authorized layout proxy, and all eight administrative sections. No console
   errors.
+- The layout proxy verified against the real engine: 401 without a token, the
+  platform's own refusal by name for another squad's project, and the engine's
+  port refusing every address but loopback.
 - Authorization Code with PKCE against a stand-in provider signing RS256
   tokens the gateway verifies through its ordinary JWKS path. Redirect out and
   back, code exchanged, groups claim mapped to role and squad, code stripped
   from the address bar, refresh before expiry, sign-out clearing storage. Also
   verified: a code with no matching state is refused, and a provider error
   reaches the screen.
-- Sigma over graphology, ForceAtlas2 in a Web Worker, with a main-thread
-  fallback for a content security policy that forbids blob workers.
+- React 19 and Three.js, built by Vite at image build time; the build output
+  is not committed.
 - 21 tests over `/api/auth`, `/api/session` and static serving, including
   path traversal.
 

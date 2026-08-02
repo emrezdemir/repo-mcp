@@ -1,7 +1,7 @@
 # Active context
 
 **Last updated:** 2026-08-02
-**Branch:** `feature/web-interface`, off `dev`
+**Branch:** `feature/adopt-graph-ui`, off `dev`
 
 ## Where things stand
 
@@ -17,6 +17,32 @@ from `dev`; a version tag publishes `:vX.Y.Z` and packages the chart.
 nothing else pushes there.
 
 ## What the last sessions did
+
+**Session 11 — the interface was rewritten, and it should not have been.**
+The maintainer had asked for the upstream project to be used as the base. It
+was cloned and read this session rather than assumed about: the engine is
+1,229 C files with 43 MB of vendored dependencies, but `graph-ui` is 60 files
+of React and Three.js that move independently of it, and upstream's client
+already posts JSON-RPC `tools/call` — the same protocol the gateway accepts
+at `/mcp`. So the interface written here was deleted and upstream's adopted,
+at commit d6be58ef. ADR-0011 records it; ADR-0001 is unchanged.
+
+The 3D layout was the one real obstacle: it is 860 lines of C serving on a
+loopback port, not an MCP tool. Rather than reimplement it, the gateway now
+starts each tenant's engine with that server on a port of its choosing and
+proxies `GET /api/layout` after authorizing exactly as it authorizes a tool
+call. Verified against the real engine: 401 without a token, the platform's
+own refusal for another squad's project, and the port refusing every address
+but loopback.
+
+Everything upstream reached for over HTTP became a tool call, so each is
+behind a capability. Two surfaces were removed rather than rewired — the
+filesystem browser and the process/log views — because they are meaningful on
+one machine and not on a shared platform.
+
+The costs are real and recorded: a Node build stage, a second dependency
+ecosystem, an npm mirror needed for an air-gapped build, and the engine build
+that includes the interface (`CBM_EDITION=-ui`). Version 0.3.0.
 
 **Session 10 — the web interface, and administrative parity.** The gateway
 serves a browser interface at `/ui`: overview, search, a WebGL map of the

@@ -6,6 +6,45 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-02
+
+### Changed
+
+- **The web interface is the engine project's own, adopted rather than
+  written here.** `graph-ui` — 60 files of React 19 and Three.js, MIT — is
+  under `gateway/webui/` at a recorded upstream commit, and the ~2,500-line
+  interface written for this repository is gone. Put side by side, upstream's
+  is better, and it is separable from the 1,229 C files it ships beside.
+  [ADR-0011](docs/adr/0011-adopt-the-upstream-interface.md) records the
+  decision; ADR-0001 is unchanged — the engine is still wrapped, not forked.
+
+  Adoption cost a URL and two headers, because the protocol was already the
+  same: upstream posts JSON-RPC `tools/call` to `/rpc`, and the gateway
+  accepts exactly that at `/mcp`. Everything the interface asks about a
+  codebase therefore carries the caller's token and squad and goes through
+  role capabilities, the project allowlist and the engine's tool profile.
+
+- **The 3D layout is proxied, not reimplemented.** The engine computes it in
+  C and serves it on a loopback port; the gateway starts each tenant's engine
+  with that server on a port of its choosing and proxies `GET /api/layout`
+  after authorizing the request exactly as it authorizes a tool call.
+  Verified: the port refuses anything but loopback, an unauthenticated
+  request gets 401, and another squad's project gets the platform's own
+  refusal by name.
+
+- **Everything else upstream reached for over HTTP is now a tool call**, and
+  therefore behind a capability — project health and index status via
+  `index_status`, ADRs via `manage_adr`, indexing via `index_repository`,
+  deletion via `delete_project`, git metadata from `list_projects`.
+
+### Removed
+
+- **The filesystem browser, and the Control tab's process and log views.**
+  They are meaningful on one machine and neither safe nor meaningful on a
+  shared platform. The tab is the administrative console instead.
+- `scripts/update-vendor.sh` and the three vendored UMD bundles, which
+  belonged to the interface that is gone.
+
 ### Added
 
 - **A Keycloak realm that ships.** `deploy/keycloak/repo-mcp-realm.json` is
