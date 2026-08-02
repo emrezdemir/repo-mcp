@@ -22,9 +22,13 @@ ARG CBM_RELEASE_BASE=https://github.com/DeusData/codebase-memory-mcp/releases
 # Set to a full URL to bypass the version/architecture layout entirely. It must
 # point at a .tar.gz laid out like the upstream one.
 ARG CBM_DOWNLOAD_URL=
-# "" for the glibc build, "-portable" for the static one. The runtime below is
-# Debian, so the default is right unless your mirror only carries the other.
-ARG CBM_VARIANT=
+# "-portable" is the statically linked build; "" is the glibc one. The default
+# is deliberate: the glibc build needs GLIBC_2.38 and GLIBCXX_3.4.32, which
+# Debian bookworm (glibc 2.36) does not have — it downloads and verifies
+# happily, then fails on its first run with a version-not-found from the
+# dynamic linker. The static build has no such dependency, which is what a
+# container wants anyway.
+ARG CBM_VARIANT=-portable
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl \
@@ -73,7 +77,14 @@ RUN set -eux; \
     [ -n "$binary" ] || { echo "no codebase-memory-mcp in $archive" >&2; tar -tzf /tmp/cbm.tar.gz >&2; exit 1; }; \
     mv "$binary" /out-cbm; \
     chmod +x /out-cbm; \
-    /out-cbm --version
+    # Run it here rather than discovering at container start that the build
+    # does not match this base image.
+    /out-cbm --version || { \
+      echo "the engine binary will not run on this base image." >&2; \
+      echo "CBM_VARIANT is '${CBM_VARIANT}'; the glibc build needs a newer glibc than Debian bookworm has." >&2; \
+      echo "Use --build-arg CBM_VARIANT=-portable for the statically linked build." >&2; \
+      exit 1; \
+    }
 
 # ── python dependencies ───────────────────────────────────────────────
 FROM python:3.12-slim AS builder

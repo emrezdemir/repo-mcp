@@ -308,7 +308,7 @@ docker build -f deploy/Dockerfile \
 | `CBM_RELEASE_BASE` | An internal mirror laid out like the upstream releases |
 | `CBM_DOWNLOAD_URL` | A single archive URL, when your mirror names files differently |
 | `CBM_SHA256` | The archive's checksum, when your mirror publishes no `checksums.txt` |
-| `CBM_VARIANT` | `-portable` for the static build. The runtime image is Debian, so the default is right unless your mirror only carries the other |
+| `CBM_VARIANT` | Defaults to `-portable`, the statically linked build. Set it to empty for the glibc build only if your base image has GLIBC 2.38 or newer — Debian bookworm does not, and the glibc build downloads fine and then fails on its first run |
 
 A mirror that publishes neither `checksums.txt` nor a `CBM_SHA256` still
 builds, and says so on the build log — an unverified download is a decision,
