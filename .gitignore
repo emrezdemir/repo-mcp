@@ -1,0 +1,22 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# Local configuration and secrets
+.env
+deploy/tenants.yaml
+deploy/scan.yaml
+deploy/keycloak/
+
+# Runtime data
+/var/
+*.db
+*.db-wal
+*.db-shm
+*.zst

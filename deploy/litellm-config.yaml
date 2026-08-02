@@ -1,0 +1,35 @@
+# LiteLLM proxy configuration.
+#
+# Everything the platform sends to a model goes through here, which is why
+# self-hosted backends need no code changes: add them as another entry below.
+
+model_list:
+  # Fully local, via Ollama.
+  - model_name: ollama/qwen2.5-coder:14b
+    litellm_params:
+      model: ollama/qwen2.5-coder:14b
+      api_base: os.environ/OLLAMA_BASE_URL
+
+  # Local, via a vLLM or any other OpenAI-compatible server.
+  - model_name: local/vllm
+    litellm_params:
+      model: openai/Qwen2.5-Coder-32B-Instruct
+      api_base: os.environ/VLLM_BASE_URL
+      api_key: os.environ/VLLM_API_KEY
+
+  # A hosted model, if your policy allows one.
+  - model_name: gpt-4o-mini
+    litellm_params:
+      model: openai/gpt-4o-mini
+      api_key: os.environ/OPENAI_API_KEY
+
+litellm_settings:
+  # Prompts contain source code. Decide deliberately whether they are stored.
+  turn_off_message_logging: false
+  drop_params: true
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  # Per-squad virtual keys are created against this proxy and referenced from
+  # tenants.yaml via litellm_key_env, so budgets and rate limits are enforced
+  # per squad rather than for the platform as a whole.

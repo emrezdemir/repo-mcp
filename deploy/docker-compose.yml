@@ -1,0 +1,94 @@
+# Local evaluation stack. Not a production deployment: see
+# docs/deployment.md for what changes when you go to Kubernetes.
+
+name: repo-mcp
+
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_HEALTH_ENABLED: "true"
+    ports:
+      - "8081:8080"
+    volumes:
+      # Drop a realm export here with the LDAP user federation and the group
+      # mapper already configured. See docs/deployment.md.
+      - ./keycloak:/opt/keycloak/data/import:ro
+
+  litellm:
+    image: ghcr.io/berriai/litellm:main-stable
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?set LITELLM_MASTER_KEY}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./litellm-config.yaml:/app/config.yaml:ro
+
+  # Optional: a fully local model backend. Remove this and point LiteLLM at
+  # your own proxy if you already run one.
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+
+  gateway:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        SERVICE: gateway
+        CBM_VERSION: ${CBM_VERSION:-latest}
+    depends_on: [keycloak, litellm]
+    environment:
+      OIDC_ISSUER: http://keycloak:8080/realms/engineering
+      OIDC_AUDIENCE: repo-mcp
+      TENANTS_FILE: /etc/repo-mcp/tenants.yaml
+      LITELLM_BASE_URL: http://litellm:4000
+      LITELLM_API_KEY: ${LITELLM_MASTER_KEY}
+      LITELLM_MODEL: ${LITELLM_MODEL:-ollama/qwen2.5-coder:14b}
+      SMART_TOOLS_ENABLED: "true"
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./tenants.example.yaml:/etc/repo-mcp/tenants.yaml:ro
+      - cbm-cache:/var/lib/repo-mcp/cache
+      - repo-workdirs:/var/lib/repo-mcp/repos
+
+  indexer:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        SERVICE: indexer
+        CBM_VERSION: ${CBM_VERSION:-latest}
+    environment:
+      SCAN_CONFIG: /etc/repo-mcp/scan.yaml
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITLAB_TOKEN: ${GITLAB_TOKEN:-}
+      BITBUCKET_APP_PASSWORD: ${BITBUCKET_APP_PASSWORD:-}
+      WEBHOOK_SECRET_GITHUB: ${WEBHOOK_SECRET_GITHUB:-}
+      WEBHOOK_SECRET_GITLAB: ${WEBHOOK_SECRET_GITLAB:-}
+      WEBHOOK_SECRET_BITBUCKET: ${WEBHOOK_SECRET_BITBUCKET:-}
+      CI_TRIGGER_TOKEN: ${CI_TRIGGER_TOKEN:-}
+      RESCAN_INTERVAL_S: ${RESCAN_INTERVAL_S:-86400}
+      INDEX_CONCURRENCY: ${INDEX_CONCURRENCY:-2}
+    ports:
+      - "8082:8080"
+    volumes:
+      - ./scan.example.yaml:/etc/repo-mcp/scan.yaml:ro
+      # Both services share the cache root, which is why they must run the
+      # same CBM build (exact-build admission barrier).
+      - cbm-cache:/var/lib/repo-mcp/cache
+      - repo-workdirs:/var/lib/repo-mcp/repos
+
+volumes:
+  cbm-cache:
+  repo-workdirs:
+  ollama-models:
