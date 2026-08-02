@@ -179,9 +179,15 @@ function loadUiLanguage(): Promise<UiLanguage> {
   if (languageLoaded) return Promise.resolve(cachedLanguage);
   if (languageRequest) return languageRequest;
 
+  // The platform may pin a language; "auto", and an unreachable endpoint,
+  // both mean "follow the browser".
   languageRequest = fetch("/api/ui-config")
-    .then((r) => r.json())
-    .then((data) => detectLanguage(null, data?.lang))
+    .then((r) => (r.ok ? r.json() : null))
+    .then((data) =>
+      data?.lang && data.lang !== "auto"
+        ? detectLanguage(null, data.lang)
+        : detectLanguage(navigator.language),
+    )
     .catch(() => detectLanguage(navigator.language))
     .then((lang) => {
       cachedLanguage = lang;

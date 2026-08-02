@@ -39,6 +39,9 @@ DEFAULT_SETTINGS: dict[str, object] = {
     # Extra scopes for that flow. `openid` is always sent; a Keycloak realm
     # that puts group membership behind a scope needs it named here.
     "oidc.browser_scopes": "openid profile",
+    # The web interface's language. "auto" follows the browser; the interface
+    # ships English and Chinese, so anything else falls back to English.
+    "ui.language": "auto",
     "litellm.base_url": "",
     "litellm.model": "gpt-4o-mini",
     "litellm.timeout_seconds": 90,

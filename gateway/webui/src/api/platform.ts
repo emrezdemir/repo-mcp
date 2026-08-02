@@ -41,18 +41,14 @@ export interface Adr {
 }
 
 export async function readAdr(project: string): Promise<Adr> {
-  try {
-    const result = await callTool<Record<string, unknown>>("manage_adr", {
-      project,
-      mode: "read",
-    });
-    const content = (result.content ?? result.adr ?? "") as string;
-    return { has_adr: Boolean(content), content, updated_at: result.updated_at as string };
-  } catch {
-    // A role without MANAGE_ADR gets a refusal here; showing "no ADR" is the
-    // honest rendering of "you cannot see one".
-    return { has_adr: false };
-  }
+  // A refusal is not "there is no ADR" — it is "you may not see one", and the
+  // difference matters to whoever is looking. It is left to the caller.
+  const result = await callTool<Record<string, unknown>>("manage_adr", {
+    project,
+    mode: "read",
+  });
+  const content = (result.content ?? result.adr ?? "") as string;
+  return { has_adr: Boolean(content), content, updated_at: result.updated_at as string };
 }
 
 export async function writeAdr(project: string, content: string): Promise<void> {

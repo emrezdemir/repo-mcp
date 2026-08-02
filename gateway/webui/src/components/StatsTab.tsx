@@ -1,3 +1,5 @@
+import { useCan } from "../hooks/useCan";
+import { useDismiss } from "../hooks/useDismiss";
 import { callTool } from "../api/rpc";
 import {
   projectHealth,
@@ -77,17 +79,36 @@ function AdrButton({ project }: { project: string }) {
   const [content, setContent] = useState("");
   const [saving, setSaving] = useState(false);
   const [updatedAt, setUpdatedAt] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  // What the platform will let this caller do. Offering a control that is
+  // certain to be refused is not helpful; the refusal below is what enforces
+  // it either way.
+  const mayManage = useCan("manage_adr");
 
   const fetchAdr = useCallback(async () => {
     try {
       const data = await readAdr(project);
       setHasAdr(data.has_adr ?? false);
+      setError(null);
       if (data.content) setContent(data.content);
       if (data.updated_at) setUpdatedAt(data.updated_at);
-    } catch { setHasAdr(false); }
+    } catch (exception) {
+      // The platform's own words: "'manage_adr' is not available in this
+      // session (role: lead, squad: payments)" says what to do about it, and
+      // an empty editor does not.
+      setHasAdr(false);
+      setError((exception as Error).message);
+    }
   }, [project]);
 
-  useEffect(() => { fetchAdr(); }, [fetchAdr]);
+  useEffect(() => {
+    // Without the capability there is nothing to read, but the control still
+    // renders — disabled, with the reason on it. A button that vanishes
+    // leaves an administrator debugging permissions with nothing to go on.
+    if (mayManage) void fetchAdr();
+    else setHasAdr(false);
+  }, [fetchAdr, mayManage]);
+  useDismiss(open, () => setOpen(false));
 
   const save = async (nextContent = content) => {
     setSaving(true);
@@ -95,8 +116,12 @@ function AdrButton({ project }: { project: string }) {
       await writeAdr(project, nextContent);
       await fetchAdr();
       setOpen(false);
-    } catch { /* ignore */ }
-    finally { setSaving(false); }
+    } catch (exception) {
+      // A save that silently does nothing is worse than one that fails.
+      setError((exception as Error).message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (hasAdr === null) return null;
@@ -105,17 +130,22 @@ function AdrButton({ project }: { project: string }) {
     <>
       <button
         onClick={() => { setOpen(true); fetchAdr(); }}
+        disabled={!mayManage}
+        title={mayManage ? undefined
+          : "This squad's tool profile does not include manage_adr"}
         className={`px-2.5 py-1 rounded-lg text-[10px] font-medium transition-all ${
           hasAdr
             ? "bg-accent/15 text-accent hover:bg-accent/25"
             : "bg-white/[0.03] text-foreground/25 hover:text-foreground/40 hover:bg-white/[0.06]"
-        }`}
+        } disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white/[0.03]`}
       >
         {hasAdr ? "ADR" : "+ ADR"}
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setOpen(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center"
+             role="dialog" aria-modal="true" aria-label={t.adr.title}
+             onClick={() => setOpen(false)}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div className="relative bg-[#0e2028] border border-border/40 rounded-2xl p-6 w-full max-w-2xl shadow-2xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
@@ -127,6 +157,12 @@ function AdrButton({ project }: { project: string }) {
             </div>
             {updatedAt && (
               <p className="text-[10px] text-foreground/20 mb-3">{t.adr.lastUpdated}: {updatedAt}</p>
+            )}
+            {error && (
+              <p role="alert" className="text-[11px] text-red-400/90 bg-red-500/10 border border-red-500/20
+                                         rounded-lg px-3 py-2 mb-3">
+                {error}
+              </p>
             )}
             <textarea
               value={content}
@@ -167,8 +203,10 @@ function AdrButton({ project }: { project: string }) {
  * refused. See docs/adr/0002-tenancy-model.md. */
 
 function CreateIndexModal({ onClose }: { onClose: () => void; onCreated: () => void }) {
+  useDismiss(true, onClose);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6"
+         role="dialog" aria-modal="true" aria-label="Where projects come from"
          onClick={onClose}>
       <div className="w-full max-w-md rounded-lg border border-border/40 bg-[#0b1920] p-5"
            onClick={(event) => event.stopPropagation()}>
@@ -277,6 +315,8 @@ export function StatsTab({ onSelectProject }: StatsTabProps) {
   const { projects, loading, error, refresh } = useProjects();
   const [showModal, setShowModal] = useState(false);
   const [indexing, setIndexing] = useState(false);
+  /* Whatever the platform said last, in its own words. */
+  const [notice, setNotice] = useState<string | null>(null);
 
   const aggregate = useMemo(() => {
     let totalNodes = 0, totalEdges = 0;
@@ -289,7 +329,14 @@ export function StatsTab({ onSelectProject }: StatsTabProps) {
 
   const deleteProject = useCallback(async (name: string) => {
     if (!confirm(t.projects.deleteConfirm(name))) return;
-    try { await removeProject(name); refresh(); } catch { /* the gateway's refusal is shown by the list reload */ }
+    try {
+      await removeProject(name);
+      setNotice(null);
+      refresh();
+    } catch (exception) {
+      // Deleting a graph is not a thing to fail quietly at.
+      setNotice((exception as Error).message);
+    }
   }, [refresh, t.projects]);
 
   return (
@@ -307,6 +354,15 @@ export function StatsTab({ onSelectProject }: StatsTabProps) {
                 <p className={`text-[22px] font-semibold tabular-nums ${s.color}`}>{s.value.toLocaleString()}</p>
               </div>
             ))}
+          </div>
+        )}
+
+        {notice && (
+          <div role="alert"
+               className="rounded-xl border border-destructive/20 bg-destructive/5 p-4 mb-6 flex items-start gap-3">
+            <p className="text-destructive text-[12px] flex-1">{notice}</p>
+            <button onClick={() => setNotice(null)}
+                    className="text-destructive/50 hover:text-destructive text-[14px] leading-none">×</button>
           </div>
         )}
 

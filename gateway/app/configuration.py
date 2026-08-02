@@ -86,6 +86,7 @@ class ConfigurationProvider:
             oidc_browser_scopes=str(
                 snapshot.setting("oidc.browser_scopes") or self._base.oidc_browser_scopes
             ),
+            ui_language=str(snapshot.setting("ui.language") or self._base.ui_language),
             litellm_base_url=str(snapshot.setting("litellm.base_url") or ""),
             litellm_api_key=snapshot.secrets.get(
                 str(snapshot.setting("litellm.api_key_secret") or ""), ""

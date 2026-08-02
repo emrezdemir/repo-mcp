@@ -48,11 +48,30 @@ export async function authHeaders(): Promise<Record<string, string>> {
   return headers;
 }
 
+/* The last session read, so any component can ask what this caller may do
+ * without threading it through every prop. It is a convenience only: the
+ * gateway decides on every request, and a stale answer here costs a button
+ * that then fails with a clear refusal. */
+let current: Session | null = null;
+const listeners = new Set<(session: Session | null) => void>();
+
+export const currentSession = () => current;
+
+export function onSession(listener: (session: Session | null) => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+/** Whether this caller may call a tool at all — role and squad profile both. */
+export const canCall = (tool: string) => Boolean(current?.tools?.includes(tool));
+
 export async function loadSession(): Promise<Session> {
   const response = await fetch("/api/session", { headers: await authHeaders() });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
     throw new Error(body.error ?? "sign-in failed");
   }
-  return (await response.json()) as Session;
+  current = (await response.json()) as Session;
+  for (const listener of listeners) listener(current);
+  return current;
 }

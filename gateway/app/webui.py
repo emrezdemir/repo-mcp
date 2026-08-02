@@ -112,6 +112,22 @@ def build_router(current_config, ready, engine_ui_port=None) -> APIRouter:
             }
         )
 
+    @router.get("/api/ui-config")
+    async def ui_config() -> JSONResponse:
+        """What the interface needs before anyone has signed in.
+
+        Only presentation: a language, and the platform's own name for its
+        heading. Public for the same reason the sign-in screen is — it is
+        read while rendering that screen.
+        """
+        if not ready():
+            # Not an error: the interface renders in the browser's language
+            # and the sign-in screen explains the rest.
+            return JSONResponse({"lang": "auto"})
+
+        config: RuntimeConfig = await current_config()
+        return JSONResponse({"lang": config.settings.ui_language or "auto"})
+
     @router.get("/api/session")
     async def session_info(
         authorization: str | None = Header(default=None),

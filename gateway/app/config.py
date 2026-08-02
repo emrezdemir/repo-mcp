@@ -65,6 +65,9 @@ class Settings:
     #: cannot serve it, and there is no point starting a port for nothing.
     engine_ui_enabled: bool = True
 
+    #: The interface's language: "auto" follows the browser.
+    ui_language: str = "auto"
+
     @classmethod
     def from_env(cls) -> Settings:
         groups = os.getenv("DEV_STATIC_GROUPS", "")
@@ -75,6 +78,7 @@ class Settings:
             oidc_browser_client_id=os.getenv("OIDC_BROWSER_CLIENT_ID", ""),
             oidc_browser_scopes=os.getenv("OIDC_BROWSER_SCOPES", "openid profile"),
             engine_ui_enabled=_bool("ENGINE_UI_ENABLED", True),
+            ui_language=os.getenv("UI_LANGUAGE", "auto"),
             dev_insecure_auth=_bool("DEV_INSECURE_AUTH", False),
             dev_static_token=os.getenv("DEV_STATIC_TOKEN", ""),
             dev_static_groups=tuple(g.strip() for g in groups.split(",") if g.strip()),
