@@ -11,6 +11,14 @@ else
 fi
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Collapse a leading double slash. Some mounts — VirtualBox shared folders in
+# particular — make pwd report the tree as //home/... . On Linux //x and /x are
+# the same directory, but the two slashes leak into everything downstream and
+# break tools that do not agree they are equal: pip reads the // as a URL
+# authority ("file:// scheme is supported only on localhost"), and pytest's
+# summary calls pathlib's relative_to(), which raises because //home/... is not
+# under /home/... . One slash, once, here, fixes all of it.
+REPO_ROOT="/$(printf '%s' "$REPO_ROOT" | sed 's#^/*##')"
 export REPO_ROOT
 
 log()   { printf '%s==>%s %s\n' "$C_BLUE" "$C_RESET" "$*"; }
