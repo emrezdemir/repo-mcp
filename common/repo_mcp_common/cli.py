@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 from . import bootstrap as boot
+from . import cli_config
 from .admin import AdminError, set_setting
 from .crypto import generate_key
 from .db import Database, DatabaseUnavailable
@@ -290,6 +291,11 @@ def build_parser() -> argparse.ArgumentParser:
     setting.add_argument("key")
     setting.add_argument("value", help="JSON, or a bare string")
 
+    # Squads, roles, connectors, secrets, settings, audit and the answer
+    # cache: the same operations the web interface offers, through the same
+    # functions. See cli_config.py.
+    CONFIG_COMMANDS.update(cli_config.register(sub))
+
     return parser
 
 
@@ -303,6 +309,16 @@ COMMANDS = {
     "set": cmd_set,
 }
 
+#: Filled in by `build_parser`, because the handlers and the subparsers are
+#: declared together in cli_config and it would be easy for two lists to drift.
+CONFIG_COMMANDS: dict = {}
+
+
+def _dispatch_key(args) -> str:
+    """"squad" plus "set" is the command "squad set"; a flat command is itself."""
+    sub = getattr(args, "subcommand", None)
+    return f"{args.command} {sub}" if sub else args.command
+
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
@@ -310,8 +326,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "generate-key":
         return cmd_generate_key(args)
 
+    handler = COMMANDS.get(args.command) or CONFIG_COMMANDS.get(_dispatch_key(args))
+    if handler is None:  # pragma: no cover — argparse rejects unknown commands first
+        return _fail(f"unknown command {_dispatch_key(args)!r}")
+
     try:
-        return asyncio.run(COMMANDS[args.command](args))
+        return asyncio.run(handler(args))
+    except AdminError as exc:
+        return _fail(str(exc))
     except EnvError as exc:
         return _fail(str(exc))
     except DatabaseUnavailable as exc:

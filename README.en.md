@@ -3,7 +3,7 @@
 A service that centrally indexes repositories on GitHub, GitLab and Bitbucket
 and exposes the resulting code graph over MCP.
 
-Version 0.1.0 · [Türkçe](README.md) (primary) · [Changelog](CHANGELOG.md)
+Version 0.2.0 · [Türkçe](README.md) (primary) · [Changelog](CHANGELOG.md)
 
 ## Overview
 
@@ -95,6 +95,15 @@ through the admin API increments a generation counter; the services check that
 counter periodically and re-read the configuration when it moves. No restart
 is needed.
 
+**A web interface.** At `/ui`, for exploring the graph, searching for symbols
+and administering the platform. It signs in through the identity provider,
+asks every question about a codebase over `/mcp`, and has no build step.
+
+**Two administrative surfaces, one behaviour.** The `repo-mcp-admin` command
+and the console in the web interface perform the same operations through the
+same functions. Which one you use makes no difference: both go through the
+same validation and produce the same audit record.
+
 **Audit records.** Every tool call writes one line of JSON to stdout,
 including refused calls. Configuration changes are additionally recorded in an
 audit table and can be read with `/admin/audit`.
@@ -108,7 +117,7 @@ and discovery and webhook outcomes.
 
 ```
  Coding agent · Chatbot · CI ──MCP / HTTP + OIDC──▶ Gateway ──▶ engine
-                                                       │        (one process
+             A browser (/ui) ──MCP / HTTP + OIDC──▶    │        (one process
                                                        │         per squad)
                                                        └──HTTPS──▶ LiteLLM ──▶ model
 
@@ -298,12 +307,13 @@ What has to be known before the database can be read stays in the environment:
 If `SECRETS_KEY` is not set, the services do not become ready: `/readyz`
 returns 503 and names the missing variable. `/healthz` keeps answering.
 
-The remaining settings live in the database and are changed through the admin
-API or `repo-mcp-admin`. Some of them:
+The remaining settings live in the database and are changed from the console
+in the web interface or with `repo-mcp-admin`. Some of them:
 
 | Key | Default |
 | --- | --- |
 | `oidc.issuer`, `oidc.audience`, `oidc.groups_claim` | empty, `repo-mcp`, `groups` |
+| `oidc.browser_client_id`, `oidc.browser_scopes` | empty, `openid profile` |
 | `litellm.base_url`, `litellm.model` | empty, `gpt-4o-mini` |
 | `smart_tools.enabled` | `true` |
 | `engine.idle_timeout_seconds`, `engine.call_timeout_seconds` | `900`, `120` |
@@ -393,6 +403,55 @@ With `persistence: true` the engine produces a
 `.codebase-memory/graph.db.zst` file, so developer machines can start from
 that artifact instead of indexing from scratch.
 
+## The web interface
+
+The gateway serves a browser interface at `/ui`. It has four pages: an
+overview of what the engine computed about a project, symbol search with
+source, a WebGL map of the graph, and the administrative console.
+
+![The map](docs/images/ui-map.png)
+
+The interface has no read path of its own. Every question about a codebase
+goes to `POST /mcp` with the signed-in user's own token, so anything the
+browser can do an MCP client can do, authorized and audited by exactly the
+same code. A second read API beside the first would be a second place for the
+tenancy rules to be wrong.
+
+Two endpoints exist that MCP has no answer for. `GET /api/auth` says how to
+sign in, and is public because it is answered before anyone is signed in.
+`GET /api/session` reports the caller's squad, role and tool list on this
+platform.
+
+**Signing in.** With `oidc.issuer` and `oidc.browser_client_id` set, the
+interface runs Authorization Code with PKCE: the browser is a public client
+holding no secret, and the gateway is not in the flow. The token that arrives
+on `/mcp` is verified by the code that verifies an MCP client's. Without a
+browser client the token box remains; in development mode the screen says
+plainly that tokens are not being verified.
+
+Access and refresh tokens live in `sessionStorage` and nowhere else — no
+cookie, no `localStorage`. Closing the tab ends the session and nothing is
+written to disk.
+
+**The map.** Rendering is Sigma over graphology, using WebGL. A real codebase
+graph is tens of thousands of nodes and edges, well past the point where
+Canvas 2D and the SVG-based graph libraries stop being usable. The ForceAtlas2
+layout runs in a Web Worker so the main thread only draws and the graph can be
+navigated while it is still settling; under a content security policy that
+forbids `worker-src blob:`, the same layout runs sliced between frames on the
+main thread.
+
+Filtering by node label and edge type happens during rendering rather than by
+changing the model, so a filter is instant, reversible and never moves the
+layout.
+
+There is no build step: the interface's own code is native ES modules, and the
+three browser libraries are committed under `gateway/app/ui/vendor/` as
+pre-built UMD bundles. Nothing is fetched from a CDN, so an air-gapped
+installation works.
+
+The details are in [docs/web-interface.md](docs/web-interface.md).
+
 ## Connecting an MCP client
 
 The gateway exposes a single endpoint: `POST /mcp`. The protocol is JSON-RPC
@@ -435,6 +494,38 @@ API and nothing else. It is created on first start and exists to make the
 platform manageable before OIDC is configured. It cannot call MCP tools, read
 a graph or see source code. The reasoning is in
 [docs/adr/0007-break-glass-administrator.md](docs/adr/0007-break-glass-administrator.md).
+
+## Administration
+
+Squads, roles, connectors, secrets, settings, the audit trail and the answer
+cache are managed from two places: the `repo-mcp-admin` command and the
+administrative console in the web interface.
+
+They are the same operations. Both call the same functions in
+`common/repo_mcp_common/admin.py`, so a squad created from a terminal and one
+created from a browser are the same row, validated by the same rules and
+recorded in the same audit table. `common/tests/test_cli_config.py` fails if a
+gap between them appears.
+
+```bash
+repo-mcp-admin squad set payments \
+  --group squad-payments --project 'acme-payments-*' --profile analysis
+repo-mcp-admin role set lead --group squad-payments-leads
+repo-mcp-admin connector set acme-github \
+  --provider github --squad payments --setting org=acme \
+  --token-secret connector.acme-github.token
+repo-mcp-admin settings
+repo-mcp-admin audit --limit 25
+```
+
+![The administrative console](docs/images/ui-admin.png)
+
+No change needs a restart: every write advances a generation counter that both
+services poll, which is also how a change made from a terminal reaches a
+running gateway.
+
+The full list of commands and what each one does is in
+[docs/administration.md](docs/administration.md).
 
 ## Webhooks and reindexing
 

@@ -55,12 +55,20 @@ fi
 # ── 2. internal links resolve ─────────────────────────────────────────
 
 link_report="$(python3 - <<'PY'
-import pathlib, re, sys
+import pathlib, re, subprocess
+
+# Tracked files only. Walking the working tree would also read a virtual
+# environment, a build directory, or a repository cloned under .dev for local
+# testing — none of which this rule is about.
+listing = subprocess.run(
+    ["git", "ls-files", "-z", "*.md"], capture_output=True, check=True
+).stdout
 
 broken = []
-for md in sorted(pathlib.Path(".").rglob("*.md")):
-    if any(part in {".venv", "node_modules", ".git"} for part in md.parts):
+for name in listing.split(b"\0"):
+    if not name:
         continue
+    md = pathlib.Path(name.decode())
     for match in re.finditer(r'\[[^\]]+\]\(([^)]+)\)', md.read_text(encoding="utf-8")):
         target = match.group(1).split("#")[0].strip()
         if not target or target.startswith(("http://", "https://", "mailto:")):

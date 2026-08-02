@@ -4,7 +4,7 @@ GitHub, GitLab ve Bitbucket üzerindeki repository'leri merkezi olarak
 indeksleyen ve elde edilen kod graph'ını MCP üzerinden erişilebilir hale
 getiren bir servis.
 
-Sürüm 0.1.0 · [English](README.en.md) · [Değişiklikler](CHANGELOG.md)
+Sürüm 0.2.0 · [English](README.en.md) · [Değişiklikler](CHANGELOG.md)
 
 ## Genel bakış
 
@@ -97,6 +97,15 @@ tutulur. Admin API üzerinden yapılan her değişiklik bir generation sayacın�
 artırır; servisler bu sayacı belirli aralıklarla kontrol eder ve değiştiyse
 yapılandırmayı yeniden okur. Restart gerekmez.
 
+**Web arayüzü.** `/ui` adresinde; graph'ı gezmek, sembol aramak ve sistemi
+yönetmek için. Kimlik sağlayıcı üzerinden giriş yapar, codebase hakkındaki her
+sorusunu `/mcp` üzerinden sorar ve build adımı yoktur.
+
+**İki yönetim yüzeyi, tek davranış.** `repo-mcp-admin` komutu ile web
+arayüzündeki konsol aynı işlemleri aynı fonksiyonlar üzerinden yapar. Hangisini
+kullandığınız fark etmez; ikisi de aynı doğrulamadan geçer ve aynı audit
+kaydını üretir.
+
 **Audit kaydı.** Her tool çağrısı için stdout'a tek satır JSON yazılır;
 reddedilen çağrılar da dahildir. Yapılandırma değişiklikleri ayrıca
 veritabanındaki audit tablosuna kaydedilir ve `/admin/audit` ile okunabilir.
@@ -110,7 +119,7 @@ süreleri, keşif ve webhook sonuçları yayınlanır.
 
 ```
  Coding agent · Chatbot · CI ──MCP / HTTP + OIDC──▶ Gateway ──▶ engine
-                                                       │        (takım başına
+              Tarayıcı (/ui) ──MCP / HTTP + OIDC──▶    │        (takım başına
                                                        │         bir process)
                                                        └──HTTPS──▶ LiteLLM ──▶ model
 
@@ -298,12 +307,13 @@ Veritabanı okunmadan önce bilinmesi gerekenler environment'ta kalır:
 `SECRETS_KEY` tanımlı değilse servisler hazır duruma geçmez; `/readyz` 503
 döner ve eksik değişkenin adını bildirir. `/healthz` cevap vermeye devam eder.
 
-Geri kalan ayarlar veritabanında tutulur ve admin API veya `repo-mcp-admin`
-ile değiştirilir. Bazıları:
+Geri kalan ayarlar veritabanında tutulur; web arayüzündeki konsoldan veya
+`repo-mcp-admin` ile değiştirilir. Bazıları:
 
 | Anahtar | Varsayılan |
 | --- | --- |
 | `oidc.issuer`, `oidc.audience`, `oidc.groups_claim` | boş, `repo-mcp`, `groups` |
+| `oidc.browser_client_id`, `oidc.browser_scopes` | boş, `openid profile` |
 | `litellm.base_url`, `litellm.model` | boş, `gpt-4o-mini` |
 | `smart_tools.enabled` | `true` |
 | `engine.idle_timeout_seconds`, `engine.call_timeout_seconds` | `900`, `120` |
@@ -393,6 +403,54 @@ connector'larda token şifrelenmiş olarak veritabanında saklanır.
 üretir; geliştirici makineleri bu dosyadan başlayarak sıfırdan indekslemek
 zorunda kalmaz.
 
+## Web arayüzü
+
+Gateway `/ui` adresinde bir tarayıcı arayüzü sunar. Dört sayfası vardır:
+projenin genel yapısı, sembol araması ve kaynak kod, graph'ın WebGL ile
+çizilen haritası ve yönetim konsolu.
+
+![Graph haritası](docs/images/ui-map.png)
+
+Arayüzün ayrı bir okuma yolu yoktur. Bir codebase hakkındaki her soru,
+kullanıcının kendi token'ı ile `POST /mcp` üzerinden gider. Yani tarayıcının
+yapabildiği her şeyi bir MCP istemcisi de yapabilir ve ikisi aynı kodla
+yetkilendirilip aynı şekilde audit'e yazılır. İkinci bir okuma API'si, tenant
+kurallarının yanlış olabileceği ikinci bir yer demek olurdu.
+
+MCP'nin cevaplayamadığı iki endpoint vardır: `GET /api/auth` nasıl giriş
+yapılacağını söyler (kimse giriş yapmadan önce cevaplandığı için herkese
+açıktır), `GET /api/session` ise çağıranın bu platformdaki takımını, rolünü ve
+tool listesini döner.
+
+**Giriş.** `oidc.issuer` ve `oidc.browser_client_id` ayarlıysa arayüz PKCE ile
+Authorization Code akışını çalıştırır: tarayıcı public client'tır, client
+secret yoktur, gateway akışın içinde değildir. Sonuçta gelen token `/mcp`
+üzerinde bir MCP istemcisinin token'ı ile aynı kodla doğrulanır. Browser
+client tanımlı değilse token kutusu kalır; geliştirme modunda ise ekran
+token'ların doğrulanmadığını açıkça yazar.
+
+Access ve refresh token yalnızca `sessionStorage` içinde tutulur — cookie yok,
+`localStorage` yok. Sekme kapanınca oturum biter, diske hiçbir şey yazılmaz.
+
+**Harita.** Çizim Sigma (WebGL) ve graphology ile yapılır; gerçek bir kod
+graph'ı on binlerce node ve edge demektir ve bu, Canvas 2D ile SVG tabanlı
+graph kütüphanelerinin kullanışlı olmayı bıraktığı noktanın çok ötesindedir.
+ForceAtlas2 yerleşimi bir Web Worker içinde çalışır, böylece ana thread
+yalnızca çizim yapar ve graph yerleşirken bile gezilebilir. `worker-src blob:`
+izni olmayan bir content security policy altında aynı yerleşim ana thread
+üzerinde parçalara bölünerek çalışır.
+
+Node etiketi ve edge tipine göre filtreleme render aşamasında yapılır, model
+değişmez; bu yüzden filtre anında uygulanır, geri alınabilir ve yerleşimi
+bozmaz.
+
+Arayüzün build adımı yoktur: kendi kodu native ES module'dür, üç tarayıcı
+kütüphanesi `gateway/app/ui/vendor/` altında hazır UMD bundle olarak
+tutulur. CDN'den hiçbir şey çekilmez, dolayısıyla internet erişimi olmayan bir
+kurulumda da çalışır.
+
+Ayrıntılar [docs/web-interface.md](docs/web-interface.md) içinde.
+
 ## MCP istemci bağlantısı
 
 Gateway tek bir endpoint sunar: `POST /mcp`. Protokol HTTP üzerinde JSON-RPC
@@ -438,6 +496,38 @@ sistemi yönetilebilir kılmak içindir. MCP tool'larını çağıramaz, graph
 okuyamaz, kaynak kod göremez. Gerekçesi
 [docs/adr/0007-break-glass-administrator.md](docs/adr/0007-break-glass-administrator.md)
 içinde.
+
+## Yönetim
+
+Takımlar, roller, connector'lar, secret'lar, ayarlar, audit kaydı ve answer
+cache iki yerden yönetilir: `repo-mcp-admin` komutu ve web arayüzündeki
+yönetim konsolu.
+
+İkisi aynı işlemlerdir. Her ikisi de `common/repo_mcp_common/admin.py`
+içindeki aynı fonksiyonları çağırır; terminalden oluşturulan bir takım ile
+tarayıcıdan oluşturulan aynı satırdır, aynı kurallarla doğrulanır ve aynı
+audit tablosuna yazılır. Aralarında bir fark oluşursa
+`common/tests/test_cli_config.py` bunu yakalar.
+
+```bash
+repo-mcp-admin squad set payments \
+  --group squad-payments --project 'acme-payments-*' --profile analysis
+repo-mcp-admin role set lead --group squad-payments-leads
+repo-mcp-admin connector set acme-github \
+  --provider github --squad payments --setting org=acme \
+  --token-secret connector.acme-github.token
+repo-mcp-admin settings
+repo-mcp-admin audit --limit 25
+```
+
+![Yönetim konsolu](docs/images/ui-admin.png)
+
+Hiçbir değişiklik restart gerektirmez: her yazma bir generation sayacını
+artırır, iki servis de bu sayacı belirli aralıklarla kontrol eder. Terminalden
+yapılan bir değişiklik de çalışan gateway'e bu yolla ulaşır.
+
+Komutların tam listesi ve her birinin ne yaptığı
+[docs/administration.md](docs/administration.md) içinde.
 
 ## Webhook ve yeniden indeksleme
 
