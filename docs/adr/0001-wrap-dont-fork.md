@@ -60,6 +60,27 @@ isolation regardless.
 - Upstream tool schemas can change under us. This is mitigated by pinning the
   version and by contract tests.
 
+## Alternatives considered
+
+**Fork the engine and add transport, auth and tenancy inside it.** Rejected.
+It would put 158 vendored grammars, a hand-written LSP layer and a signed
+release pipeline under our maintenance, including backporting upstream
+security fixes. The features we actually need are all outside the parser.
+
+**Reimplement the graph engine ourselves.** Rejected as an order of magnitude
+more work than the entire rest of this project, for a component that already
+exists, is MIT licensed and is faster than anything we would write.
+
+**Run the engine per developer and only centralise coordination.** Rejected:
+it keeps the duplicated indexing that is the problem statement, and it makes
+cross-repository edges impossible, since those only exist within one store.
+
+**Contribute the missing features upstream instead.** Considered and partly
+rejected on timing rather than merit — multi-tenancy and LDAP identity are
+not obviously wanted in a single-user local tool, and we cannot block on that
+discussion. Worth revisiting for anything that is plainly a general
+improvement.
+
 ## Revisit when
 
 If upstream adds an HTTP or streamable transport, the bridge layer becomes

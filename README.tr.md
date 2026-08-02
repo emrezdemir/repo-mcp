@@ -137,6 +137,7 @@ Dokümantasyon İngilizcedir.
 | [Deployment](docs/deployment.md) | Keycloak/LDAP, webhook, CI, üretim notları |
 | [Scaling](docs/scaling.md) | depolama topolojileri, izlenecek metrikler, kapasite |
 | [Development](docs/development.md) | scriptler, test katmanları, hata ayıklama |
+| [Code standards](docs/code-standards.md) | bağlayıcı kod, test ve dokümantasyon kuralları |
 | [Branching](docs/branching.md) | main/dev akışı ve sırların repoya girmemesi |
 | [Indexing engine](docs/engine.md) | gömülü motor ne yapar ve hangi sınırları dayatır |
 | [Roadmap](docs/roadmap.md) | yapılan, sıradaki ve açıkça planlanmayan |

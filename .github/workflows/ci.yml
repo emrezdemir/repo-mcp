@@ -45,6 +45,20 @@ jobs:
       - name: Test
         run: pytest -q
 
+  docs:
+    name: documentation rules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+
+      # Enforces docs/code-standards.md §5: required files, resolving links,
+      # AGENTS.md commands that actually exist, ADR structure including the
+      # negative consequences, changelog section, memory-bank freshness.
+      - name: Enforce documentation rules
+        run: scripts/check-docs.sh
+
   secrets:
     name: no secrets committed
     runs-on: ubuntu-latest

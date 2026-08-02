@@ -8,6 +8,27 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Working agreement for agents** — `AGENTS.md` is the binding contract
+  (commands, git workflow, hard rules, code standards, testing, definition of
+  done). `CLAUDE.md` is a thin tool-specific layer that defers to it rather
+  than repeating it, so the two cannot drift apart.
+- **Memory bank** (`memory-bank/`) — durable project context an agent reads at
+  session start: project brief, product context, system patterns and
+  invariants, technical context, active context and progress. `progress.md`
+  uses a strict status vocabulary and separates *works* from *built but
+  unverified* from *designed*.
+- **`docs/code-standards.md`** — binding code, test, shell, commit and
+  documentation rules. Every rule is marked as mechanically enforced or
+  reviewed.
+- **`scripts/check-docs.sh`** — enforces the documentation rules: required
+  files present and non-empty, every internal link resolves, every `make`
+  command in `AGENTS.md` exists, every `make` target is documented, changelog
+  has an `[Unreleased]` section, ADRs carry the required sections including
+  negative consequences and rejected alternatives, the README index resolves,
+  no tool attribution is committed, and the memory bank carries a date.
+  Wired into `make test`, the pre-commit hook and CI.
+- **`make verify`** — the single gate matching the definition of done: tests,
+  documentation rules and secret scan.
 - **Gateway** — MCP over HTTP in front of the indexing engine: one engine
   process per tenant over stdio, with idle reaping and timeout recovery.
 - **Identity** — OIDC/JWT verification against JWKS, with LDAP groups arriving
@@ -39,6 +60,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Documentation** — architecture, source-verified engine constraints, roles
   and permissions, deployment, scaling, development, roadmap, and five
   decision records.
+
+### Fixed
+
+- ADR-0001 and ADR-0003 were missing their *Alternatives considered*
+  sections, found by the new documentation check on its first run. An ADR
+  without rejected alternatives leaves the next reader unable to tell whether
+  the obvious option was considered.
 
 ### Notes
 

@@ -116,6 +116,16 @@ ScanConfig.load(Path("deploy/scan.example.yaml"), Path("/tmp"))
 PY
 then ok "scan.example.yaml parses"; else FAILURES+=("scan.example.yaml"); fi
 
+# Documentation rules are checked here too, so a change that forgets a doc
+# fails in the same run as one that forgets a test.
+log "documentation rules"
+if "$REPO_ROOT/scripts/check-docs.sh" --quiet >/dev/null 2>&1; then
+  ok "documentation rules satisfied"
+else
+  "$REPO_ROOT/scripts/check-docs.sh" || true
+  FAILURES+=("documentation rules")
+fi
+
 echo
 if [[ ${#FAILURES[@]} -eq 0 ]]; then
   ok "everything passed"

@@ -119,8 +119,11 @@ scripts/stack.sh reset         # stop and delete volumes (destroys indexes)
 ## Before opening a pull request
 
 ```bash
-make fmt && make test
+make fmt && make verify
 ```
+
+`make verify` is tests, documentation rules and the secret scan in one gate.
+All three run in CI, so a failure here is a failure there.
 
 And `make e2e` if you touched the Dockerfile, the stdio bridge, or the
 indexing path — those are exactly what unit tests do not cover.

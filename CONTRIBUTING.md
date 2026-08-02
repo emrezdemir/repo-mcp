@@ -31,8 +31,10 @@ For an end-to-end environment, see [docs/deployment.md](docs/deployment.md).
   path, not only the allow path.
 - Documentation is updated in the same change. A feature that is not in
   `docs/` does not exist for whoever comes next.
-- `make check-secrets` is clean. Run `make hooks` once and the pre-commit hook
-  does this for you — see [docs/branching.md](docs/branching.md).
+- `make verify` is green — tests, documentation rules and the secret scan.
+  Run `make hooks` once and the pre-commit hook checks the last two for you.
+- The binding rules are in [AGENTS.md](AGENTS.md) and
+  [docs/code-standards.md](docs/code-standards.md).
 - The pull request targets `dev`.
 
 ## Things worth knowing before you change things

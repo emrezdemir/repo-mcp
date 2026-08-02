@@ -68,3 +68,24 @@ profile still only sees the scout tools.
 - The role is global rather than per-squad. Someone who should be a lead in one
   squad and a developer in another cannot be expressed today; that needs
   per-tenant role assignment, and no one has asked for it yet.
+
+## Alternatives considered
+
+**One role per role × squad pairing** ("payments-developer",
+"payments-devops", "checkout-qa"). Rejected: N×M definitions, and every new
+squad multiplies the configuration. It is also where chapter members break
+down, because they legitimately belong to several squads at once.
+
+**Permissions attached directly to tools rather than to capabilities.**
+Rejected: adding an engine tool would then mean editing every role. With
+capabilities, a new tool is classified once.
+
+**Role assignment per tenant rather than globally.** Considered and deferred.
+It would express "lead in payments, developer in checkout", which is a real
+situation. It also doubles the size of the configuration and nobody has asked
+for it yet. Recorded as a known limitation rather than designed around.
+
+**Deriving roles from LDAP group names by convention** (for example a
+`-leads` suffix). Rejected: it makes the directory's naming scheme a load-
+bearing part of the authorization model, and it fails silently when someone
+renames a group.
