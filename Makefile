@@ -61,12 +61,24 @@ check-docs: ## Enforce the documentation rules (docs/code-standards.md §5)
 check-secrets: ## Scan every tracked file for secrets and forbidden paths
 	@scripts/check-secrets.sh --all
 
+.PHONY: version
+version: ## Print the project version (scripts/version.sh --set X.Y.Z to change it)
+	@scripts/version.sh
+
+.PHONY: check-version
+check-version: ## Check that every file agrees with VERSION
+	@scripts/version.sh --check
+
+.PHONY: screenshots
+screenshots: ## Regenerate docs/images from a live gateway
+	@scripts/screenshots.sh
+
 .PHONY: check-chart
 check-chart: ## Check the Helm templates against values.yaml (no cluster, no helm)
 	@scripts/check-chart.sh
 
 .PHONY: verify
-verify: check-branch test check-docs check-chart check-secrets ## Everything the definition of done requires
+verify: check-branch test check-docs check-chart check-version check-secrets ## Everything the definition of done requires
 	@echo "verify: all checks passed"
 
 .PHONY: hooks

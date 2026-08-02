@@ -70,8 +70,13 @@ through the admin API or `repo-mcp-admin import`. See
 ```bash
 git checkout main && git pull origin main
 git merge --no-ff dev
-# bump version and appVersion in deploy/helm/repo-mcp/Chart.yaml
+
+scripts/version.sh --bump minor        # VERSION, three packages, the chart
 # move CHANGELOG.md's [Unreleased] entries under ## 0.2.0
+# update both READMEs: the version line, and anything the release changed
+make screenshots                       # if the output in them moved
+make verify
+
 git commit -am "release 0.2.0"
 git push origin main
 
@@ -79,9 +84,15 @@ git tag -a v0.2.0 -m "0.2.0"
 git push origin v0.2.0
 ```
 
+`VERSION` is the single authoritative number; `scripts/version.sh` propagates
+it to the three Python packages and the chart, and `--check` — part of
+`make verify` — fails when any of them, or either README, disagrees. Five
+copies kept in step by hand is five chances to ship a chart that deploys an
+image it does not match.
+
 The tag is the promotion event. `.github/workflows/release.yml` refuses it
-unless the commit is on `main`, `Chart.yaml` agrees with the tag, and
-`CHANGELOG.md` has a section for the version — three things that are trivial
+unless the commit is on `main`, `VERSION` agrees with the tag, everything
+agrees with `VERSION`, and `CHANGELOG.md` has a section for it — all trivial
 to fix before a release and awkward to fix after one.
 
 ## Deploying production

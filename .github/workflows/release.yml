@@ -53,15 +53,17 @@ jobs:
           fi
           echo "on main"
 
-      - name: The chart version matches the tag
+      - name: The tag matches VERSION, and everything matches VERSION
         run: |
-          chart="$(grep -E '^version:' deploy/helm/repo-mcp/Chart.yaml | awk '{print $2}')"
-          app="$(grep -E '^appVersion:' deploy/helm/repo-mcp/Chart.yaml | tr -d '"' | awk '{print $2}')"
           want="${{ steps.version.outputs.version }}"
-          fail=0
-          [ "$chart" = "$want" ] || { echo "Chart.yaml version is $chart, tag says $want"; fail=1; }
-          [ "$app" = "$want" ] || { echo "Chart.yaml appVersion is $app, tag says $want"; fail=1; }
-          exit $fail
+          have="$(cat VERSION)"
+          if [ "$have" != "$want" ]; then
+            echo "VERSION says $have, the tag says $want."
+            echo "Run: scripts/version.sh --set $want"
+            exit 1
+          fi
+          # Packages, chart, READMEs and changelog, in one check.
+          scripts/version.sh --check
 
       - name: The changelog has an entry for this version
         run: |

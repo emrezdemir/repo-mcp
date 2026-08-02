@@ -1,7 +1,7 @@
 # Active context
 
 **Last updated:** 2026-08-02
-**Branch:** `feature/headroom-plugin`, off `dev`
+**Branch:** `chore/versioning-and-readme`, off `dev`
 
 ## Where things stand
 
@@ -17,6 +17,20 @@ from `dev`; a version tag publishes `:vX.Y.Z` and packages the chart.
 nothing else pushes there.
 
 ## What the last sessions did
+
+**Session 9 — CI turned red, and it was telling the truth.** The image build
+had never worked: it fetched the engine from a URL that does not exist, and
+behind that it never copied the shared `common/` package, so pip went looking
+for `repo-mcp-common` on PyPI. Eight shellcheck warnings too. All fixed, and
+`make test` now runs shellcheck and validates the Compose file, so these fail
+locally rather than only on a push.
+
+Also: `VERSION` is now the single authoritative number, `make screenshots`
+generates `docs/images/` from a live gateway, and `README.md` is Turkish with
+`README.en.md` alongside it. `scripts/version.sh --check` — part of
+`make verify` — fails when a package, the chart, either README or the
+changelog disagrees, which is what makes "every release updates the
+documentation" a rule rather than a hope.
 
 **Session 8 — prompt compression as a plugin.** Headroom runs as its own
 pinned container in front of LiteLLM, enabled by a database setting and
@@ -117,7 +131,9 @@ discusses engine internals — with source references, so claims are checkable.
 
 - **`main` is at the initial commit.** Do not assume it contains the code.
 - **The engine binary is usually not installed locally.** Everything except
-  tool execution works; the error message says so explicitly.
+  tool execution works; the error message says so explicitly. To get it:
+  `curl -fsSL <releases>/latest/download/codebase-memory-mcp-linux-amd64.tar.gz`,
+  unpack, put it on PATH. `make screenshots` needs it.
 - **`deploy/tenants.yaml` and `deploy/scan.yaml` are local and ignored.** Edit
   the `.example` files to change the shipped defaults. They are seed documents
   for `repo-mcp-admin import`, not runtime configuration.

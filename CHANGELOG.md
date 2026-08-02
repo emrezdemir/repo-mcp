@@ -8,6 +8,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **One authoritative version.** `VERSION` at the repository root, propagated
+  to the three Python packages and the Helm chart by `scripts/version.sh`.
+  `--check` runs in `make verify` and in the release workflow, and it fails
+  when any of them, or either README, or the changelog disagrees — so the
+  rule that a release updates the documentation is enforced rather than
+  remembered. `--bump patch|minor|major` does the whole set in one step.
+- **Screenshots, generated rather than drawn.** `make screenshots` boots a
+  development gateway, captures five real sequences — bootstrap, readiness, an
+  MCP round trip, both kinds of refusal, and an administrative change moving
+  the generation counter — and renders them as SVG terminal cards into
+  `docs/images/`. A README that shows invented output drifts from the code
+  without anyone noticing; this one cannot.
+- **Turkish is the primary README.** `README.md` is Turkish, written as
+  Turkish rather than translated from the English, and `README.en.md` carries
+  the English. Both are updated together, and `scripts/version.sh --check`
+  fails a release where either one still names an older version.
+
 - **Prompt compression, as a plugin.** Headroom runs as its own pinned
   container in front of LiteLLM, enabled by `headroom.enabled` and disabled by
   the same setting. Nothing is vendored: updating it is bumping an image tag,

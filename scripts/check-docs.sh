@@ -27,7 +27,7 @@ pass() { (( QUIET )) || ok "$1"; }
 # ── 1. required files exist ───────────────────────────────────────────
 
 REQUIRED=(
-  README.md README.tr.md AGENTS.md CLAUDE.md CONTRIBUTING.md CHANGELOG.md
+  README.md README.en.md AGENTS.md CLAUDE.md CONTRIBUTING.md CHANGELOG.md
   SECURITY.md CODE_OF_CONDUCT.md LICENSE NOTICE Makefile
   docs/architecture.md docs/engine.md docs/roles-and-permissions.md
   docs/deployment.md docs/scaling.md docs/development.md docs/branching.md
