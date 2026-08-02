@@ -8,6 +8,39 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Configuration in PostgreSQL.** Tenants, roles, project allowlists,
+  connectors, OIDC and LiteLLM settings, tunables and provider tokens are rows
+  in a database instead of YAML files, changed through an administrative API
+  while the platform runs. Only what is needed before the database can be read
+  — `DATABASE_URL`, `SECRETS_KEY`, engine paths — stays in the environment.
+  [ADR-0006](docs/adr/0006-configuration-in-the-database.md).
+- **Bundled PostgreSQL, or your own.** The Compose stack ships a database and
+  an `init` container that applies migrations and creates the first
+  administrator before either service starts. Setting `DATABASE_URL` at a
+  managed instance switches to it with no code change.
+- **First administrator on first boot.** `repo-mcp-admin init` creates it,
+  interactively or from `ADMIN_USERNAME`/`ADMIN_PASSWORD`, generating and
+  printing a password once when none is given. The account reaches the admin
+  API only — never MCP tools, a graph or source.
+  [ADR-0007](docs/adr/0007-break-glass-administrator.md).
+- **Administrative API** at `/admin`: login, tenants, roles, connectors,
+  secrets, settings, an audit trail, and a password change. Every write bumps
+  a generation counter, so a change reaches every replica within one poll
+  interval without a restart.
+- **Encrypted credentials.** Provider tokens and virtual keys are stored
+  Fernet-encrypted, keyed from the environment, so a database dump is not by
+  itself a credential disclosure. Values are never returned by the API and
+  never written to an audit record.
+- **`repo-mcp-admin`** — `init`, `init-db`, `create-admin`, `set-password`,
+  `import`, `set`, `status`, `generate-key`. Every command is safe to re-run.
+  `import` seeds from the existing YAML and moves token values out of the
+  environment into encrypted storage.
+- **`common/`** — the shared package holding the schema, migrations, secret
+  encryption, the configuration store and the bootstrap flow, with 32 tests
+  that run against SQLite and need no database server.
+- **Branch naming convention** — `feature/`, `bugfix/`, `hotfix/`, `chore/`,
+  `docs/`, enforced by `scripts/check-branch.sh` in the pre-commit hook and in
+  CI. A `hotfix/` branches from `main` and merges into both `main` and `dev`.
 - **Working agreement for agents** — `AGENTS.md` is the binding contract
   (commands, git workflow, hard rules, code standards, testing, definition of
   done). `CLAUDE.md` is a thin tool-specific layer that defers to it rather
@@ -63,6 +96,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- A freshly bootstrapped database crashed the gateway at startup, because an
+  empty tenant list was treated as a configuration error. That is the state
+  every new deployment is in; an empty registry is now valid and `/readyz`
+  reports it rather than looking healthy.
 - ADR-0001 and ADR-0003 were missing their *Alternatives considered*
   sections, found by the new documentation check on its first run. An ADR
   without rejected alternatives leaves the next reader unable to tell whether

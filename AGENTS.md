@@ -22,7 +22,8 @@ Two Python services around a third-party indexing engine:
 | `gateway/` | MCP over HTTP: authentication, authorization, audit, the engine bridge, LLM-backed composite tools |
 | `indexer/` | Repository discovery, webhooks, scheduled and CI-triggered indexing |
 | `deploy/` | Dockerfile, Compose stack, Helm chart, example configuration |
-| `scripts/` | Setup, test, dev, debug, smoke, e2e, secret scanning |
+| `common/` | Configuration database, migrations, secrets, bootstrap, `repo-mcp-admin` |
+| `scripts/` | Setup, test, dev, debug, smoke, e2e, secret and documentation checks |
 | `docs/` | Architecture, engine constraints, roles, deployment, scaling, ADRs |
 | `memory-bank/` | Durable project context for agents |
 
@@ -57,6 +58,8 @@ reinventing the invocation.
 | `make up` / `make down` / `make logs` | Docker stack lifecycle |
 | `make smoke` | Assertions against a running stack |
 | `make e2e` | Build images, index a real repository, query it, tear down |
+| `make generate-key` | Print a new `SECRETS_KEY` |
+| `make check-branch` | Check the branch name against the convention |
 | `make check-docs` | Enforce the documentation rules mechanically |
 | `make check-secrets` | Audit every tracked file for secrets |
 | `make verify` | Tests, documentation rules and secret scan — the definition of done |
@@ -76,6 +79,22 @@ someone has to copy by hand.
 git checkout dev && git pull origin dev
 git checkout -b feature/short-description
 ```
+
+**Branch names** are `<type>/<short-description>`, lowercase kebab-case, at
+most 60 characters. Enforced by `scripts/check-branch.sh` in the pre-commit
+hook and in CI.
+
+| Type | From | Into | For |
+| --- | --- | --- | --- |
+| `feature/` | `dev` | `dev` | new capability or changed behaviour |
+| `bugfix/` | `dev` | `dev` | defect in unreleased code |
+| `hotfix/` | **`main`** | **`main` and `dev`** | defect in released code that cannot wait |
+| `chore/` | `dev` | `dev` | tooling, dependencies, no-behaviour refactors |
+| `docs/` | `dev` | `dev` | documentation only |
+
+Never name a branch after a tool, a model or a person. A `hotfix/` merges into
+both `main` and `dev` — one that lands only on `main` is undone by the next
+`dev` merge. Full detail in [docs/branching.md](docs/branching.md).
 
 Commit messages: imperative subject under ~72 characters, then a body that
 explains **why**. The diff already shows what changed.

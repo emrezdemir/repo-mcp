@@ -86,9 +86,9 @@ def test_unknown_tool_profile_is_rejected():
         TenantRegistry.from_dict(config)
 
 
-def test_empty_config_is_rejected():
-    with pytest.raises(ConfigError):
-        TenantRegistry.from_dict({})
+def test_a_tenant_entry_that_is_not_a_mapping_is_rejected():
+    with pytest.raises(ConfigError, match="must be a mapping"):
+        TenantRegistry.from_dict({"tenants": {"a": ["not", "a", "mapping"]}})
 
 
 def test_role_resolution_prefers_the_most_privileged_match():
@@ -111,3 +111,20 @@ def test_for_groups_returns_only_reachable_tenants():
 def test_unknown_role_name_is_rejected():
     with pytest.raises(ConfigError, match="unknown role"):
         TenantRegistry.from_dict({**BASE, "roles": {"superuser": ["g"]}})
+
+
+def test_an_empty_registry_is_valid_not_an_error():
+    """A freshly bootstrapped database has no squads yet.
+
+    Treating that as a configuration error crashed the gateway on first boot,
+    which is the most common state a new deployment is in.
+    """
+    empty = TenantRegistry.from_dict({})
+    assert empty.tenants == ()
+    assert empty.for_groups(frozenset({"anyone"})) == ()
+    assert empty.role_for(frozenset({"anyone"})) is Role.VIEWER
+
+
+def test_a_malformed_tenants_section_is_still_rejected():
+    with pytest.raises(ConfigError, match="must be a mapping"):
+        TenantRegistry.from_dict({"tenants": ["not", "a", "mapping"]})

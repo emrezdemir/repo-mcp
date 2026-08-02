@@ -1,4 +1,4 @@
-"""FastAPI application: the MCP endpoint and health probes."""
+"""FastAPI application: the MCP endpoint, the admin API and health probes."""
 
 from __future__ import annotations
 
@@ -7,26 +7,35 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Header, Request
 from fastapi.responses import JSONResponse, Response
+from repo_mcp_common.bootstrap import NotBootstrapped, inspect_state
+from repo_mcp_common.db import Database, DatabaseUnavailable
 
+from .admin_api import build_router
 from .audit import AuditEvent, emit
 from .auth import Authenticator, AuthError
 from .cbm import CbmPool
 from .config import Settings
+from .configuration import ConfigurationProvider
 from .llm import LlmClient
 from .mcp import McpRouter, TenantSelectionError, build_session
 from .metrics import AUTH_FAILURES, render
-from .tenants import TenantRegistry
 
 log = logging.getLogger(__name__)
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None, database: Database | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
-    registry = TenantRegistry.load(settings.tenants_file)
+    database = database or Database()
     pool = CbmPool(settings)
     llm = LlmClient(settings)
-    auth = Authenticator(settings)
-    router = McpRouter(settings, registry, pool, llm)
+    provider = ConfigurationProvider(database, settings)
+    router = McpRouter(settings, registry=None, pool=pool, llm=llm)  # registry per request
+
+    #: Set once the database has a schema and an administrator. Until then the
+    #: service answers health probes and nothing else, with a message naming
+    #: the missing step — an unbootstrapped gateway cannot be configured, so
+    #: serving requests would only produce confusing failures downstream.
+    state = {"ready": False, "reason": "starting"}
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -35,27 +44,59 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "DEV_INSECURE_AUTH is enabled: JWT verification is skipped. "
                 "Never run this in production."
             )
-        _warn_on_cache_drift(settings, registry)
+        try:
+            await database.wait_until_ready()
+            bootstrap_state = await inspect_state(database)
+            state["ready"] = bootstrap_state.ready
+            state["reason"] = bootstrap_state.explain()
+            if not bootstrap_state.ready:
+                log.error("not ready: %s", bootstrap_state.explain())
+            else:
+                await provider.current()
+        except (DatabaseUnavailable, NotBootstrapped) as exc:
+            # Keep answering /healthz so an orchestrator reports "unhealthy"
+            # with a readable reason rather than a crash loop with none.
+            state["ready"] = False
+            state["reason"] = str(exc)
+            log.error("%s", exc)
+
         await pool.start()
         try:
             yield
         finally:
             await pool.aclose()
             await llm.aclose()
+            await database.aclose()
 
     app = FastAPI(title="repo-mcp gateway", lifespan=lifespan)
+    app.include_router(build_router(database, provider))
 
     @app.get("/healthz")
     async def healthz() -> dict:
         return {"status": "ok"}
 
     @app.get("/readyz")
-    async def readyz() -> dict:
-        return {
+    async def readyz() -> Response:
+        if not state["ready"]:
+            return JSONResponse(
+                {"status": "not_ready", "reason": state["reason"]}, status_code=503
+            )
+        config = await provider.current()
+        body = {
             "status": "ok",
-            "tenants": [t.name for t in registry.tenants],
+            "generation": config.generation,
+            "tenants": [t.name for t in config.registry.tenants],
             "smart_tools": llm.enabled,
+            "database": database.env.redacted_url(),
         }
+        if not config.registry.tenants:
+            # Healthy but useless: every request will be denied for want of a
+            # squad, and an operator should see why without reading logs.
+            body["warning"] = (
+                "no squads are configured; add one through the admin API or "
+                "with 'repo-mcp-admin import'"
+            )
+        return JSONResponse(body)
 
     @app.get("/metrics")
     async def metrics() -> Response:
@@ -68,6 +109,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         authorization: str | None = Header(default=None),
         x_tenant: str | None = Header(default=None),
     ):
+        if not state["ready"]:
+            return JSONResponse(
+                {"error": f"the platform is not configured yet: {state['reason']}"},
+                status_code=503,
+            )
+
+        config = await provider.current()
+        # Cheap and idempotent: adopts anything an administrator changed since
+        # the last request without rebuilding the client.
+        llm.update(config.settings)
+        auth = Authenticator(config.settings)
+
         try:
             principal = await auth.authenticate(authorization)
         except AuthError as exc:
@@ -76,7 +129,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return JSONResponse({"error": str(exc)}, status_code=401)
 
         try:
-            session = build_session(registry, principal, x_tenant)
+            session = build_session(config.registry, principal, x_tenant)
         except TenantSelectionError as exc:
             emit(
                 AuditEvent(
@@ -118,29 +171,3 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return JSONResponse(response)
 
     return app
-
-
-def _warn_on_cache_drift(settings: Settings, registry: TenantRegistry) -> None:
-    """The cache directory is the isolation boundary; it must match the ACL.
-
-    ``list_projects`` returns every project in a cache directory, so a stray
-    database there leaks its name even though the gateway would refuse queries
-    against it. That means the indexer placed a project where it should not
-    have — worth a loud warning at startup.
-    """
-    for tenant in registry.tenants:
-        if "*" in tenant.projects:
-            continue
-        cache_dir = settings.cbm_cache_root / "tenant" / tenant.name
-        if not cache_dir.is_dir():
-            continue
-        stray = sorted(
-            db.stem for db in cache_dir.glob("*.db") if not tenant.allows_project(db.stem)
-        )
-        if stray:
-            log.warning(
-                "tenant=%s has projects outside its allowlist in the cache dir: %s "
-                "(list_projects will disclose these names)",
-                tenant.name,
-                ", ".join(stray),
-            )

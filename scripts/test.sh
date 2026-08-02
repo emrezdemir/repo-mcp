@@ -4,7 +4,7 @@
 #
 # Usage:
 #   scripts/test.sh                 lint + tests for gateway and indexer
-#   scripts/test.sh gateway         one service only
+#   scripts/test.sh gateway         one service only (common|gateway|indexer)
 #   scripts/test.sh --lint          linting only
 #   scripts/test.sh --no-lint       tests only
 #   scripts/test.sh --fix           apply lint autofixes, then run
@@ -24,7 +24,7 @@ PYTEST_ARGS=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    gateway|indexer) SERVICES+=("$1") ;;
+    common|gateway|indexer) SERVICES+=("$1") ;;
     --lint)     RUN_TESTS=0 ;;
     --no-lint)  RUN_LINT=0 ;;
     --fix)      FIX=1 ;;
@@ -36,7 +36,7 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-[[ ${#SERVICES[@]} -eq 0 ]] && SERVICES=(gateway indexer)
+[[ ${#SERVICES[@]} -eq 0 ]] && SERVICES=(common gateway indexer)
 
 FAILURES=()
 

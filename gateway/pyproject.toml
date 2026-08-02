@@ -12,7 +12,11 @@ dependencies = [
     "python-jose[cryptography]>=3.3",
     "prometheus-client>=0.20",
     "pyyaml>=6.0",
+    "repo-mcp-common",
 ]
+
+[tool.uv.sources]
+repo-mcp-common = { path = "../common" }
 
 [project.optional-dependencies]
 dev = [

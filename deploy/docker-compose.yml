@@ -14,6 +14,47 @@ x-build-args: &build-args
   dockerfile: deploy/Dockerfile
 
 services:
+  # Bundled PostgreSQL so `make up` needs nothing external. To use your own
+  # instead: set DATABASE_URL in deploy/.env and start with
+  #   docker compose up -d --scale postgres=0
+  postgres:
+    <<: *defaults
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-repomcp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-repomcp}
+    ports: ["${POSTGRES_PORT:-5432}:5432"]
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-repomcp} -d ${POSTGRES_DB:-repomcp}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  # Applies migrations and creates the first administrator, then exits. Both
+  # services wait for it, so a fresh deployment reaches a usable state without
+  # anyone reading a runbook.
+  init:
+    <<: *defaults
+    restart: "no"
+    build:
+      <<: *build-args
+      args:
+        SERVICE: gateway
+        CBM_VERSION: ${CBM_VERSION:-latest}
+    depends_on:
+      postgres: { condition: service_healthy, required: false }
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://repomcp:${POSTGRES_PASSWORD}@postgres:5432/repomcp}
+      SECRETS_KEY: ${SECRETS_KEY:?set SECRETS_KEY — generate one with 'make generate-key'}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    entrypoint: ["/usr/bin/tini", "--"]
+    command: ["repo-mcp-admin", "init"]
+
   keycloak:
     <<: *defaults
     image: quay.io/keycloak/keycloak:26.0
@@ -74,28 +115,25 @@ services:
         SERVICE: gateway
         CBM_VERSION: ${CBM_VERSION:-latest}
     depends_on:
+      init: { condition: service_completed_successfully }
       litellm: { condition: service_healthy }
     environment:
-      OIDC_ISSUER: ${OIDC_ISSUER:-http://keycloak:8080/realms/engineering}
-      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-repo-mcp}
-      TENANTS_FILE: /etc/repo-mcp/tenants.yaml
-      LITELLM_BASE_URL: http://litellm:4000
-      LITELLM_API_KEY: ${LITELLM_MASTER_KEY}
-      LITELLM_MODEL: ${LITELLM_MODEL:-ollama/qwen2.5-coder:14b}
-      SMART_TOOLS_ENABLED: ${SMART_TOOLS_ENABLED:-true}
+      # Tenants, roles, connectors, OIDC and LiteLLM settings all live in the
+      # database and are changed through the admin API. Only bootstrap values
+      # are here. See docs/adr/0006-configuration-in-the-database.md.
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://repomcp:${POSTGRES_PASSWORD}@postgres:5432/repomcp}
+      SECRETS_KEY: ${SECRETS_KEY:?set SECRETS_KEY — generate one with 'make generate-key'}
+      CONFIG_POLL_SECONDS: ${CONFIG_POLL_SECONDS:-15}
       # Local evaluation without Keycloak: set DEV_INSECURE_AUTH=true and a
       # DEV_STATIC_TOKEN in deploy/.env. Never do this in production.
       DEV_INSECURE_AUTH: ${DEV_INSECURE_AUTH:-false}
       DEV_STATIC_TOKEN: ${DEV_STATIC_TOKEN:-}
       DEV_STATIC_GROUPS: ${DEV_STATIC_GROUPS:-}
-      CBM_IDLE_TIMEOUT_S: ${CBM_IDLE_TIMEOUT_S:-900}
-      CBM_CALL_TIMEOUT_S: ${CBM_CALL_TIMEOUT_S:-120}
       # One worker per container: each worker process would spawn its own
       # engine process per tenant. Scale with replicas, not workers.
       WEB_CONCURRENCY: 1
     ports: ["8080:8080"]
     volumes:
-      - ./tenants.yaml:/etc/repo-mcp/tenants.yaml:ro
       # Mounted read-write even though the indexer is the only logical writer:
       # SQLite in WAL mode needs to create -wal and -shm files to *read*, and
       # the engine keeps its own config and logs under the cache root. Writes
@@ -113,8 +151,14 @@ services:
       args:
         SERVICE: indexer
         CBM_VERSION: ${CBM_VERSION:-latest}
+    depends_on:
+      init: { condition: service_completed_successfully }
     environment:
-      SCAN_CONFIG: /etc/repo-mcp/scan.yaml
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://repomcp:${POSTGRES_PASSWORD}@postgres:5432/repomcp}
+      SECRETS_KEY: ${SECRETS_KEY:?set SECRETS_KEY — generate one with 'make generate-key'}
+      CONFIG_POLL_SECONDS: ${CONFIG_POLL_SECONDS:-15}
+      # Provider tokens now live encrypted in the database. These remain
+      # supported for an existing setup and for `repo-mcp-admin import`.
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GITLAB_TOKEN: ${GITLAB_TOKEN:-}
       BITBUCKET_APP_PASSWORD: ${BITBUCKET_APP_PASSWORD:-}
@@ -127,7 +171,6 @@ services:
       WEB_CONCURRENCY: 1
     ports: ["8082:8080"]
     volumes:
-      - ./scan.yaml:/etc/repo-mcp/scan.yaml:ro
       # Both services share the cache root, which is why they must run the
       # same engine build (exact-build admission barrier).
       - cbm-cache:/var/lib/repo-mcp/cache
@@ -137,6 +180,7 @@ services:
         limits: { memory: ${INDEXER_MEMORY_LIMIT:-8g} }
 
 volumes:
+  postgres-data:
   cbm-cache:
   repo-workdirs:
   ollama-models:

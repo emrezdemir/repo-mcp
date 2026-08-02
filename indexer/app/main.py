@@ -11,6 +11,9 @@ from pathlib import Path
 
 from fastapi import FastAPI, Header, Request
 from fastapi.responses import JSONResponse, Response
+from repo_mcp_common.bootstrap import inspect_state
+from repo_mcp_common.db import Database, DatabaseUnavailable
+from repo_mcp_common.store import ConfigStore
 
 from .metrics import DISCOVERED_REPOS, DISCOVERY_RUNS, WEBHOOKS, render
 from .repos import Binding, ScanConfig
@@ -36,18 +39,34 @@ class BindingCache:
     Webhooks arrive for repositories the platform may not have discovered yet
     (someone created one an hour ago). A miss triggers a rediscovery rather
     than dropping the event.
+
+    The connector list comes from the configuration database and is re-read on
+    every refresh, so a connector an administrator adds is picked up by the
+    next rescan without a restart.
     """
 
-    def __init__(self, config: ScanConfig) -> None:
+    def __init__(self, config: ScanConfig, store: ConfigStore | None = None,
+                 repo_root: Path | None = None) -> None:
         self._config = config
+        self._store = store
+        self._repo_root = repo_root
         self._bindings: dict[str, Binding] = {}
         self._lock = asyncio.Lock()
+
+    async def _reload_config(self) -> None:
+        if self._store is None or self._repo_root is None:
+            return
+        snapshot = await self._store.snapshot()
+        self._config = ScanConfig.from_dict(
+            snapshot.scan_document, self._repo_root, snapshot.secrets
+        )
 
     @property
     def bindings(self) -> dict[str, Binding]:
         return dict(self._bindings)
 
     async def refresh(self) -> int:
+        await self._reload_config()
         async with self._lock:
             discovered: dict[str, Binding] = {}
             for connector in self._config.connectors:
@@ -85,13 +104,15 @@ class BindingCache:
         return self._bindings.get(full_name)
 
 
-def create_app() -> FastAPI:
+def create_app(database: Database | None = None) -> FastAPI:
     repo_root = Path(os.getenv("CBM_REPO_ROOT", "/var/lib/repo-mcp/repos"))
     cache_root = Path(os.getenv("CBM_CACHE_ROOT", "/var/lib/repo-mcp/cache"))
-    config = ScanConfig.load(
-        Path(os.getenv("SCAN_CONFIG", "/etc/repo-mcp/scan.yaml")), repo_root
-    )
-    cache = BindingCache(config)
+    database = database or Database()
+    store = ConfigStore(database)
+
+    # Start with an empty connector list; the first refresh loads it from the
+    # database. A file is no longer read at runtime.
+    cache = BindingCache(ScanConfig((), repo_root), store, repo_root)
     indexer = Indexer(
         cbm_binary=os.getenv("CBM_BINARY", "codebase-memory-mcp"),
         cache_root=cache_root,
@@ -100,10 +121,14 @@ def create_app() -> FastAPI:
     )
     rescan_interval = float(os.getenv("RESCAN_INTERVAL_S", "86400"))
     ci_token = os.getenv("CI_TRIGGER_TOKEN", "")
+    state = {"ready": False, "reason": "starting"}
 
     async def rescan_loop() -> None:
         while True:
             try:
+                if not state["ready"]:
+                    await asyncio.sleep(min(rescan_interval, 30))
+                    continue
                 total = await cache.refresh()
                 log.info("scheduled rescan: %d repositories, queueing full pass", total)
                 for binding in cache.bindings.values():
@@ -116,6 +141,18 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
+        try:
+            await database.wait_until_ready()
+            bootstrap_state = await inspect_state(database)
+            state["ready"] = bootstrap_state.ready
+            state["reason"] = bootstrap_state.explain()
+            if not bootstrap_state.ready:
+                log.error("not ready: %s", bootstrap_state.explain())
+        except DatabaseUnavailable as exc:
+            state["ready"] = False
+            state["reason"] = str(exc)
+            log.error("%s", exc)
+
         await indexer.start()
         task = asyncio.create_task(rescan_loop())
         try:
@@ -124,12 +161,28 @@ def create_app() -> FastAPI:
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
             await indexer.aclose()
+            await database.aclose()
 
     app = FastAPI(title="repo-mcp indexer", lifespan=lifespan)
 
     @app.get("/healthz")
     async def healthz() -> dict:
         return {"status": "ok", "queue_depth": indexer.depth}
+
+    @app.get("/readyz")
+    async def readyz() -> JSONResponse:
+        if not state["ready"]:
+            return JSONResponse(
+                {"status": "not_ready", "reason": state["reason"]}, status_code=503
+            )
+        return JSONResponse(
+            {
+                "status": "ok",
+                "queue_depth": indexer.depth,
+                "repos": len(cache.bindings),
+                "database": database.env.redacted_url(),
+            }
+        )
 
     @app.get("/metrics")
     async def metrics() -> Response:
