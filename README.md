@@ -1,86 +1,87 @@
 # repo-mcp
 
-**Centralized code intelligence for the whole organisation.** Point it at a
-GitHub organisation, GitLab group or Bitbucket workspace, and every repository
-underneath becomes a queryable knowledge graph — for coding agents over MCP,
-for chatbots, and for CI pipelines.
+**Şirket geneline yayılan, merkezî kod zekâsı.** Bir GitHub organizasyonunu,
+GitLab grubunu ya da Bitbucket alanını verirsiniz; altındaki bütün depolar
+sorgulanabilir tek bir bilgi grafiğine dönüşür. Kodlama asistanları,
+sohbet botları ve CI hatları bu grafiğe MCP üzerinden bağlanır.
 
-[Türkçe](README.tr.md)
+Sürüm 0.1.0 · [English](README.en.md) · [Sürüm notları](CHANGELOG.md)
 
 ---
 
-Ask *"who calls this function?"*, *"what breaks if I change this?"* or *"which
-services hit this endpoint?"* and get an answer computed from the code itself,
-not guessed from a context window.
+*"Bu fonksiyonu kim çağırıyor?"*, *"Burayı değiştirirsem ne kırılır?"*,
+*"Bu uca hangi servisler gidiyor?"* diye sorarsınız. Cevap bir bağlam
+penceresinden tahmin edilmez; kodun kendisinden hesaplanır.
 
-repo-mcp runs as a service your whole company shares: LDAP-backed login,
-squad-level isolation, role-based permissions, automatic repository discovery,
-audit logging, and an LLM reasoning layer routed through your own
-[LiteLLM](https://github.com/BerriAI/litellm) proxy — hosted models, vLLM or
-Ollama, your choice.
+repo-mcp herkesin ortak kullandığı bir servis olarak çalışır: LDAP ile giriş,
+takım bazında yalıtım, role göre yetki, depoların kendiliğinden bulunması,
+denetim kaydı ve kendi [LiteLLM](https://github.com/BerriAI/litellm)
+vekilinizden geçen bir akıl yürütme katmanı. Modeli siz seçersiniz — dışarıdan
+servis, kendi vLLM'iniz ya da Ollama.
 
-## Why
+## Neden
 
-Code intelligence tools are built for one developer on one laptop. That is the
-wrong shape for a company: every developer reindexes the same repositories, no
-graph is ever shared between teams, cross-service questions cannot be answered
-at all, and none of that knowledge is reachable from a chatbot or a CI job.
+Kod zekâsı araçları tek geliştiriciye, tek dizüstüne göre tasarlanır. Bir şirket
+için yanlış ölçek: herkes aynı depoları yeniden indeksler, takımlar arasında
+hiçbir grafik paylaşılmaz, servisler arası sorular hiç cevaplanamaz, ve bu
+bilginin hiçbirine bir bottan ya da CI işinden erişilemez.
 
-repo-mcp makes it a shared service — indexed once, centrally, with the access
-control an organisation actually needs.
+repo-mcp bunu ortak bir servise çevirir. Bir kez, merkezde indekslenir; erişim
+denetimi de bir şirketin gerçekten ihtiyaç duyduğu biçimdedir.
 
-## What it does
+## Ne yapar
 
-- **Discovers repositories automatically.** One connector per GitHub
-  organisation, GitLab group (nested subgroups included) or Bitbucket
-  workspace, filtered with glob patterns. New repositories are picked up
-  without touching configuration.
-- **Keeps the graph fresh, four ways.** Verified push webhooks, a periodic
-  rescan, an explicit CI trigger, and manual re-index.
-- **Speaks MCP over HTTP.** Any MCP client — Claude Code, Cursor, Copilot, a
-  chatbot, a pipeline — connects to one endpoint with an OIDC token.
-- **Authenticates against LDAP.** Active Directory or OpenLDAP, federated
-  through Keycloak; repo-mcp keeps no user table of its own.
-- **Isolates by squad, with three independent layers.** Role capabilities and
-  project allowlists at the gateway, a fail-closed tool profile inside the
-  engine process, and per-tenant filesystem roots. A mistake in one does not
-  open the others.
-- **Answers in prose when that helps.** Change-impact summaries for pull
-  requests and natural-language questions, always grounded in a graph query
-  first — the model is never asked to guess the graph.
-- **Audits everything.** One structured JSON record per call, including
-  denials, because reading a snippet means reading real source.
+- **Depoları kendiliğinden bulur.** Her GitHub organizasyonu, GitLab grubu
+  (iç içe alt gruplarıyla) veya Bitbucket alanı için bir bağlayıcı tanımlarsınız;
+  desenlerle süzersiniz. Açılan yeni depo, ayara elinizi sürmeden dahil olur.
+- **Grafiği dört yoldan taze tutar.** İmzası doğrulanmış push kancaları,
+  düzenli tarama, CI'dan tetikleme ve elle yeniden indeksleme.
+- **MCP'yi HTTP üzerinden konuşur.** Claude Code, Cursor, Copilot, bir bot ya da
+  bir hat — MCP konuşan her istemci tek bir uca, OIDC anahtarıyla bağlanır.
+- **Kimliği LDAP'tan alır.** Active Directory veya OpenLDAP, Keycloak üzerinden
+  bağlanır. repo-mcp kendi kullanıcı tablosunu tutmaz.
+- **Takımları birbirinden yalıtır, üç bağımsız katmanla.** Ağ geçidinde rol
+  yetkileri ve proje listesi; motorun içinde kapalı-varsayılan araç profili;
+  dosya sisteminde takım başına ayrı kök. Birindeki hata diğerlerini açmaz.
+- **Gerektiğinde düz metinle cevaplar.** Değişikliğin etkisini özetler,
+  doğal dilde soruları yanıtlar — ama her zaman önce grafiği sorgulayarak.
+  Modelden grafiği tahmin etmesi hiçbir zaman istenmez.
+- **Her çağrıyı denetim kaydına yazar**, reddedilenler dahil. Bir kod parçasını
+  okumak, gerçek kaynak kodu okumak demektir.
 
-## Architecture at a glance
+## Mimari
 
 ```
- Agents · Chatbots · CI ──MCP over HTTP + OIDC──▶ Gateway ──▶ indexing engine
-                                                    │          (per tenant)
-                                                    └──HTTPS──▶ LiteLLM ──▶ model
+ Asistan · Bot · CI ──MCP / HTTP + OIDC──▶ Ağ geçidi ──▶ indeksleme motoru
+                                              │           (takım başına bir süreç)
+                                              └──HTTPS──▶ LiteLLM ──▶ model
 
- GitHub · GitLab · Bitbucket ──webhook/schedule──▶ Indexer ──▶ graph store
+ GitHub · GitLab · Bitbucket ──kanca / zamanlama──▶ İndeksleyici ──▶ grafik deposu
 ```
 
-Two services and a database. The **gateway** authenticates, authorizes and
-serves the MCP surface. The **indexer** discovers repositories and keeps their
-graphs current. **PostgreSQL** holds the configuration — squads, roles,
-connectors, settings and encrypted provider tokens — which an administrator
-changes through an API while the platform runs. See
-[docs/architecture.md](docs/architecture.md).
+İki servis ve bir veritabanı.
 
-## Quick start
+**Ağ geçidi** kimliği doğrular, yetkiyi denetler ve MCP yüzeyini sunar.
+**İndeksleyici** depoları bulur ve grafiklerini güncel tutar.
+**PostgreSQL** ayarları tutar — takımlar, roller, bağlayıcılar, tercihler ve
+şifrelenmiş sağlayıcı anahtarları. Yönetici bunları sistem çalışırken bir API
+üzerinden değiştirir; yeniden başlatmak gerekmez.
+
+Ayrıntı: [docs/architecture.md](docs/architecture.md).
+
+## Hızlı başlangıç
 
 ```bash
 git clone https://github.com/emrezdemir/repo-mcp
 cd repo-mcp
 
-make setup      # virtualenvs, dependencies, config files, generated secrets
-# edit deploy/.env (add a provider token) and deploy/scan.yaml
-make up         # build and start the Docker stack
-make smoke      # verify it end to end
+make setup      # sanal ortamlar, bağımlılıklar, ayar dosyaları, üretilen sırlar
+# deploy/.env içine bir sağlayıcı anahtarı girin, deploy/scan.yaml'ı düzenleyin
+make up         # Docker yığınını ayağa kaldır
+make smoke      # uçtan uca doğrula
 ```
 
-Then discover and index:
+Ardından tarama ve indeksleme başlatın:
 
 ```bash
 source deploy/.env
@@ -88,25 +89,24 @@ curl -X POST http://localhost:8082/rescan -H "Authorization: Bearer $CI_TRIGGER_
 curl http://localhost:8082/repos
 ```
 
-Point an MCP client at `http://localhost:8080/mcp` with an OIDC bearer token
-and an `X-Tenant` header. The full walkthrough, including Keycloak and LDAP
-setup, is in [docs/deployment.md](docs/deployment.md).
+MCP istemcinizi `http://localhost:8080/mcp` adresine yöneltin; OIDC anahtarını
+ve `X-Tenant` başlığını gönderin. Keycloak ve LDAP kurulumu dahil tam anlatım
+[docs/deployment.md](docs/deployment.md) içinde.
 
-If something does not work, `make debug` checks the toolchain, the engine, the
-configuration, storage, both services, an MCP round trip and the model
-backend — and reports everything it finds rather than stopping at the first
-problem.
+Bir şey yürümezse `make debug` çalıştırın. Araç zincirini, motoru, ayarları,
+depolamayı, iki servisi, canlı bir MCP gidiş-dönüşünü ve model tarafını
+sırayla dener; ilk hatada durmaz, bulduğu her şeyi raporlar.
 
-## Configuration
+## Ayarlar
 
-Configuration lives in PostgreSQL and is changed through the admin API or
-`repo-mcp-admin`, not by editing files. Only what is needed before the
-database can be read stays in the environment (`DATABASE_URL`,
-`SECRETS_KEY`, engine paths).
+Ayarlar PostgreSQL'de durur. Dosya düzenleyerek değil, yönetim API'si veya
+`repo-mcp-admin` ile değiştirilir. Ortam değişkenlerinde yalnızca veritabanı
+okunmadan önce bilinmesi gerekenler kalır: `DATABASE_URL`, `SECRETS_KEY` ve
+motor yolları.
 
-The shapes below are what the API and the importer accept.
+Aşağıdaki iki biçim, hem içe aktarıcının hem de API'nin kabul ettiği şekildir.
 
-`tenants.yaml` — who may do what, to which data:
+Kim, neyi, hangi veri üzerinde yapabilir:
 
 ```yaml
 roles:
@@ -117,11 +117,11 @@ roles:
 tenants:
   payments:
     ldap_groups: [squad-payments, chapter-devops]
-    tool_profile: analysis          # read-only engine surface
+    tool_profile: analysis          # salt okunur motor yüzeyi
     projects: ["acme-payments-*", "acme-ledger"]
 ```
 
-`scan.yaml` — what to index:
+Ne indekslenecek:
 
 ```yaml
 connectors:
@@ -135,53 +135,90 @@ connectors:
     mode: moderate
 ```
 
-## Documentation
+## Nasıl görünüyor
+
+Sistemin kendisi bir arayüz sunmaz — MCP ucu, yönetim API'si ve sağlık
+uçlarından ibarettir. Aşağıdakiler çalışan bir kurulumdan alınmıştır.
+
+Hazırlık: şema, ayarlar ve ilk yönetici tek komutta kurulur.
+
+![Kurulum ve hazırlık](docs/images/01-bootstrap.svg)
+
+Ağ geçidi hangi takımların yüklendiğini ve hangi ayar kuşağında olduğunu söyler.
+
+![Hazır olma çıktısı](docs/images/02-readyz.svg)
+
+MCP gidiş-dönüşü: istemci araçları listeler, yetkisi neye yetiyorsa onu görür.
+
+![MCP araç listesi](docs/images/03-mcp-tools.svg)
+
+Yetkisiz bir istek sessizce boş dönmez; nedenini söyleyerek reddedilir.
+
+![Reddedilen istek](docs/images/04-denied.svg)
+
+Yönetim API'si: ayarı değiştirirsiniz, kuşak numarası ilerler, bütün kopyalar
+yeniden başlatılmadan yeni değeri alır.
+
+![Yönetim API'si](docs/images/05-admin.svg)
+
+## Belgeler
+
+Belgeler İngilizcedir.
 
 | | |
 | --- | --- |
-| [Architecture](docs/architecture.md) | components, data flow, what is not built yet |
-| [Roles and permissions](docs/roles-and-permissions.md) | capabilities, roles, chapters, how the axes combine |
-| [Deployment](docs/deployment.md) | Keycloak/LDAP, webhooks, CI, production notes |
-| [Environments](docs/environments.md) | how a branch becomes something running, and what each environment owns |
-| [Scaling](docs/scaling.md) | storage topologies, what to watch, capacity planning |
-| [Development](docs/development.md) | the scripts, the test layers, how to debug |
-| [Code standards](docs/code-standards.md) | binding code, test and documentation rules |
-| [Branching](docs/branching.md) | main/dev flow, and how secrets stay out of the repo |
-| [Indexing engine](docs/engine.md) | what the embedded engine does, and the limits it imposes |
-| [Roadmap](docs/roadmap.md) | done, next, and explicitly not planned |
-| [Decision records](docs/adr/) | why the design is what it is |
+| [Architecture](docs/architecture.md) | bileşenler, veri akışı, henüz yapılmamış olanlar |
+| [Roles and permissions](docs/roles-and-permissions.md) | yetkiler, roller, chapter'lar |
+| [Deployment](docs/deployment.md) | Keycloak/LDAP, kancalar, CI, üretim notları |
+| [Environments](docs/environments.md) | bir dalın nasıl çalışan bir şeye dönüştüğü |
+| [Scaling](docs/scaling.md) | depolama düzenleri, izlenecek ölçütler, kapasite |
+| [Development](docs/development.md) | betikler, test katmanları, hata ayıklama |
+| [Code standards](docs/code-standards.md) | bağlayıcı kod, test ve belge kuralları |
+| [Branching](docs/branching.md) | main/dev akışı, sırların repoya girmemesi |
+| [Indexing engine](docs/engine.md) | gömülü motor ne yapar, hangi sınırları dayatır |
+| [Roadmap](docs/roadmap.md) | yapılan, sıradaki ve açıkça planlanmayan |
+| [Decision records](docs/adr/) | tasarımın gerekçeleri |
 
-## Status
+## Durum
 
-Early. The gateway and the indexer work and are covered by tests; the web UI
-and graph history are designed but not built.
-[docs/roadmap.md](docs/roadmap.md) is explicit about which is which — please
-read it before assuming a feature exists.
+Erken aşama, sürüm 0.1.0.
 
-## Development
+Ağ geçidi ve indeksleyici çalışıyor ve testlerle kaplı. Web arayüzü ile grafik
+geçmişi tasarlandı ama yazılmadı. Sağlayıcı taraması, kancalar ve model
+katmanı yazıldı ve birim testleri var, ancak gerçek bir GitHub organizasyonuna,
+canlı bir LiteLLM vekiline veya Keycloak'a karşı hiç çalıştırılmadı.
+
+Neyin hangi durumda olduğunu [docs/roadmap.md](docs/roadmap.md) ve
+[memory-bank/progress.md](memory-bank/progress.md) açıkça yazar — bir özelliğin
+var olduğunu varsaymadan önce oraya bakın.
+
+## Geliştirme
 
 ```bash
-make setup      # virtualenvs and dependencies
-make test       # lint and unit tests for both services
-make dev        # run both services locally, no Docker, auto-reload
-make debug      # diagnose whatever is not working
-make e2e        # build images, index a real repository, query it, tear down
-make help       # everything else
+make setup      # sanal ortamlar ve bağımlılıklar
+make test       # her iki servis için lint ve birim testleri
+make dev        # iki servisi yerelde çalıştır, Docker'sız, otomatik yeniden yükleme
+make debug      # ne çalışmıyorsa teşhis et
+make verify     # bitirmeden önce geçilmesi gereken kapı
+make help       # geri kalanı
 ```
 
-Every target is a script in [`scripts/`](scripts/) — run them directly if you
-prefer. Details in [docs/development.md](docs/development.md).
+Her hedef [`scripts/`](scripts/) altında bir betiktir; istersen doğrudan
+çalıştırırsın. Ayrıntı: [docs/development.md](docs/development.md).
 
-Kubernetes deployment uses the Helm chart in
-[`deploy/helm/repo-mcp`](deploy/helm/repo-mcp); read
-[docs/scaling.md](docs/scaling.md) before raising any replica count, because
-the storage topology constrains it.
+Kubernetes kurulumu [`deploy/helm/repo-mcp`](deploy/helm/repo-mcp) chart'ını
+kullanır. Herhangi bir kopya sayısını artırmadan önce
+[docs/scaling.md](docs/scaling.md) okuyun — depolama düzeni bunu sınırlar.
 
-Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
+Sürüm numarası tek bir yerde, [`VERSION`](VERSION) dosyasında durur;
+`scripts/version.sh` onu paketlere ve chart'a taşır, `make verify` de
+hepsinin aynı şeyi söylediğini denetler.
 
-## Licence
+Katkılar açıktır: [CONTRIBUTING.md](CONTRIBUTING.md).
 
-MIT — see [LICENSE](LICENSE).
+## Lisans
 
-repo-mcp bundles a third-party indexing engine; its licence and attribution
-are in [NOTICE](NOTICE).
+MIT — [LICENSE](LICENSE).
+
+repo-mcp üçüncü taraf bir indeksleme motoru paketler. Lisansı ve atfı
+[NOTICE](NOTICE) dosyasındadır.

@@ -75,7 +75,7 @@ external system. Treat their behaviour as unproven.
 | Provider discovery | A real GitHub org, GitLab group or Bitbucket workspace — pagination and rate limits in particular |
 | Webhook endpoints | A real webhook delivery from any provider |
 | LiteLLM composite tools | A live LiteLLM proxy |
-| Container images | Never built here; CI builds them |
+| Container images | Still never built here — no Docker daemon. The engine download and the pip install were each reproduced outside Docker against the real release, and CI builds the image itself |
 | PostgreSQL | Everything was exercised against SQLite. The schema and migration are the same, but no PostgreSQL server has run here |
 | The `init` Compose container | Never started; the same commands were run directly |
 | Helm chart | Never rendered by `helm`; `make check-chart` checks templates against `values.yaml`, and CI runs `helm lint` and `helm template` |
@@ -129,6 +129,9 @@ Not bugs — consequences of decisions, recorded so nobody rediscovers them.
 | The chart supplied no `DATABASE_URL`, so an install could not have started | Reading the chart while adding environments | Database, secret key and environment label added; ConfigMap removed |
 | The chart pointed both deployments at one image | The same read | Repository is a base, component is a suffix — matching CI |
 | `scripts/dev.sh` and the CI smoke started services with no database | Running `make dev` | `dev.sh` creates and seeds a local SQLite database; CI runs against PostgreSQL |
+| The image build fetched the engine from a URL that has never existed — the release ships a `.tar.gz`, not a bare binary | CI, on the first run that got that far | Fetch and unpack the archive, verified against the release's own `checksums.txt` |
+| The image never copied `common/`, so pip looked for `repo-mcp-common` on PyPI | CI, once the engine download stopped failing first | Both projects copied into the build context and installed in one pip run |
+| Eight shellcheck warnings, one a `cd` whose failure would have run the next command against the wrong tree | CI | Fixed; `make test` runs shellcheck now |
 | `deploy/docker-compose.yml` did not parse: unquoted `${VAR:-default}` in a flow mapping, and a duplicate `ENVIRONMENT` key | Running `docker compose config` while adding a service | Quoted, deduplicated, and `make test` validates the file now |
 | Migration 0001 built the schema from the live models, so it created 0002's tables and 0002 then failed | Adding the second migration | 0001 transcribed explicitly, plus a test comparing the migrated schema to the models |
 | Four administrator-editable `indexer.*` settings were read by nothing | Checking which chart values were still real | The indexer reads them from the store, re-reading the rescan interval each pass |
