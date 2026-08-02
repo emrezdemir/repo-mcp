@@ -32,6 +32,10 @@ away.
 - Prometheus metrics with bounded label cardinality.
 
 **Web interface** (`/ui`)
+- Search asks the engine about the whole project, not just the drawn subset.
+  Verified by filtering every node out and searching for a symbol the engine
+  knows: it is offered under "Elsewhere in this project", opens with its
+  location and real source, and says why its connections are absent.
 - Ask: `ask_codebase` from the browser, verified end to end against a
   stand-in model backend — 16,894 characters of graph evidence reached it and
   the answer came back citing a qualified name. Both refusal paths verified

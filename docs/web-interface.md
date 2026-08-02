@@ -163,6 +163,19 @@ Filtering is by node type, relationship type, folder, and by status — dead
 code, entry points, tests. The node budget is the user's to raise; the count
 actually drawn is always stated next to the total.
 
+**Search asks the engine, not the screen.** The drawn graph is a budgeted
+subset — five thousand nodes by default, out of a codebase that may have
+fifty thousand — so filtering what is drawn answers "no matches" for symbols
+that plainly exist. That is a wrong answer, not a missing feature. The search
+box therefore does two things at once: it filters the drawn nodes instantly,
+and it asks `search_graph` about the whole project. Anything the engine finds
+that is not drawn is listed separately, under "Elsewhere in this project".
+
+Opening one of those shows its kind, its location and its source, and says
+that its connections are not shown because they run to nodes that were not
+drawn — rather than rendering an empty connections list, which would read as
+"nothing references this" and be false.
+
 This needs the engine build that includes the interface
 (`CBM_EDITION=-ui`, the default). Without it the graph page says so, and the
 rest of the interface works.

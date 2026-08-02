@@ -85,3 +85,38 @@ export async function repoInfo(project: string): Promise<ProjectSummary["git"] |
   const projects = await listProjects();
   return projects.find((entry) => entry.name === project)?.git ?? null;
 }
+
+export interface SearchHit {
+  name: string;
+  qualified_name: string;
+  label: string;
+  file_path: string;
+  start_line?: number;
+  end_line?: number;
+  rank?: number;
+}
+
+/* Search the whole project, not just what is drawn.
+ *
+ * The graph is drawn up to a node budget — five thousand by default, out of
+ * a codebase that may have fifty. Filtering the drawn nodes therefore answers
+ * "no matches" for symbols that plainly exist, which is not a missing feature
+ * but a wrong answer. `search_graph` is BM25 over the whole project and is
+ * what the question deserves.
+ */
+export async function searchGraph(
+  project: string,
+  query: string,
+  limit = 50,
+): Promise<{ hits: SearchHit[]; total: number; truncated: boolean }> {
+  const result = await callTool<{
+    results?: SearchHit[];
+    total?: number;
+    has_more?: boolean;
+  }>("search_graph", { project, query, limit });
+  return {
+    hits: result.results ?? [],
+    total: result.total ?? 0,
+    truncated: Boolean(result.has_more),
+  };
+}

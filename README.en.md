@@ -439,6 +439,14 @@ That port has no authentication of its own, which is why it binds
 `127.0.0.1`, is chosen by the gateway, and is never published. The trust
 boundary is the one the stdio pipe already has.
 
+**Search.** The drawn graph is a budgeted subset — five thousand nodes by
+default, out of a codebase that may have fifty thousand — so filtering what is
+drawn would answer "no matches" for symbols that plainly exist. That is a wrong
+answer, not a missing feature. The search box filters the drawn nodes instantly
+*and* asks `search_graph` about the whole project; anything found outside the
+drawn graph is listed separately, with its location and source, and says why
+its connections are not shown.
+
 **Asking.** `ask_codebase` runs `get_architecture` and `search_graph` first
 and answers from what they returned, citing the qualified name of every symbol
 it mentions. The model is never asked to guess the graph, which is what makes

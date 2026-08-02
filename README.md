@@ -438,6 +438,14 @@ O portun kendi kimlik doğrulaması yok; bu yüzden `127.0.0.1`'e bağlanıyor,
 portu gateway seçiyor ve hiçbir zaman dışarı açılmıyor. Güven sınırı stdio
 borusununkiyle aynı.
 
+**Arama.** Çizilen graph bir alt küme — varsayılan bütçe 5000 düğüm, oysa
+gerçek bir repoda 50 bin olabilir. Bu yüzden yalnızca çizileni süzmek, var olan
+bir sembol için "eşleşme yok" demek olurdu; bu eksik özellik değil, **yanlış
+cevap**. Arama kutusu ikisini birden yapıyor: çizili düğümleri anında süzüyor
+ve `search_graph` ile projenin tamamını motora soruyor. Çizili olmayan
+sonuçlar ayrı bir başlık altında, konumu ve kaynak koduyla açılıyor —
+bağlantıları gösterilmiyor ve bunun sebebi açıkça yazılıyor.
+
 **Soru sorma.** `ask_codebase` önce `get_architecture` ve `search_graph`
 çalıştırır, cevabı yalnızca dönen kanıta dayandırır ve andığı her sembolün
 qualified name'ini gösterir. Modelden graph'ı tahmin etmesi istenmez; bu yüzden
