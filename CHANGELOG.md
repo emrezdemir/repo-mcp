@@ -11,8 +11,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **A project site**, at `site/`, published to GitHub Pages by
   `.github/workflows/pages.yml`. Turkish and English, sharing one stylesheet
   that takes its palette from the interface's own, so the site and the product
-  look like the same thing. It carries what a README should not: the showcase,
-  the use cases and the screenshots at a size worth looking at.
+  look like the same thing. It is a showcase, not a manual: the hero, the 3D
+  graph, four reasons, the screenshots at a size worth looking at, and a
+  three-line quickstart — the detail lives in the docs rather than in a second
+  copy of them.
 
   The landing is hand-written HTML — a few pages that change a few times a
   release do not repay a toolchain of their own. `scripts/build-site.sh`
@@ -118,10 +120,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   already satisfied when the service is installed.
 
   That surfaced a second wall on a VirtualBox shared folder, where `pwd` reports
-  the tree as `//home/...`: pip read the leading `//` as a URL authority and
-  failed with "file:// scheme is supported only on localhost". The path is
-  collapsed to a single leading slash before it reaches pip. Both were reported
-  from an Ubuntu server; neither could occur in the sandbox. The workflow ran on
+  the tree as `//home/...`: the leading `//` broke both pip (read as a URL
+  authority — "file:// scheme is supported only on localhost") and pytest (its
+  summary's `relative_to()` raised, crashing a run whose tests had passed).
+  `lib.sh` now collapses `REPO_ROOT` to a single leading slash, so every script
+  agrees on the path. All reported from an Ubuntu server; none could occur in
+  the sandbox.
+- **A fresh install did not say how to reach the interface.** `make setup`
+  finished with a list of dev scripts and no mention of the web UI, so it was
+  unclear that nothing was running yet or how to open it once it was. The setup
+  message and `deployment.md` now point at `http://localhost:8080/ui`, say
+  `make up` starts containers rather than a system service, and note sign-in
+  goes through OIDC. The workflow ran on
   pushes to `main`; GitHub creates the `github-pages` deployment environment
   with a branch policy that admits the default branch alone, and this
   repository's default branch is `dev`. A job whose environment refuses its ref

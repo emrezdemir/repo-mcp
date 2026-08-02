@@ -1,6 +1,6 @@
 # Progress
 
-**Last updated:** 2026-08-02
+**Last updated:** 2026-08-03
 
 Status vocabulary, used strictly:
 
@@ -200,7 +200,7 @@ Not bugs — consequences of decisions, recorded so nobody rediscovers them.
 | Four administrator-editable `indexer.*` settings were read by nothing | Checking which chart values were still real | The indexer reads them from the store, re-reading the rescan interval each pass |
 | `make setup` guarded venv creation on `[[ -d .venv ]]`, and on Debian/Ubuntu a failed `python3 -m venv` leaves the directory behind — so a first failure became permanent, and no `venv` or `pip` exit status was checked | The maintainer running it on a fresh Ubuntu server | Preflight `ensurepip` check naming the package, test the pip binary rather than the directory, rebuild a half-made environment, check every exit status |
 | gateway and indexer could not install: they depend on `repo-mcp-common`, whose path is in `[tool.uv.sources]` (uv-only), so pip looked for it on PyPI and failed with "No matching distribution found" | The maintainer running `make setup` on the Ubuntu server | Install the local `common` into the gateway and indexer venvs first, so pip sees the dependency already satisfied |
-| Then pip failed with "file:// scheme is supported only on localhost": on a VirtualBox shared folder `pwd` is `//home/...`, and pip read the leading `//` as a URL authority | The next run on the same server | Collapse the common path to a single leading slash before handing it to pip; on Linux `//x` and `/x` are the same directory |
+| A working tree at `//home/...` (VirtualBox shared folder) broke two tools: pip read the leading `//` as a URL host ("file:// scheme is supported only on localhost"), and pytest's terminal summary raised `relative_to()` because `//home/...` is not under `/home/...`, crashing a run whose tests had passed | `make setup`, then `scripts/test.sh`, on the Ubuntu server | `lib.sh` collapses `REPO_ROOT` to a single leading slash, so every script agrees on the path; on Linux `//x` and `/x` are the same directory |
 | `check-docs.sh` read the README section under `## Documentation`, and the Turkish README's heading is `## Belgeler` — so it matched nothing and passed | Moving the README's links to the site and wondering why the check stayed green | Reads both READMEs whole, resolves site URLs back to `docs/*.md`, and fails when it matches implausibly few links |
 | A capability gate added in session 12 hid the button `NodeDetailPanel`'s test clicks, so CI's `web interface` job had been red ever since and nobody looked | Running `npm test` while adding a test beside it | The test mocks a caller whose role may read source; it asserts source is escaped rather than injected, which is worth keeping |
 | Nothing confirmed a connector worked: provider, container name, token scope and patterns all fail the same way — silently, hours later | Asked to make adding a connector from the interface good | `connector check` on both surfaces, running real discovery and naming which of the four is wrong |
