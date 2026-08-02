@@ -1,4 +1,6 @@
-repo-mcp {{ .Chart.AppVersion }} installed as {{ .Release.Name }}.
+repo-mcp {{ .Chart.AppVersion }} installed as {{ .Release.Name }}
+{{- if .Values.environment }} in the {{ .Values.environment }} environment{{ end }},
+running tag {{ include "repo-mcp.imageTag" . }} from {{ .Values.image.repository }}-{gateway,indexer}.
 
 Endpoints (in-cluster):
 {{- if .Values.gateway.enabled }}
@@ -13,25 +15,47 @@ Check it:
   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "repo-mcp.fullname" . }}-gateway {{ .Values.gateway.service.port }}
   curl -s localhost:{{ .Values.gateway.service.port }}/readyz
 
-Start the first discovery pass:
+Configure it. Squads, roles, connectors and the identity settings live in the
+database, not in this chart — set them once, for this environment:
+
+  curl -s localhost:{{ .Values.gateway.service.port }}/admin/login \
+    -H 'Content-Type: application/json' \
+    -d '{"username":"{{ .Values.migrations.adminUsername }}","password":"..."}'
+
+Start the first discovery pass once a connector exists:
 
   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "repo-mcp.fullname" . }}-indexer {{ .Values.indexer.service.port }}
   curl -X POST localhost:{{ .Values.indexer.service.port }}/rescan -H "Authorization: Bearer $CI_TRIGGER_TOKEN"
 
-{{- if not .Values.gateway.config.oidcIssuer }}
+{{- if not .Values.migrations.auto }}
 
-WARNING: gateway.config.oidcIssuer is empty. The gateway cannot verify tokens
-and every request will be rejected. Point it at your Keycloak realm.
+NOTE: migrations.auto is off, so this release did not touch the schema. Apply
+it deliberately before the pods start against a new version:
+
+  kubectl -n {{ .Release.Namespace }} run repo-mcp-migrate --rm -i --restart=Never \
+    --image={{ include "repo-mcp.gatewayImage" . }} \
+    --env=MIGRATE_ON_START=true \
+    --env=DATABASE_URL=... --env=SECRETS_KEY=... \
+    --command -- repo-mcp-admin init-db
 {{- end }}
-{{- if not .Values.scan.connectors }}
+{{- if and .Values.migrations.auto .Values.migrations.bootstrapAdmin (not .Values.migrations.adminPassword) }}
 
-WARNING: scan.connectors is empty. Nothing will be discovered or indexed.
-See docs/deployment.md for connector examples.
+NOTE: the first administrator's password was generated. Read it once from the
+bootstrap job, then change it:
+
+  kubectl -n {{ .Release.Namespace }} logs job/{{ include "repo-mcp.fullname" . }}-bootstrap
 {{- end }}
 {{- if and .Values.secrets.create (not .Values.secrets.existingSecret) }}
 
-NOTE: secrets were rendered from values. For anything beyond evaluation, use
-secrets.existingSecret so tokens stay out of values files and CI logs.
+NOTE: DATABASE_URL and SECRETS_KEY were rendered from values into a Secret.
+For anything beyond evaluation use secrets.existingSecret, so they stay out of
+values files and CI logs.
+{{- end }}
+{{- if not .Values.environment }}
+
+NOTE: environment is unset. Set it (dev, staging, production) so /readyz can
+say which environment answered, and so the production guards apply.
+See docs/environments.md.
 {{- end }}
 {{- if gt (int .Values.indexer.replicaCount) 1 }}
 
@@ -40,4 +64,4 @@ per-project locks are in-process, so replicas will contend on the engine's
 mutation lock. Keep this at 1 — see docs/scaling.md.
 {{- end }}
 
-Docs: https://github.com/emrezdemir/repo-mcp/blob/main/docs/scaling.md
+Docs: https://github.com/emrezdemir/repo-mcp/blob/main/docs/environments.md

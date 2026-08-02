@@ -154,3 +154,30 @@ def test_job_key_combines_tenant_and_project():
 def test_job_accepts_a_pinned_or_floating_commit(sha):
     job = IndexJob(binding=binding(), sha=sha)
     assert job.sha == sha
+
+
+async def test_administrator_settings_size_the_worker_pool():
+    """The settings an administrator can edit have to actually reach the worker.
+
+    They were defined in the store and read by nothing, which is worse than
+    not offering them: the value changes, the audit records it, and the
+    indexer keeps its old behaviour.
+    """
+    indexer = make(concurrency=1)
+    indexer.apply_settings(concurrency=4, git_timeout_s=30.0, index_timeout_s=60.0)
+    assert indexer._concurrency == 4
+    assert indexer._git_timeout == 30.0
+    assert indexer._index_timeout == 60.0
+
+    await indexer.start()
+    try:
+        assert len(indexer._workers) == 4
+    finally:
+        await indexer.aclose()
+
+
+def test_a_zero_worker_pool_is_refused():
+    """Zero workers is a queue that silently never drains."""
+    indexer = make(concurrency=2)
+    indexer.apply_settings(concurrency=0, git_timeout_s=1.0, index_timeout_s=1.0)
+    assert indexer._concurrency == 1

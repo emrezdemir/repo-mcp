@@ -142,6 +142,7 @@ Dokümantasyon İngilizcedir.
 | [Architecture](docs/architecture.md) | bileşenler, veri akışı, henüz yapılmayanlar |
 | [Roles and permissions](docs/roles-and-permissions.md) | yetenekler, roller, chapter'lar |
 | [Deployment](docs/deployment.md) | Keycloak/LDAP, webhook, CI, üretim notları |
+| [Environments](docs/environments.md) | bir dalın nasıl çalışan bir şeye dönüştüğü, her ortamın kendine ait olanı |
 | [Scaling](docs/scaling.md) | depolama topolojileri, izlenecek metrikler, kapasite |
 | [Development](docs/development.md) | scriptler, test katmanları, hata ayıklama |
 | [Code standards](docs/code-standards.md) | bağlayıcı kod, test ve dokümantasyon kuralları |

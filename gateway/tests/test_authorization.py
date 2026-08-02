@@ -44,7 +44,6 @@ def settings(tmp_path=None) -> Settings:
         cbm_repo_root=__import__("pathlib").Path("/var/lib/repo-mcp/repos"),
         cbm_idle_timeout_s=900.0,
         cbm_call_timeout_s=120.0,
-        tenants_file=__import__("pathlib").Path("/dev/null"),
         litellm_base_url="",
         litellm_api_key="",
         litellm_model="test",

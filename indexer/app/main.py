@@ -117,17 +117,24 @@ def create_app(database: Database | None = None) -> FastAPI:
         cbm_binary=os.getenv("CBM_BINARY", "codebase-memory-mcp"),
         cache_root=cache_root,
         repo_root=repo_root,
-        concurrency=int(os.getenv("INDEX_CONCURRENCY", "2")),
     )
-    rescan_interval = float(os.getenv("RESCAN_INTERVAL_S", "86400"))
     ci_token = os.getenv("CI_TRIGGER_TOKEN", "")
     state = {"ready": False, "reason": "starting"}
 
+    async def rescan_interval() -> float:
+        """Read the interval afresh each pass, so a change lands without a restart."""
+        try:
+            snapshot = await store.snapshot()
+            return float(snapshot.setting("indexer.rescan_interval_seconds"))
+        except Exception:  # noqa: BLE001 - a database blip must not stop the loop
+            return 86400.0
+
     async def rescan_loop() -> None:
         while True:
+            interval = await rescan_interval()
             try:
                 if not state["ready"]:
-                    await asyncio.sleep(min(rescan_interval, 30))
+                    await asyncio.sleep(min(interval, 30))
                     continue
                 total = await cache.refresh()
                 log.info("scheduled rescan: %d repositories, queueing full pass", total)
@@ -137,7 +144,7 @@ def create_app(database: Database | None = None) -> FastAPI:
                 raise
             except Exception:  # noqa: BLE001 - the loop must survive
                 log.exception("scheduled rescan failed")
-            await asyncio.sleep(rescan_interval)
+            await asyncio.sleep(interval)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -148,6 +155,13 @@ def create_app(database: Database | None = None) -> FastAPI:
             state["reason"] = bootstrap_state.explain()
             if not bootstrap_state.ready:
                 log.error("not ready: %s", bootstrap_state.explain())
+            else:
+                snapshot = await store.snapshot()
+                indexer.apply_settings(
+                    concurrency=int(snapshot.setting("indexer.concurrency")),
+                    git_timeout_s=float(snapshot.setting("indexer.git_timeout_seconds")),
+                    index_timeout_s=float(snapshot.setting("indexer.index_timeout_seconds")),
+                )
         except DatabaseUnavailable as exc:
             state["ready"] = False
             state["reason"] = str(exc)

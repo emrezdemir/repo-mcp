@@ -2,13 +2,24 @@
 #
 # Read docs/scaling.md before raising gateway.replicaCount or
 # indexer.replicaCount — the storage topology constrains both.
+# Read docs/environments.md before deploying a second environment.
 
 nameOverride: ""
 fullnameOverride: ""
 
+# Free-form label, reported by /readyz and stamped on the pods. Setting it to
+# "production" turns on the guards described in docs/environments.md: a
+# mutable image tag is refused rather than deployed.
+environment: ""
+
 image:
+  # A base: the component is appended, giving <repository>-gateway and
+  # <repository>-indexer. They are two images from one Dockerfile, and they
+  # always share a tag — the engine refuses to run mixed builds against a
+  # shared cache root.
   repository: ghcr.io/emrezdemir/repo-mcp
-  # Tag defaults to the chart's appVersion.
+  # Defaults to v<appVersion> of the chart. In production this must be an
+  # immutable tag — a release (v1.2.0) or a commit (sha-1a2b3c4).
   tag: ""
   pullPolicy: IfNotPresent
   pullSecrets: []
@@ -19,6 +30,50 @@ image:
 # gateway uses Recreate rather than RollingUpdate.
 engine:
   version: "latest"
+
+# ── configuration store ───────────────────────────────────────────────
+# Squads, roles, connectors, secrets and settings live in PostgreSQL and are
+# changed through the admin API — see docs/adr/0006-configuration-in-the-database.md.
+# The chart does not run a database: point this at one you operate.
+#
+# Every environment gets its own database and its own secretsKey. Sharing
+# either would let dev access decrypt production credentials.
+database:
+  # postgresql+asyncpg://repomcp:PASSWORD@postgres.example:5432/repomcp
+  # Leave empty and supply DATABASE_URL through secrets.existingSecret to keep
+  # the password out of values files and CI logs.
+  url: ""
+  poolSize: 5
+  poolMaxOverflow: 5
+  # How long a starting service keeps retrying an unreachable database before
+  # giving up with a readable message.
+  connectRetrySeconds: 60
+  # How often a running service re-checks the configuration generation
+  # counter, which is how an admin change reaches every replica.
+  configPollSeconds: 15
+
+# Fernet key encrypting provider tokens at rest. Identical on every replica,
+# stable forever: losing it means re-entering every credential.
+#   repo-mcp-admin generate-key
+# Leave empty and supply SECRETS_KEY through secrets.existingSecret.
+secretsKey: ""
+
+migrations:
+  # Apply the schema as a Helm pre-install/pre-upgrade hook. Off by default:
+  # in production a migration should be a decision, not a side effect of a
+  # deploy (docs/adr/0008-environments-and-promotion.md). Turn it on in dev.
+  auto: false
+  # Create the first administrator in the same hook, if none exists. Harmless
+  # to leave on: it does nothing once an administrator exists.
+  bootstrapAdmin: true
+  adminUsername: admin
+  # Leave empty and a password is generated and printed once in the hook's
+  # logs. Change it at the first login.
+  adminPassword: ""
+  backoffLimit: 2
+  # Delete the hook Job this many seconds after it finishes. Keep it long
+  # enough to read a generated password out of the logs.
+  ttlSecondsAfterFinished: 3600
 
 serviceAccount:
   create: true
@@ -73,13 +128,9 @@ gateway:
     enabled: false
     minAvailable: 1
 
+  # Process-level only. Identity, squads, the model backend and the engine
+  # timeouts are administered in the database, not here.
   config:
-    oidcIssuer: ""
-    oidcAudience: repo-mcp
-    oidcGroupsClaim: groups
-    cbmIdleTimeoutSeconds: 900
-    cbmCallTimeoutSeconds: 120
-    smartToolsEnabled: true
     logLevel: info
 
   nodeSelector: {}
@@ -105,11 +156,11 @@ indexer:
     requests: { cpu: 500m, memory: 2Gi }
     limits: { memory: 8Gi }
 
+  # Process-level only. Concurrency and the rescan interval are administered
+  # in the database (indexer.concurrency, indexer.rescan_interval_seconds);
+  # raise concurrency together with the memory limit below, since indexing is
+  # RAM-first.
   config:
-    # Concurrent indexing jobs inside the pod. Indexing is RAM-first, so raise
-    # this together with the memory limit.
-    concurrency: 2
-    rescanIntervalSeconds: 86400
     logLevel: info
 
   nodeSelector: {}
@@ -141,52 +192,22 @@ persistence:
     accessMode: ReadWriteOnce
     existingClaim: ""
 
-# ── configuration ─────────────────────────────────────────────────────
-# Rendered into a ConfigMap. See docs/roles-and-permissions.md.
-tenants:
-  roles:
-    admin: [platform-admins]
-    developer: [engineers]
-  tenants:
-    default:
-      ldap_groups: [engineers, platform-admins]
-      tool_profile: analysis
-      projects: ["*"]
-
-# Rendered into a ConfigMap. Tokens are referenced by environment variable
-# name and resolved from the secret below.
-scan:
-  connectors: []
-  # - name: acme-github
-  #   type: github
-  #   org: acme
-  #   token_env: GITHUB_TOKEN
-  #   tenant: default
-  #   mode: moderate
-
 # ── secrets ───────────────────────────────────────────────────────────
+# Squads, connectors and provider tokens are NOT set here — they live in the
+# database and are entered through the admin API, once per environment. What
+# remains here is what a pod needs before it can read the database, plus the
+# webhook and CI secrets the indexer verifies in-process.
 secrets:
-  # Provide an existing secret instead of the values below. Recommended:
-  # it keeps tokens out of values files and CI logs.
+  # Provide an existing secret instead of the values below. Recommended: it
+  # keeps DATABASE_URL and SECRETS_KEY out of values files and CI logs. It
+  # must carry the same keys listed under data.
   existingSecret: ""
   create: true
   data:
-    GITHUB_TOKEN: ""
-    GITLAB_TOKEN: ""
-    BITBUCKET_APP_PASSWORD: ""
     WEBHOOK_SECRET_GITHUB: ""
     WEBHOOK_SECRET_GITLAB: ""
     WEBHOOK_SECRET_BITBUCKET: ""
     CI_TRIGGER_TOKEN: ""
-    LITELLM_API_KEY: ""
-
-# ── model backend ─────────────────────────────────────────────────────
-litellm:
-  # URL of an existing LiteLLM proxy. Self-hosted backends (Ollama, vLLM) are
-  # configured there, not here.
-  baseUrl: ""
-  model: gpt-4o-mini
-  timeoutSeconds: 90
 
 # ── ingress ───────────────────────────────────────────────────────────
 ingress:

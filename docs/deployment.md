@@ -191,6 +191,24 @@ deletions and pushes to other refs are acknowledged and ignored.
       -d "{\"repository\": \"$GITHUB_REPOSITORY\", \"sha\": \"$GITHUB_SHA\"}"
 ```
 
+## Kubernetes and more than one environment
+
+The Helm chart deploys one environment. Configuration is not part of it —
+squads, connectors, secrets and administrators are rows in that environment's
+own database, entered once through the admin API.
+
+```bash
+cp deploy/helm/values-dev.example.yaml values-dev.yaml
+helm upgrade --install repo-mcp deploy/helm/repo-mcp \
+  -n repo-mcp-dev --create-namespace -f values-dev.yaml
+```
+
+Two things the chart refuses rather than warns about, because both fail
+silently and late: a mutable image tag when `environment: production`, and
+`migrations.auto` in production. The full list, the promotion flow from `dev`
+to a version tag, and how to roll back are in
+[environments.md](environments.md).
+
 ## Production notes
 
 **One pinned engine build.** The engine enforces an exact-build admission barrier
@@ -230,6 +248,12 @@ what matters for sizing.
 expensive moment; steady-state incremental runs are far cheaper. Start one
 connector with `mode: fast`, measure, then widen.
 
-**Secrets.** Provider tokens, webhook secrets and LiteLLM keys all come from
-the environment. Nothing belongs in `tenants.yaml` or `scan.yaml` — both are
-meant to be readable in review and safe to commit.
+**Secrets.** Provider tokens and LiteLLM keys are stored encrypted in the
+database and entered through the admin API; only `DATABASE_URL`, `SECRETS_KEY`
+and the webhook and CI secrets come from the environment. `tenants.yaml` and
+`scan.yaml` are seed documents for `repo-mcp-admin import` — they are meant to
+be readable in review, and they carry no token values.
+
+**One environment, one key.** Each environment has its own database, its own
+`SECRETS_KEY` and its own administrators. Sharing a key between dev and
+production would let anyone with dev access decrypt production credentials.

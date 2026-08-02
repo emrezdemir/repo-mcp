@@ -31,12 +31,13 @@ REQUIRED=(
   SECURITY.md CODE_OF_CONDUCT.md LICENSE NOTICE Makefile
   docs/architecture.md docs/engine.md docs/roles-and-permissions.md
   docs/deployment.md docs/scaling.md docs/development.md docs/branching.md
-  docs/roadmap.md docs/code-standards.md
+  docs/roadmap.md docs/code-standards.md docs/environments.md
   memory-bank/README.md memory-bank/projectbrief.md
   memory-bank/productContext.md memory-bank/systemPatterns.md
   memory-bank/techContext.md memory-bank/activeContext.md
   memory-bank/progress.md
   deploy/.env.example deploy/tenants.example.yaml deploy/scan.example.yaml
+  deploy/helm/values-dev.example.yaml deploy/helm/values-production.example.yaml
 )
 
 missing=()

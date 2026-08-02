@@ -1,0 +1,150 @@
+name: Release
+
+# A version tag is the promotion event. Everything else — branches, pull
+# requests, dev images — is handled by ci.yml.
+#
+#   git tag -a v0.2.0 -m "0.2.0" && git push origin v0.2.0
+#
+# See docs/environments.md and docs/adr/0008-environments-and-promotion.md.
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # A tag is meant to point at a commit that already reached dev and passed
+  # there. Checking is cheap; discovering otherwise after production has
+  # pulled the image is not.
+  guard:
+    name: the tag is releasable
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: version
+        name: Read the version from the tag
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          case "$version" in
+            [0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "not a semantic version: $GITHUB_REF_NAME"; exit 1 ;;
+          esac
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "releasing $version"
+
+      - name: The tagged commit is on main
+        run: |
+          git fetch --quiet origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "$GITHUB_SHA is not on main."
+            echo "Releases are cut from main: merge dev into main, then tag."
+            exit 1
+          fi
+          echo "on main"
+
+      - name: The chart version matches the tag
+        run: |
+          chart="$(grep -E '^version:' deploy/helm/repo-mcp/Chart.yaml | awk '{print $2}')"
+          app="$(grep -E '^appVersion:' deploy/helm/repo-mcp/Chart.yaml | tr -d '"' | awk '{print $2}')"
+          want="${{ steps.version.outputs.version }}"
+          fail=0
+          [ "$chart" = "$want" ] || { echo "Chart.yaml version is $chart, tag says $want"; fail=1; }
+          [ "$app" = "$want" ] || { echo "Chart.yaml appVersion is $app, tag says $want"; fail=1; }
+          exit $fail
+
+      - name: The changelog has an entry for this version
+        run: |
+          want="${{ steps.version.outputs.version }}"
+          if ! grep -qE "^## \[?$want\]?" CHANGELOG.md; then
+            echo "CHANGELOG.md has no '## $want' section."
+            echo "A release nobody can read the changes for is not a release."
+            exit 1
+          fi
+          echo "changelog entry present"
+
+  publish:
+    name: publish ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    needs: [guard]
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        service: [gateway, indexer]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Three tags for one image: the version to deploy, the commit to trace
+      # it back to, and a moving pointer for tooling. Production deploys the
+      # first two; the chart refuses the third.
+      - name: Build and publish
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile
+          build-args: |
+            SERVICE=${{ matrix.service }}
+            CBM_VERSION=${{ vars.CBM_VERSION || 'latest' }}
+            VERSION=${{ needs.guard.outputs.version }}
+            VCS_REF=${{ github.sha }}
+          tags: |
+            ghcr.io/${{ github.repository }}-${{ matrix.service }}:${{ github.ref_name }}
+            ghcr.io/${{ github.repository }}-${{ matrix.service }}:sha-${{ github.sha }}
+            ghcr.io/${{ github.repository }}-${{ matrix.service }}:latest
+          push: true
+          provenance: false
+          cache-from: type=gha,scope=${{ matrix.service }}
+
+      - name: The published image runs
+        run: |
+          image="ghcr.io/${{ github.repository }}-${{ matrix.service }}:${{ github.ref_name }}"
+          docker run --rm --entrypoint codebase-memory-mcp "$image" --version
+          docker run --rm --entrypoint repo-mcp-admin "$image" generate-key > /dev/null
+          echo "$image is runnable"
+
+  chart:
+    name: package the chart
+    runs-on: ubuntu-latest
+    needs: [guard, publish]
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # The chart is versioned with the images it deploys, so "which chart
+      # goes with v0.2.0" is not a question anyone has to answer.
+      - name: Package and push
+        run: |
+          helm package deploy/helm/repo-mcp --destination /tmp/chart
+          helm push "/tmp/chart/repo-mcp-${{ needs.guard.outputs.version }}.tgz" \
+            "oci://ghcr.io/${{ github.repository_owner }}/charts"
