@@ -51,6 +51,7 @@ reinventing the invocation.
 | Command | Purpose |
 | --- | --- |
 | `make setup` | Virtualenvs, dependencies, config from examples, generated secrets, pre-commit hook |
+| `make wizard` | Re-choose which optional components the Docker stack runs |
 | `make test` | Lint and unit tests for both services, plus example-config validation |
 | `make lint` / `make fmt` | Lint only / apply autofixes |
 | `make dev` | Both services locally, auto-reload, no Docker, JWT verification off |
@@ -195,6 +196,11 @@ Documentation ships in the same change as the code. A feature that is not in
   project's front page and its first readers are Turkish-speaking. The
   English version lives in `README.en.md`, and the two must say the same
   things. Everything under `docs/` stays English.
+- Both READMEs are written plainly: short sentences, ordinary words, no
+  literary register, no circumflexes. The Turkish one keeps the English terms
+  developers actually say (gateway, indexer, repo, webhook, graph) rather than
+  translating them into words nobody uses. See
+  [docs/code-standards.md §8](docs/code-standards.md).
 - Architectural decisions get an ADR in `docs/adr/`: context, decision,
   rationale, consequences **including the negative ones**, and alternatives
   considered. Copy the shape of an existing one.

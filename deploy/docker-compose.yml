@@ -59,8 +59,10 @@ services:
     entrypoint: ["/usr/bin/tini", "--"]
     command: ["repo-mcp-admin", "init"]
 
+  # Optional identity provider. Skip it and point oidc.issuer at your own.
   keycloak:
     <<: *defaults
+    profiles: ["keycloak"]
     image: quay.io/keycloak/keycloak:26.0
     command: ["start-dev", "--import-realm"]
     environment:
@@ -79,8 +81,11 @@ services:
       retries: 20
       start_period: 60s
 
+  # Optional model proxy. Skip it and point litellm.base_url at your own, or
+  # leave smart_tools.enabled false and run without an LLM at all.
   litellm:
     <<: *defaults
+    profiles: ["litellm"]
     image: ghcr.io/berriai/litellm:main-stable
     command: ["--config", "/app/config.yaml", "--port", "4000"]
     environment:
@@ -126,10 +131,10 @@ services:
       OPENAI_API_KEY: ${LITELLM_MASTER_KEY:?set LITELLM_MASTER_KEY}
     ports: ["8787:8787"]
 
-  # Optional local model backend. Remove it and point LiteLLM at your own
-  # proxy if you already run one.
+  # Optional local model backend for the bundled LiteLLM.
   ollama:
     <<: *defaults
+    profiles: ["ollama"]
     image: ollama/ollama:latest
     ports: ["11434:11434"]
     volumes:
@@ -146,8 +151,10 @@ services:
         SERVICE: gateway
         CBM_VERSION: ${CBM_VERSION:-latest}
     depends_on:
+      # Deliberately not litellm: a depends_on would re-enable it even when the
+      # profile is off, and the gateway only reaches it when a composite tool
+      # is called. An unreachable proxy is reported as a tool error.
       init: { condition: service_completed_successfully }
-      litellm: { condition: service_healthy }
     environment:
       # Tenants, roles, connectors, OIDC and LiteLLM settings all live in the
       # database and are changed through the admin API. Only bootstrap values
@@ -198,8 +205,6 @@ services:
       WEBHOOK_SECRET_GITLAB: ${WEBHOOK_SECRET_GITLAB:-}
       WEBHOOK_SECRET_BITBUCKET: ${WEBHOOK_SECRET_BITBUCKET:-}
       CI_TRIGGER_TOKEN: ${CI_TRIGGER_TOKEN:-}
-      RESCAN_INTERVAL_S: ${RESCAN_INTERVAL_S:-86400}
-      INDEX_CONCURRENCY: ${INDEX_CONCURRENCY:-2}
       WEB_CONCURRENCY: 1
     ports: ["8082:8080"]
     volumes:

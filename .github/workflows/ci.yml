@@ -358,17 +358,31 @@ jobs:
           docker logs svc
           docker rm -f svc
 
-      # Refusing to start without a key is the behaviour that stops a
-      # deployment from silently making every stored credential unreadable.
-      - name: A missing SECRETS_KEY is refused
+      # A service that starts without the key would serve requests and then
+      # fail on the first credential it had to decrypt, somewhere far from the
+      # cause. It must refuse instead — while still answering /healthz, so an
+      # orchestrator reports the reason rather than a bare crash loop.
+      - name: A service without SECRETS_KEY refuses to become ready
         run: |
-          if docker run --rm --network host -e DATABASE_URL="$DB_URL" \
-               --entrypoint repo-mcp-admin \
-               repo-mcp-${{ matrix.service }}:ci status >/dev/null 2>&1; then
-            echo "expected the CLI to refuse an unset SECRETS_KEY"
+          docker run -d --name nokey --network host \
+            -e DATABASE_URL="$DB_URL" \
+            repo-mcp-${{ matrix.service }}:ci
+          for _ in $(seq 1 20); do
+            curl -fsS http://127.0.0.1:8080/healthz >/dev/null 2>&1 && break
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:8080/healthz >/dev/null
+          code="$(curl -s -o /tmp/nokey.json -w '%{http_code}' http://127.0.0.1:8080/readyz)"
+          docker logs nokey 2>&1 | tail -5
+          docker rm -f nokey
+          if [ "$code" != "503" ]; then
+            echo "expected /readyz to answer 503 without SECRETS_KEY, got $code"
+            cat /tmp/nokey.json
             exit 1
           fi
-          echo "refused as expected"
+          grep -q SECRETS_KEY /tmp/nokey.json || {
+            echo "the reason should name SECRETS_KEY:"; cat /tmp/nokey.json; exit 1; }
+          echo "refused, and said why"
 
       # ── publish ────────────────────────────────────────────────────
       # Only from dev, and only after the image above proved it starts. The
