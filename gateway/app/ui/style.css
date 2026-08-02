@@ -1,0 +1,239 @@
+/* No framework and no build step: the interface is small enough that a
+   stylesheet is cheaper than a toolchain, and an air-gapped installation
+   cannot fetch one anyway. */
+
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --panel: #f6f8fa;
+  --border: #d8dee4;
+  --text: #1f2328;
+  --muted: #656d76;
+  --accent: #0969da;
+  --bad: #cf222e;
+  --good: #1a7f37;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #4493f8;
+    --bad: #ff7b72;
+    --good: #3fb950;
+  }
+}
+
+* { box-sizing: border-box; }
+
+/* The `hidden` attribute is how this interface shows one page at a time, and
+   the browser implements it as a `display: none` rule of the lowest possible
+   priority — so any class here that sets `display` silently defeats it. This
+   makes the attribute mean what it says. */
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+}
+
+code, pre, .mono { font-family: var(--mono); font-size: 13px; }
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+.error { color: var(--bad); }
+.ok { color: var(--good); }
+
+/* ── sign-in ─────────────────────────────────────────────────────── */
+
+.pane {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.card {
+  width: min(520px, 100%);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 24px;
+}
+
+.card.narrow { width: min(420px, 100%); }
+.card h1 { margin: 0 0 4px; font-size: 20px; }
+.card h2 { margin: 0 0 4px; font-size: 16px; }
+
+form { display: grid; gap: 6px; margin: 16px 0 8px; }
+label { font-size: 12px; color: var(--muted); }
+
+input, select, button, textarea {
+  font: inherit;
+  color: inherit;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 10px;
+}
+
+button { cursor: pointer; background: var(--panel); }
+button:hover { border-color: var(--accent); }
+button.link {
+  border: none; background: none; color: var(--accent);
+  padding: 0; text-decoration: underline;
+}
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* ── frame ───────────────────────────────────────────────────────── */
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.brand { font-weight: 600; }
+nav { display: flex; gap: 4px; }
+nav button { background: none; border-color: transparent; }
+nav button[aria-current="true"] { border-color: var(--border); background: var(--bg); }
+.who { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+main { padding: 16px; }
+footer { padding: 8px 16px; border-top: 1px solid var(--border); }
+
+.toolbar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.toolbar input[type="search"] { flex: 1; min-width: 220px; }
+
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+@media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
+
+.body {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  min-height: 120px;
+  overflow: auto;
+}
+.detail { max-height: 70vh; }
+
+/* ── content ─────────────────────────────────────────────────────── */
+
+.stats { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+.stat {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  min-width: 110px;
+}
+.stat b { display: block; font-size: 20px; }
+
+h3 { margin: 16px 0 6px; font-size: 13px; text-transform: uppercase; color: var(--muted); }
+h3:first-child { margin-top: 0; }
+
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--border); }
+th { color: var(--muted); font-weight: 500; font-size: 12px; }
+
+.hit { padding: 8px; border-radius: 6px; cursor: pointer; }
+.hit:hover { background: var(--panel); }
+.hit[aria-selected="true"] { background: var(--panel); border-left: 2px solid var(--accent); }
+.hit .where { color: var(--muted); font-size: 12px; }
+
+.tag {
+  display: inline-block;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 7px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+pre {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  overflow: auto;
+  margin: 8px 0;
+}
+
+#map-canvas {
+  width: 100%;
+  height: 70vh;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  touch-action: none;
+}
+
+/* ── graph ───────────────────────────────────────────────────────── */
+
+.graph-layout {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr) 320px;
+  gap: 12px;
+  height: 76vh;
+}
+@media (max-width: 1100px) {
+  .graph-layout { grid-template-columns: 1fr; height: auto; }
+  #map-canvas { height: 60vh; }
+}
+
+.rail {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  overflow: auto;
+  font-size: 12px;
+}
+
+.filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  cursor: pointer;
+}
+.filter input { margin: 0; }
+.filter .grow { flex: 1; }
+.filter .count { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex: none;
+}
+
+#map-canvas {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #0b0e13;
+  min-height: 300px;
+  overflow: hidden;
+}
+
+.settings { display: grid; gap: 4px; }
+.setting { display: flex; gap: 8px; align-items: center; }
+.setting .key { flex: none; width: 22rem; }
+.setting input { flex: 1; }
+@media (max-width: 720px) {
+  .setting { flex-wrap: wrap; }
+  .setting .key { width: 100%; }
+}

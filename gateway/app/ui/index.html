@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>repo-mcp</title>
+  <!-- Inline, so the browser's automatic /favicon.ico request is answered
+       without adding a file or a route for it. -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cg fill='none' stroke='%234dabf7' stroke-width='1.2'%3E%3Cpath d='M4 4.5 8 8m0 0 4-3.5M8 8v4'/%3E%3C/g%3E%3Cg fill='%234dabf7'%3E%3Ccircle cx='4' cy='4' r='2'/%3E%3Ccircle cx='12' cy='4' r='2'/%3E%3Ccircle cx='8' cy='13' r='2'/%3E%3C/g%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/ui/style.css">
+</head>
+<body>
+
+<!-- Sign in. Kept first so a browser with JavaScript disabled shows something
+     honest rather than an empty page. -->
+<section id="signin" class="pane">
+  <div class="card">
+    <h1>repo-mcp</h1>
+    <p class="muted">
+      Sign in with the same OIDC token an MCP client uses. In development mode
+      that is the token <code>make dev</code> prints.
+    </p>
+    <form id="signin-form">
+      <label for="token">Bearer token</label>
+      <input id="token" type="password" autocomplete="off" spellcheck="false"
+             placeholder="eyJhbGciOi… or your development token">
+      <button type="submit">Sign in</button>
+    </form>
+    <p id="signin-error" class="error" hidden></p>
+    <p class="muted small">
+      There is no browser redirect flow yet, so the token is entered by hand
+      and kept in this tab only. It is never written to disk.
+    </p>
+    <p class="muted small">
+      Administrators sign in separately at <a href="#admin">the admin console</a>.
+    </p>
+  </div>
+</section>
+
+<!-- The application. -->
+<div id="app" hidden>
+  <header>
+    <span class="brand">repo-mcp</span>
+    <nav>
+      <button data-page="overview">Overview</button>
+      <button data-page="search">Search</button>
+      <button data-page="map">Map</button>
+      <button data-page="admin">Admin</button>
+    </nav>
+    <span class="who">
+      <select id="squad" title="Squad"></select>
+      <span id="identity" class="muted"></span>
+      <button id="signout" class="link">sign out</button>
+    </span>
+  </header>
+
+  <main>
+    <!-- Overview: what the engine computed about the project. -->
+    <section id="page-overview" class="page">
+      <div class="toolbar">
+        <select id="overview-project"></select>
+        <button id="overview-refresh">Load</button>
+      </div>
+      <div id="overview-body" class="body"></div>
+    </section>
+
+    <!-- Search: the graph, by name. -->
+    <section id="page-search" class="page" hidden>
+      <div class="toolbar">
+        <select id="search-project"></select>
+        <input id="search-query" type="search" placeholder="symbol name, or part of one">
+        <button id="search-go">Search</button>
+      </div>
+      <div class="split">
+        <div id="search-results" class="body"></div>
+        <div id="search-detail" class="body detail"></div>
+      </div>
+    </section>
+
+    <!-- Map: the whole graph, rendered with WebGL. -->
+    <section id="page-map" class="page" hidden>
+      <div class="toolbar">
+        <select id="map-project"></select>
+        <button id="map-go" class="primary">Draw graph</button>
+        <input id="map-find" type="search" placeholder="find a symbol">
+        <button id="map-reset">Fit</button>
+        <span id="map-status" class="muted"></span>
+      </div>
+      <div class="graph-layout">
+        <aside id="map-filters" class="rail"></aside>
+        <div id="map-canvas"></div>
+        <div id="map-detail" class="body detail"></div>
+      </div>
+    </section>
+
+    <!-- Admin: the existing administrative API, with a form in front of it. -->
+    <section id="page-admin" class="page" hidden>
+      <div id="admin-signin" class="card narrow">
+        <h2>Administrator sign-in</h2>
+        <p class="muted">
+          A local account, separate from OIDC. It reaches configuration only —
+          never a graph or source code.
+        </p>
+        <form id="admin-form">
+          <label for="admin-user">Username</label>
+          <input id="admin-user" autocomplete="username" value="admin">
+          <label for="admin-pass">Password</label>
+          <input id="admin-pass" type="password" autocomplete="current-password">
+          <button type="submit">Sign in</button>
+        </form>
+        <p id="admin-error" class="error" hidden></p>
+      </div>
+      <div id="admin-body" class="body" hidden></div>
+    </section>
+  </main>
+
+  <footer>
+    <span id="footer-status" class="muted"></span>
+  </footer>
+</div>
+
+<!-- The vendored libraries are UMD, so they load as classic scripts and set
+     globals. Everything of ours is a native ES module: the browser resolves
+     the imports, which is why there is no bundler in this repository. -->
+<script src="/ui/vendor/graphology.umd.min.js"></script>
+<script src="/ui/vendor/graphology-library.min.js"></script>
+<script src="/ui/vendor/sigma.min.js"></script>
+<script type="module" src="/ui/graph.js"></script>
+<script type="module" src="/ui/app.js"></script>
+</body>
+</html>

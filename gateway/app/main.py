@@ -11,6 +11,7 @@ from repo_mcp_common.bootstrap import NotBootstrapped, inspect_state
 from repo_mcp_common.db import Database, DatabaseUnavailable
 from repo_mcp_common.env import EnvError, secrets_key
 
+from . import webui
 from .admin_api import build_router
 from .answer_cache import AnswerCache
 from .audit import AuditEvent, emit
@@ -79,6 +80,9 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
 
     app = FastAPI(title="repo-mcp gateway", lifespan=lifespan)
     app.include_router(build_router(database, provider))
+    # The interface asks the platform the same questions an MCP client does,
+    # over the same endpoint. See gateway/app/webui.py.
+    app.include_router(webui.build_router(provider.current, lambda: bool(state["ready"])))
 
     @app.get("/healthz")
     async def healthz() -> dict:
