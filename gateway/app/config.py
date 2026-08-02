@@ -59,6 +59,12 @@ class Settings:
     oidc_browser_client_id: str = ""
     oidc_browser_scopes: str = "openid profile"
 
+    #: Start each tenant's engine with its loopback layout server, which the
+    #: web interface's graph needs. Off means the graph page says so rather
+    #: than failing: a build of the engine without the interface included
+    #: cannot serve it, and there is no point starting a port for nothing.
+    engine_ui_enabled: bool = True
+
     @classmethod
     def from_env(cls) -> Settings:
         groups = os.getenv("DEV_STATIC_GROUPS", "")
@@ -68,6 +74,7 @@ class Settings:
             oidc_groups_claim=os.getenv("OIDC_GROUPS_CLAIM", "groups"),
             oidc_browser_client_id=os.getenv("OIDC_BROWSER_CLIENT_ID", ""),
             oidc_browser_scopes=os.getenv("OIDC_BROWSER_SCOPES", "openid profile"),
+            engine_ui_enabled=_bool("ENGINE_UI_ENABLED", True),
             dev_insecure_auth=_bool("DEV_INSECURE_AUTH", False),
             dev_static_token=os.getenv("DEV_STATIC_TOKEN", ""),
             dev_static_groups=tuple(g.strip() for g in groups.split(",") if g.strip()),

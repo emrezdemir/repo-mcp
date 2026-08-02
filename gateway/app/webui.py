@@ -9,9 +9,13 @@ the first would be a second place for the tenancy rules to be wrong.
 What MCP cannot answer is "who am I here": which squad, which role, which
 tools. `GET /api/session` exists for that and nothing else.
 
-The files under `ui/` are served as they are. There is no build step and
-nothing is fetched from a CDN, so the interface works in an air-gapped
-installation and needs no JavaScript toolchain in this repository.
+What MCP also has no tool for is the 3D graph layout: the engine computes it
+in C and serves it on a loopback port. `GET /api/layout` authorizes a request
+the same way a tool call is authorized, then proxies to that port.
+
+The files under `ui/` are the built interface. Its source is `gateway/webui/`;
+the image build runs `npm run build` and copies the output here. Nothing is
+fetched from a CDN at runtime, so an air-gapped installation works.
 """
 
 from __future__ import annotations
@@ -19,16 +23,22 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+import httpx
 from fastapi import APIRouter, Header, Response
 from fastapi.responses import FileResponse, JSONResponse
 
+from .audit import AuditEvent, emit
 from .auth import Authenticator, AuthError
 from .configuration import RuntimeConfig
 from .mcp import TenantSelectionError, build_session
-from .roles import TOOL_CAPABILITY
+from .roles import TOOL_CAPABILITY, Capability
 
 log = logging.getLogger(__name__)
 
+#: The built interface. `gateway/webui/` is the source; `npm run build` in
+#: that directory produces this, and the image build runs it. Committing the
+#: output rather than the sources would make review meaningless; building at
+#: image time keeps one bundle per release.
 UI_DIR = Path(__file__).parent.resolve() / "ui"
 
 #: What the interface is made of. Everything under `ui/` is served without
@@ -38,13 +48,18 @@ UI_DIR = Path(__file__).parent.resolve() / "ui"
 SERVED_SUFFIXES = {".html", ".css", ".js", ".svg", ".map"}
 
 
-def build_router(current_config, ready) -> APIRouter:
+def build_router(current_config, ready, engine_ui_port=None) -> APIRouter:
     """The UI's own routes.
 
     `current_config` returns the live `RuntimeConfig`; `ready` reports whether
-    the platform is configured. Both are passed in rather than imported so the
-    router holds no state of its own.
+    the platform is configured; `engine_ui_port` returns the loopback port a
+    tenant's engine serves its layout on, or None. All three are passed in
+    rather than imported so the router holds no state of its own.
     """
+    if engine_ui_port is None:
+
+        async def engine_ui_port(_tenant):  # noqa: F811 — the no-engine default
+            return None
     router = APIRouter(tags=["ui"])
 
     @router.get("/api/auth")
@@ -152,6 +167,97 @@ def build_router(current_config, ready) -> APIRouter:
                 "projects": list(session.tenant.projects),
                 "tool_profile": session.tenant.tool_profile,
             }
+        )
+
+    @router.get("/api/layout")
+    async def graph_layout(
+        project: str,
+        max_nodes: int = 5000,
+        graph: str = "code",
+        authorization: str | None = Header(default=None),
+        x_tenant: str | None = Header(default=None),
+    ) -> Response:
+        """The 3D layout the graph page draws, from this squad's engine.
+
+        This is the one thing the interface needs that MCP has no tool for:
+        the engine computes the layout in C, reading the graph database
+        directly, and serves it over a loopback port. Reimplementing that here
+        would be slower and would drift from what the engine knows.
+
+        It is not a second read path. The authorization is the same as a tool
+        call's — the caller's token, their squad, the READ_GRAPH capability
+        and the squad's project allowlist — and only then is the request
+        proxied to a port that exists solely inside this container.
+        """
+        if not ready():
+            return JSONResponse({"error": "the platform is not configured yet"}, status_code=503)
+
+        config: RuntimeConfig = await current_config()
+        try:
+            principal = await Authenticator(config.settings).authenticate(authorization)
+        except AuthError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=401)
+
+        try:
+            session = build_session(config.registry, principal, x_tenant)
+        except TenantSelectionError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=409)
+
+        if Capability.READ_GRAPH not in session.capabilities:
+            return JSONResponse(
+                {"error": f"role {session.role.value!r} cannot read the graph"}, status_code=403
+            )
+
+        if not session.tenant.allows_project(project):
+            return JSONResponse(
+                {
+                    "error": f"no access to project {project!r} "
+                    f"(allowed: {', '.join(session.tenant.projects)})"
+                },
+                status_code=403,
+            )
+
+        port = await engine_ui_port(session.tenant)
+        if port is None:
+            return JSONResponse(
+                {
+                    "error": "this deployment's engine does not serve the graph layout. "
+                    "It needs the build of the engine that includes the interface."
+                },
+                status_code=503,
+            )
+
+        emit(
+            AuditEvent(
+                event="ui/layout",
+                principal=principal.username,
+                tenant=session.tenant.name,
+                outcome="ok",
+                extra={"project": project, "max_nodes": max_nodes},
+            )
+        )
+
+        params = {"project": project, "max_nodes": str(max_nodes)}
+        if graph == "missed":
+            params["graph"] = "missed"
+
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                upstream = await client.get(
+                    f"http://127.0.0.1:{port}/api/layout",
+                    params=params,
+                    # The engine's server checks the Origin against its own
+                    # loopback authority and refuses anything else.
+                    headers={"Origin": f"http://127.0.0.1:{port}"},
+                )
+        except httpx.HTTPError as exc:
+            log.warning("layout request to the engine failed: %s", exc)
+            return JSONResponse({"error": f"the engine did not answer: {exc}"}, status_code=502)
+
+        return Response(
+            content=upstream.content,
+            status_code=upstream.status_code,
+            media_type=upstream.headers.get("content-type", "application/json"),
         )
 
     @router.get("/ui/{path:path}", include_in_schema=False)
