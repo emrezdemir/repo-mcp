@@ -91,6 +91,17 @@ else
       make_venv "$service"
       ./.venv/bin/pip install --quiet --upgrade pip \
         || die "could not upgrade pip in $service/.venv"
+      # gateway and indexer depend on repo-mcp-common, a sibling package that is
+      # not published to any index. The path is declared in [tool.uv.sources],
+      # which only uv reads — pip ignores it, looks for repo-mcp-common on PyPI
+      # and fails with "No matching distribution found". Installing the local
+      # copy into this venv first means the dependency is already satisfied when
+      # the service itself is installed, and editable so a change to common is
+      # picked up here too.
+      if [[ "$service" != common ]]; then
+        ./.venv/bin/pip install --quiet -e "$REPO_ROOT/common" \
+          || die "could not install repo-mcp-common into $service/.venv"
+      fi
       ./.venv/bin/pip install --quiet -e '.[dev]' \
         || die "could not install $service dependencies"
       ok "$service dependencies installed in $service/.venv"
