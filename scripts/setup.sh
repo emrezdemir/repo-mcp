@@ -99,7 +99,14 @@ else
       # the service itself is installed, and editable so a change to common is
       # picked up here too.
       if [[ "$service" != common ]]; then
-        ./.venv/bin/pip install --quiet -e "$REPO_ROOT/common" \
+        # Pass the path with a single leading slash. On hosts where pwd reports
+        # the tree as //home/... — VirtualBox shared folders and some bind
+        # mounts do — an absolute path beginning with // makes pip read the //
+        # as a URL authority and fail with "file:// scheme is supported only on
+        # localhost". Collapsing the leading slash avoids it; on Linux //x and
+        # /x are the same directory.
+        common_dir="/$(printf '%s' "$REPO_ROOT/common" | sed 's#^/*##')"
+        ./.venv/bin/pip install --quiet -e "$common_dir" \
           || die "could not install repo-mcp-common into $service/.venv"
       fi
       ./.venv/bin/pip install --quiet -e '.[dev]' \
