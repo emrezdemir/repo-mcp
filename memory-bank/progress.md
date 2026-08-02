@@ -32,6 +32,14 @@ away.
 - Prometheus metrics with bounded label cardinality.
 
 **Web interface** (`/ui`)
+- Ask: `ask_codebase` from the browser, verified end to end against a
+  stand-in model backend — 16,894 characters of graph evidence reached it and
+  the answer came back citing a qualified name. Both refusal paths verified
+  too: no backend, and a backend with no key.
+- Refusals are shown rather than swallowed, and controls the platform would
+  refuse are disabled with the reason on them. Verified by putting the
+  payments squad on structure-only and watching the graph still draw while
+  the source button explained itself.
 - Upstream's `graph-ui`, adopted at d6be58ef and pointed at `/mcp`. Driven in
   a real browser end to end against a real indexed project (854 nodes, 4454
   edges): sign-in, the project list, the 3D graph rendering through the

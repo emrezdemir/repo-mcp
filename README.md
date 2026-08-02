@@ -405,8 +405,8 @@ zorunda kalmaz.
 
 ## Web arayüzü
 
-Gateway `/ui` adresinde bir tarayıcı arayüzü sunar. Üç sekme: projeler,
-graph'ın 3D haritası ve yönetim konsolu.
+Gateway `/ui` adresinde bir tarayıcı arayüzü sunar. Dört sekme: projeler,
+graph'ın 3D haritası, doğal dille soru sorma ve yönetim konsolu.
 
 ![Graph](docs/images/ui-graph.png)
 
@@ -437,6 +437,20 @@ kodunu Python'da yeniden yazmak hem yavaş olurdu hem de zamanla sapardı.
 O portun kendi kimlik doğrulaması yok; bu yüzden `127.0.0.1`'e bağlanıyor,
 portu gateway seçiyor ve hiçbir zaman dışarı açılmıyor. Güven sınırı stdio
 borusununkiyle aynı.
+
+**Soru sorma.** `ask_codebase` önce `get_architecture` ve `search_graph`
+çalıştırır, cevabı yalnızca dönen kanıta dayandırır ve andığı her sembolün
+qualified name'ini gösterir. Modelden graph'ı tahmin etmesi istenmez; bu yüzden
+cevap denetlenebilir. Model backend'i yoksa sayfa hangi ayarın açılması
+gerektiğini söyler.
+
+![Soru sorma](docs/images/ui-ask.png)
+
+**Reddedilme.** Platformun kesinlikle reddedeceği bir kontrol gizlenmez;
+gerekçesi üzerinde yazılı olarak devre dışı gösterilir — yetki hatası arayan
+bir yöneticinin bakacak bir şeyi olmalı. Gelen reddi de platformun kendi
+cümlesiyle gösterilir: `'manage_adr' is not available in this session (role:
+lead, squad: payments)`. Hiçbir şey sessizce başarısız olmaz.
 
 **Giriş.** `oidc.issuer` ve `oidc.browser_client_id` ayarlıysa PKCE ile
 Authorization Code akışı çalışır; tarayıcı public client'tır, client secret

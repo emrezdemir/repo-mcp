@@ -6,6 +6,38 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **An Ask tab.** `ask_codebase` is the thing this platform has that a local
+  graph viewer does not, and it had no interface. It runs `get_architecture`
+  and `search_graph` first and answers from what they returned, citing
+  qualified names, so the model is never asked to guess the graph. Verified
+  against a stand-in model backend: 16,894 characters of real graph evidence
+  reached it and the answer came back with a citation.
+- **`GET /api/ui-config`**, backed by a new `ui.language` setting, so an
+  installation can pin the interface's language instead of following the
+  browser. The interface asked for this endpoint on every load and got a 404.
+
+### Fixed
+
+- **The interface hid refusals.** A squad on the analysis profile cannot call
+  `manage_adr` — correct — and the ADR dialog opened empty, the save did
+  nothing and nothing said why. Refusals now appear in the platform's own
+  words, which name what is missing. A save that silently does nothing is
+  worse than one that fails.
+- **`/api/session` under-reported what a caller may do.** It listed only the
+  engine's tools, while `tools/list` also offers the composite ones when a
+  model backend exists and the session can call the primitives they are built
+  from — so the interface would have hidden Ask forever. Both now call
+  `smart_tools_for`.
+- **Selecting a symbol from the search results now opens its detail.** It used
+  to highlight a dot somewhere in three dimensions and leave the person to
+  find it, which made the source view effectively unreachable.
+- **Escape closes the dialogs**, which also carry a dialog role and a label.
+  By keyboard there had been no way out of them at all.
+- Controls the platform would refuse are disabled with the reason on them
+  rather than vanishing.
+
 ## [0.3.0] - 2026-08-02
 
 ### Changed
