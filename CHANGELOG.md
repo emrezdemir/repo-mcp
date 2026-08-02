@@ -169,6 +169,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Both services started without `SECRETS_KEY` and only failed later, on the
+  first credential they had to decrypt — far from the cause. They now refuse to
+  become ready, `/readyz` names the missing variable, and `/healthz` still
+  answers so an orchestrator reports the reason instead of a bare crash loop.
+  `repo-mcp-admin status` deliberately still works without the key and says it
+  is missing: diagnosing exactly that deployment is when the command is worth
+  running.
 - The image shipped the wrong engine build. The glibc one needs GLIBC 2.38 and
   GLIBCXX 3.4.32; Debian bookworm has 2.36, so it downloaded and verified
   happily and then failed on its first run with a version-not-found from the
