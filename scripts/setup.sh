@@ -202,19 +202,22 @@ EOF
 # packages would be a broken instruction, so the list follows the mode.
 if (( CONFIG_ONLY )); then
   cat <<EOF
-  ${C_DIM}make up${C_RESET}                  bring up the full Docker stack
+  ${C_DIM}make up${C_RESET}                  bring up the stack, then open ${C_BLUE}http://localhost:8080/ui${C_RESET}
   ${C_DIM}make smoke${C_RESET}               check it end to end
 
+${C_DIM}'make up' starts Docker containers; there is no system service to install.${C_RESET}
 ${C_DIM}Run 'make setup' without --config-only if you also want to develop or${C_RESET}
 ${C_DIM}test here; that is what the virtualenvs are for.${C_RESET}
 EOF
 else
   cat <<EOF
-  ${C_DIM}scripts/test.sh${C_RESET}          run tests and linting
+  ${C_DIM}make up${C_RESET}                  bring up the stack, then open ${C_BLUE}http://localhost:8080/ui${C_RESET}
   ${C_DIM}scripts/dev.sh${C_RESET}           run both services locally, no Docker
-  ${C_DIM}scripts/stack.sh up${C_RESET}      bring up the full Docker stack
+  ${C_DIM}scripts/test.sh${C_RESET}          run tests and linting
   ${C_DIM}scripts/debug.sh${C_RESET}         diagnose a running or broken setup
 
-${C_DIM}Branching: develop on ${C_RESET}dev${C_DIM}. See docs/development.md.${C_RESET}
+${C_DIM}Nothing is running yet — 'make setup' only wrote the config and built the${C_RESET}
+${C_DIM}virtualenvs. 'make up' starts Docker containers; there is no system service${C_RESET}
+${C_DIM}to install. Signing in to the interface needs OIDC — see docs/deployment.md.${C_RESET}
 EOF
 fi
