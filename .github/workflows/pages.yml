@@ -54,7 +54,23 @@ jobs:
           print("every local reference resolves")
           PY
 
-      - uses: actions/configure-pages@v5
+      # enablement turns Pages on for the repository if it is off, which is
+      # otherwise a settings change nobody remembers to make — and its absence
+      # shows up as a deploy job that fails in two seconds having run no steps
+      # at all, which explains nothing.
+      - id: pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Say so if Pages is still not configured
+        if: failure() && steps.pages.outcome == 'failure'
+        run: |
+          echo "::error::GitHub Pages could not be configured for this"
+          echo "::error::repository. Turn it on once by hand:"
+          echo "::error::  Settings -> Pages -> Build and deployment"
+          echo "::error::  Source: GitHub Actions"
+          exit 1
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
