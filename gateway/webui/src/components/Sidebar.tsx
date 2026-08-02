@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { GraphNode } from "../lib/types";
+import { searchGraph, type SearchHit } from "../api/platform";
 import { useUiMessages } from "../lib/i18n";
 
 interface SidebarProps {
@@ -11,6 +12,11 @@ interface SidebarProps {
    * only highlights a dot somewhere in the scene and leaves the person to hunt
    * for it in three dimensions. */
   onSelectNode: (node: GraphNode) => void;
+  /* A symbol the engine found that is not among the drawn nodes. It cannot be
+   * selected in the scene — there is nothing there to select — so it is opened
+   * on its own, saying so. */
+  onSelectOffGraph: (hit: SearchHit) => void;
+  project: string | null;
   selectedPath: string | null;
 }
 
@@ -92,7 +98,10 @@ function TreeItem({ dir, depth, onSelect, onSelectNode, selectedPath }: {
       </button>
       {expanded && (
         <>
-          {sorted.map((c) => <TreeItem key={c.fullPath} dir={c} depth={depth+1} onSelect={onSelect} onSelectNode={onSelectNode} selectedPath={selectedPath} />)}
+          {sorted.map((c) => (
+            <TreeItem key={c.fullPath} dir={c} depth={depth + 1} onSelect={onSelect}
+                      onSelectNode={onSelectNode} selectedPath={selectedPath} />
+          ))}
           {sortedNodes.map((gn) => (
             <button
               key={gn.id}
@@ -111,16 +120,60 @@ function TreeItem({ dir, depth, onSelect, onSelectNode, selectedPath }: {
   );
 }
 
-export function Sidebar({ nodes, onSelectPath, onSelectNode, selectedPath }: SidebarProps) {
+export function Sidebar({
+  nodes, onSelectPath, onSelectNode, onSelectOffGraph, project, selectedPath,
+}: SidebarProps) {
   const t = useUiMessages();
   const [search, setSearch] = useState("");
   const tree = useMemo(() => flattenSingleChild(buildFileTree(nodes)), [nodes]);
 
+  /* Two searches, deliberately. The drawn nodes are filtered here because it
+   * is instant and those results can be selected in the scene. The project is
+   * searched by the engine because the drawn nodes are a budgeted subset, and
+   * answering "no matches" for a symbol that exists is a wrong answer rather
+   * than a missing feature. */
   const filtered = useMemo(() => {
     if (!search) return null;
     const q = search.toLowerCase();
     return nodes.filter((n) => n.name.toLowerCase().includes(q) || (n.file_path ?? "").toLowerCase().includes(q)).slice(0, 50);
   }, [nodes, search]);
+
+  const [elsewhere, setElsewhere] = useState<SearchHit[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const requestRef = useRef(0);
+
+  useEffect(() => {
+    const query = search.trim();
+    if (!project || query.length < 2) {
+      setElsewhere([]);
+      setSearchError(null);
+      setSearching(false);
+      return;
+    }
+
+    const ticket = ++requestRef.current;
+    setSearching(true);
+    // Debounced: this is a request per keystroke otherwise, and the engine is
+    // shared by everyone on the platform.
+    const timer = setTimeout(async () => {
+      try {
+        const { hits } = await searchGraph(project, query);
+        if (ticket !== requestRef.current) return; // a later keystroke won
+        const drawn = new Set(nodes.map((n) => n.qualified_name ?? n.name));
+        setElsewhere(hits.filter((hit) => !drawn.has(hit.qualified_name)).slice(0, 50));
+        setSearchError(null);
+      } catch (exception) {
+        if (ticket !== requestRef.current) return;
+        setElsewhere([]);
+        setSearchError((exception as Error).message);
+      } finally {
+        if (ticket === requestRef.current) setSearching(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [search, project, nodes]);
 
   const topLevel = useMemo(() => [...tree.children.values()].sort((a, b) => a.name.localeCompare(b.name)), [tree.children]);
 
@@ -146,12 +199,8 @@ export function Sidebar({ nodes, onSelectPath, onSelectNode, selectedPath }: Sid
       <ScrollArea className="flex-1 min-h-0">
         <div className="py-1">
           {filtered ? (
-            filtered.length === 0 ? (
-              <p className="text-foreground/20 text-[12px] px-4 py-6 text-center">
-                {t.common.noMatches}
-              </p>
-            ) : (
-              filtered.map((n) => (
+            <>
+              {filtered.map((n) => (
                 <button
                   key={n.id}
                   onClick={() => onSelectNode(n)}
@@ -161,8 +210,51 @@ export function Sidebar({ nodes, onSelectPath, onSelectNode, selectedPath }: Sid
                   <span className="text-foreground/60 truncate">{n.name}</span>
                   <span className="text-foreground/15 ml-auto text-[10px] font-mono truncate max-w-[100px]">{n.file_path}</span>
                 </button>
-              ))
-            )
+              ))}
+
+              {elsewhere.length > 0 && (
+                <>
+                  <p className="px-4 pt-3 pb-1 text-[10px] uppercase tracking-widest text-foreground/25">
+                    Elsewhere in this project
+                  </p>
+                  <p className="px-4 pb-1.5 text-[10px] text-foreground/20 leading-relaxed">
+                    Found by the engine but outside the drawn graph — raise the node
+                    budget to bring them in.
+                  </p>
+                  {elsewhere.map((hit) => (
+                    <button
+                      key={hit.qualified_name}
+                      onClick={() => onSelectOffGraph(hit)}
+                      className="flex items-center gap-2 w-full text-left px-4 py-1.5 text-[11px] hover:bg-white/[0.03] transition-colors"
+                    >
+                      <span className="w-[5px] h-[5px] rounded-full shrink-0 border border-foreground/25" />
+                      <span className="text-foreground/45 truncate">{hit.name}</span>
+                      <span className="text-foreground/15 ml-auto text-[10px] font-mono truncate max-w-[100px]">
+                        {hit.file_path}
+                      </span>
+                    </button>
+                  ))}
+                </>
+              )}
+
+              {searching && (
+                <p className="text-foreground/20 text-[11px] px-4 py-2" role="status">
+                  Searching the whole project…
+                </p>
+              )}
+
+              {searchError && (
+                <p role="alert" className="text-red-400/80 text-[11px] px-4 py-2 leading-relaxed">
+                  {searchError}
+                </p>
+              )}
+
+              {!searching && !searchError && filtered.length === 0 && elsewhere.length === 0 && (
+                <p className="text-foreground/20 text-[12px] px-4 py-6 text-center">
+                  {t.common.noMatches}
+                </p>
+              )}
+            </>
           ) : (
             topLevel.map((c) => (
               <TreeItem key={c.fullPath} dir={c} depth={0} onSelect={onSelectPath}

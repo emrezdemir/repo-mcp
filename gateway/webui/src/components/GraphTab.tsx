@@ -23,10 +23,12 @@ import {
 import { Sidebar } from "./Sidebar";
 import { FilterPanel } from "./FilterPanel";
 import { NodeDetailPanel } from "./NodeDetailPanel";
+import { OffGraphPanel } from "./OffGraphPanel";
 import { MissedCallout } from "./MissedCallout";
 import { ResizeHandle } from "./ResizeHandle";
 import { ErrorBoundary } from "./ErrorBoundary";
 import type { GraphNode, GraphData, RepoInfo } from "../lib/types";
+import type { SearchHit } from "../api/platform";
 import { colorForStatus } from "../lib/colors";
 
 /* Persist panel widths */
@@ -72,6 +74,11 @@ export function GraphTab({ project }: GraphTabProps) {
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [cameraTarget, setCameraTarget] = useState<CameraTarget | null>(null);
   const [repoInfo, setRepoInfo] = useState<RepoInfo | null>(null);
+  /* A symbol the engine found outside the drawn graph. It has a location and
+   * source but no edges here, because its edges are with nodes that were not
+   * drawn — the panel says so rather than showing "no connections", which
+   * would be false. */
+  const [offGraph, setOffGraph] = useState<SearchHit | null>(null);
   const [showLabels, setShowLabels] = useState(true);
   const [display, setDisplay] = useState<DisplaySettings>(() =>
     loadDisplaySettings(),
@@ -291,6 +298,7 @@ export function GraphTab({ project }: GraphTabProps) {
       }
 
       setSelectedNode(node);
+      setOffGraph(null);
 
       /* Highlight the node and its direct connections */
       const connectedIds = new Set([node.id]);
@@ -421,8 +429,10 @@ export function GraphTab({ project }: GraphTabProps) {
         />
         <Sidebar
           nodes={filteredData.nodes}
+          project={project}
           onSelectPath={handleSelectPath}
           onSelectNode={handleNodeClick}
+          onSelectOffGraph={setOffGraph}
           selectedPath={selectedPath}
         />
       </div>
@@ -542,6 +552,26 @@ export function GraphTab({ project }: GraphTabProps) {
           </>
         )}
       </div>
+
+      {/* A symbol the engine found outside the drawn graph. */}
+      {offGraph && !selectedNode && (
+        <>
+          <ResizeHandle
+            side="right"
+            onResize={(d) => {
+              setRightWidth((w) => {
+                const nw = Math.max(200, Math.min(500, w + d));
+                saveWidth("cbm-right-w", nw);
+                return nw;
+              });
+            }}
+          />
+          <div className="border-l border-border shrink-0 h-full overflow-hidden"
+               style={{ width: rightWidth, maxHeight: "100%" }}>
+            <OffGraphPanel hit={offGraph} project={project} onClose={() => setOffGraph(null)} />
+          </div>
+        </>
+      )}
 
       {/* Right detail panel — resizable */}
       {selectedNode && filteredData && (

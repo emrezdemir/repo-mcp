@@ -20,6 +20,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Search answered from the screen rather than the project.** The graph is
+  drawn up to a node budget, and the search box filtered only what was drawn
+  — so a symbol that exists but was outside the budget produced "No matches".
+  On a codebase large enough to need a budget, that is a wrong answer rather
+  than a missing feature. Search now also asks `search_graph`, and anything
+  found outside the drawn graph is listed separately with its location and
+  source, saying plainly that its connections are not shown because they run
+  to nodes that were not drawn.
 - **The interface hid refusals.** A squad on the analysis profile cannot call
   `manage_adr` — correct — and the ADR dialog opened empty, the save did
   nothing and nothing said why. Refusals now appear in the platform's own
