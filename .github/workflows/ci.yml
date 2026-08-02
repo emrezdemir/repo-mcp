@@ -88,7 +88,9 @@ jobs:
       # conflict on every merge, so it must not be tracked on any of them.
       - name: No environment-specific configuration is tracked
         run: |
-          tracked="$(git ls-files | grep -E '(^|/)\.env$|^deploy/(tenants|scan)\.yaml$' || true)"
+          tracked="$(git ls-files \
+            | grep -E '(^|/)\.env$|^deploy/(tenants|scan)\.yaml$|^deploy/helm/values-.*\.yaml$' \
+            | grep -v '\.example\.yaml$' || true)"
           if [ -n "$tracked" ]; then
             echo "these must never be tracked:"
             echo "$tracked"
@@ -98,7 +100,9 @@ jobs:
 
       - name: The example configuration is present
         run: |
-          for f in deploy/.env.example deploy/tenants.example.yaml deploy/scan.example.yaml; do
+          for f in deploy/.env.example deploy/tenants.example.yaml deploy/scan.example.yaml \
+                   deploy/helm/values-dev.example.yaml \
+                   deploy/helm/values-production.example.yaml; do
             test -f "$f" || { echo "missing: $f"; exit 1; }
           done
           echo "all example files present"
@@ -170,46 +174,119 @@ jobs:
   helm:
     name: helm chart
     runs-on: ubuntu-latest
+    env:
+      # Enough to get past the chart's own required-value checks.
+      MINIMUM: >-
+        --set database.url=postgresql+asyncpg://u:p@db:5432/repomcp
+        --set secretsKey=YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXoxMjM0NTY3OD0=
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
       - uses: azure/setup-helm@v4
         with:
           version: v3.16.3
 
-      - name: Lint
-        run: helm lint deploy/helm/repo-mcp
+      - name: Install PyYAML
+        run: pip install pyyaml
 
-      - name: Render with defaults
-        run: helm template repo-mcp deploy/helm/repo-mcp > /dev/null
+      # Catches what helm cannot: a template reading a .Values path that no
+      # longer exists, which renders as an empty string instead of an error.
+      - name: Templates and values agree
+        run: scripts/check-chart.sh
+
+      - name: Lint
+        run: helm lint deploy/helm/repo-mcp --set database.url=x --set secretsKey=y
+
+      - name: Render with the minimum required values
+        run: helm template repo-mcp deploy/helm/repo-mcp $MINIMUM > /dev/null
 
       - name: Render with autoscaling and ReadWriteMany
         run: |
-          helm template repo-mcp deploy/helm/repo-mcp \
+          helm template repo-mcp deploy/helm/repo-mcp $MINIMUM \
             --set gateway.autoscaling.enabled=true \
             --set persistence.cache.accessMode=ReadWriteMany \
             --set ingress.enabled=true \
             --set networkPolicy.enabled=true \
             --set metrics.serviceMonitor.enabled=true > /dev/null
 
-      # Horizontal gateway scaling without shared storage silently answers
-      # queries from an empty graph, so the chart must refuse to render it.
-      - name: Autoscaling without shared storage is refused
+      - name: Render the shipped environment examples
         run: |
-          if helm template repo-mcp deploy/helm/repo-mcp \
-               --set gateway.autoscaling.enabled=true \
-               --set persistence.cache.accessMode=ReadWriteOnce >/dev/null 2>&1; then
-            echo "expected the chart to fail, but it rendered"
-            exit 1
-          fi
-          echo "refused as expected"
+          helm template repo-mcp deploy/helm/repo-mcp \
+            -f deploy/helm/values-dev.example.yaml \
+            --set secretsKey=YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXoxMjM0NTY3OD0= > /dev/null
+          # The production example uses an existing secret, so it needs no
+          # inline values at all.
+          helm template repo-mcp deploy/helm/repo-mcp \
+            -f deploy/helm/values-production.example.yaml > /dev/null
+
+      # Each of these renders something that looks fine and behaves badly
+      # later, so the chart must refuse rather than warn.
+      - name: The chart refuses what it cannot support
+        run: |
+          refuses() {
+            local why="$1"; shift
+            if helm template repo-mcp deploy/helm/repo-mcp "$@" >/dev/null 2>&1; then
+              echo "expected the chart to refuse: $why"
+              exit 1
+            fi
+            echo "refused: $why"
+          }
+          # Horizontal gateway scaling without shared storage silently answers
+          # queries from an empty graph.
+          refuses "autoscaling without ReadWriteMany" $MINIMUM \
+            --set gateway.autoscaling.enabled=true \
+            --set persistence.cache.accessMode=ReadWriteOnce
+          # No database means no configuration at all.
+          refuses "no database.url and no existing secret" \
+            --set secretsKey=YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXoxMjM0NTY3OD0=
+          refuses "no secretsKey and no existing secret" \
+            --set database.url=postgresql+asyncpg://u:p@db:5432/repomcp
+          # A mutable tag makes "which commit is running" unanswerable.
+          refuses "environment=production with tag latest" $MINIMUM \
+            --set environment=production --set image.tag=latest
+          refuses "environment=production with tag dev" $MINIMUM \
+            --set environment=production --set image.tag=dev
+          refuses "environment=production with migrations.auto" $MINIMUM \
+            --set environment=production --set image.tag=v0.1.0 \
+            --set migrations.auto=true
+
+      - name: An immutable tag is accepted in production
+        run: |
+          helm template repo-mcp deploy/helm/repo-mcp $MINIMUM \
+            --set environment=production --set image.tag=sha-1a2b3c4 > /dev/null
+          echo "accepted"
 
   docker:
     name: image (${{ matrix.service }})
     runs-on: ubuntu-latest
     needs: [test]
+    # Publishing the tested image is what makes a promotion possible at all —
+    # see docs/adr/0008-environments-and-promotion.md.
+    permissions:
+      contents: read
+      packages: write
     strategy:
       matrix:
         service: [gateway, indexer]
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: repomcp
+          POSTGRES_PASSWORD: repomcp
+          POSTGRES_DB: repomcp
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U repomcp"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DB_URL: postgresql+asyncpg://repomcp:repomcp@127.0.0.1:5432/repomcp
+
     steps:
       - uses: actions/checkout@v4
 
@@ -233,13 +310,30 @@ jobs:
       - name: The image contains a working engine
         run: docker run --rm --entrypoint codebase-memory-mcp repo-mcp-${{ matrix.service }}:ci --version
 
-      - name: The service starts and answers its health probe
+      # Against the same database engine production uses. --network host is
+      # what lets the image reach the service container.
+      - name: The image bootstraps a database
         run: |
-          docker run -d --name svc -p 8080:8080 \
-            -e TENANTS_FILE=/etc/repo-mcp/tenants.yaml \
-            -e SCAN_CONFIG=/etc/repo-mcp/scan.yaml \
-            -v "$PWD/deploy/tenants.example.yaml:/etc/repo-mcp/tenants.yaml:ro" \
-            -v "$PWD/deploy/scan.example.yaml:/etc/repo-mcp/scan.yaml:ro" \
+          key="$(docker run --rm --entrypoint repo-mcp-admin \
+                   repo-mcp-${{ matrix.service }}:ci generate-key)"
+          echo "SECRETS_KEY=$key" >> "$GITHUB_ENV"
+          # Thrown away with the job. Generated rather than written down, so
+          # no literal that looks like a credential lives in this file.
+          docker run --rm --network host \
+            -e DATABASE_URL="$DB_URL" \
+            -e SECRETS_KEY="$key" \
+            -e MIGRATE_ON_START=true \
+            -e ADMIN_USERNAME=admin \
+            -e ADMIN_PASSWORD="$(openssl rand -hex 16)" \
+            --entrypoint repo-mcp-admin \
+            repo-mcp-${{ matrix.service }}:ci init
+
+      - name: The service starts and answers its probes
+        run: |
+          docker run -d --name svc --network host \
+            -e DATABASE_URL="$DB_URL" \
+            -e SECRETS_KEY="$SECRETS_KEY" \
+            -e ENVIRONMENT=ci \
             repo-mcp-${{ matrix.service }}:ci
           for _ in $(seq 1 30); do
             curl -fsS http://127.0.0.1:8080/healthz && break
@@ -247,5 +341,55 @@ jobs:
           done
           curl -fsS http://127.0.0.1:8080/healthz
           curl -fsS http://127.0.0.1:8080/metrics | grep -q repo_mcp_
+          # An unconfigured service answers /healthz too, so assert readiness
+          # as well: that is what proves it reached its configuration.
+          curl -fsS http://127.0.0.1:8080/readyz
           docker logs svc
           docker rm -f svc
+
+      # Refusing to start without a key is the behaviour that stops a
+      # deployment from silently making every stored credential unreadable.
+      - name: A missing SECRETS_KEY is refused
+        run: |
+          if docker run --rm --network host -e DATABASE_URL="$DB_URL" \
+               --entrypoint repo-mcp-admin \
+               repo-mcp-${{ matrix.service }}:ci status >/dev/null 2>&1; then
+            echo "expected the CLI to refuse an unset SECRETS_KEY"
+            exit 1
+          fi
+          echo "refused as expected"
+
+      # ── publish ────────────────────────────────────────────────────
+      # Only from dev, and only after the image above proved it starts. The
+      # push reuses the build cache, so it republishes the image that was just
+      # tested rather than building a different one.
+      # Releases are tagged by .github/workflows/release.yml, not here.
+
+      - name: Log in to the registry
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish dev-<sha> and dev-latest
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile
+          build-args: |
+            SERVICE=${{ matrix.service }}
+            CBM_VERSION=${{ vars.CBM_VERSION || 'latest' }}
+            VERSION=dev-${{ github.sha }}
+            VCS_REF=${{ github.sha }}
+          # dev-<sha> is the promotable artifact; dev-latest is a convenience
+          # for the dev environment, and is never valid in production.
+          tags: |
+            ghcr.io/${{ github.repository }}-${{ matrix.service }}:dev-${{ github.sha }}
+            ghcr.io/${{ github.repository }}-${{ matrix.service }}:dev-latest
+          push: true
+          provenance: false
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}

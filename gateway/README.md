@@ -35,12 +35,15 @@ pytest
 
 ## Configuration
 
-All from the environment; see `app/config.py` for the full list and defaults.
+Squads, roles, connectors, secrets and the identity settings live in the
+database and are changed through the admin API. The environment carries only
+what has to be known before the database can be read — see `app/config.py`.
 
 | Variable | Purpose |
 | --- | --- |
-| `OIDC_ISSUER`, `OIDC_AUDIENCE` | Token verification |
-| `TENANTS_FILE` | Path to `tenants.yaml` |
+| `DATABASE_URL`, `SECRETS_KEY` | Where the configuration lives, and the key protecting credentials in it |
+| `ENVIRONMENT`, `MIGRATE_ON_START` | Environment label; whether this process may migrate the schema |
+| `OIDC_ISSUER`, `OIDC_AUDIENCE` | Token verification, until an administrator sets them in the database |
 | `CBM_BINARY`, `CBM_CACHE_ROOT`, `CBM_REPO_ROOT` | Engine location and storage |
 | `CBM_IDLE_TIMEOUT_S` | When to reap an idle engine process |
 | `LITELLM_BASE_URL`, `LITELLM_MODEL` | Reasoning layer |

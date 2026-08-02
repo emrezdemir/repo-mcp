@@ -8,6 +8,35 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Environments are separated by artifact and database, not by branch.** CI
+  publishes `:dev-<sha>` and `:dev-latest` from `dev`; a `v*.*.*` tag
+  publishes `:vX.Y.Z`, `:sha-<commit>` and `:latest`, and packages the chart
+  alongside them. Production runs a tag that already ran in dev — nothing is
+  rebuilt on the way, and a rollback is redeploying the previous tag.
+  [ADR-0008](docs/adr/0008-environments-and-promotion.md),
+  [docs/environments.md](docs/environments.md).
+- **The chart refuses what it cannot support.** `environment: production` with
+  a mutable image tag (`latest`, `dev`, `dev-latest`, `main`, `edge`) or with
+  `migrations.auto` fails at template time, as does a release with no database
+  or no `SECRETS_KEY`. Each of those otherwise renders cleanly and fails much
+  later, somewhere less obvious.
+- **`MIGRATE_ON_START`** — whether a starting process may apply the schema. It
+  defaults to **false**, the safe answer for the environment nobody is
+  watching; the Compose stack and `scripts/dev.sh` set it true, because that is
+  where a migration problem should surface. `repo-mcp-admin init` now says so
+  by name instead of migrating silently.
+- **`ENVIRONMENT`** — a free-form label carried by both services and reported
+  by `/readyz`, so "which environment answered" has an answer.
+- **Per-environment Helm values** — `deploy/helm/values-dev.example.yaml` and
+  `values-production.example.yaml`. Real values files stay untracked, for the
+  same reason `deploy/.env` is.
+- **`make check-chart`** (`scripts/check-chart.sh`) — catches what `helm lint`
+  cannot: a template reading a `.Values` path that no longer exists, which
+  renders as an empty string rather than an error. It needs neither a cluster
+  nor Helm, and it is part of `make verify`.
+- **Release workflow** — a version tag is refused unless the commit is on
+  `main`, `Chart.yaml` agrees with the tag, and `CHANGELOG.md` has a section
+  for the version.
 - **Configuration in PostgreSQL.** Tenants, roles, project allowlists,
   connectors, OIDC and LiteLLM settings, tunables and provider tokens are rows
   in a database instead of YAML files, changed through an administrative API
@@ -96,6 +125,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The Helm chart still mounted `tenants.yaml` and `scan.yaml` and passed OIDC
+  and LiteLLM settings as environment variables, none of which the services
+  read any more, and it supplied no `DATABASE_URL` at all — so a chart install
+  could not have started. It now carries the database, the secret key and the
+  environment label, and it runs the schema as a hook Job when asked to.
+- The chart pointed both deployments at one image, although `gateway` and
+  `indexer` are separate images built from one Dockerfile. The repository is
+  now a base and the component is a suffix, matching what CI publishes.
+- `scripts/dev.sh` and the CI container smoke both started a service with no
+  database, which had become a hard startup failure. `dev.sh` now creates and
+  seeds a local SQLite database, and CI runs the image against PostgreSQL —
+  the same engine production uses.
+- `indexer.concurrency`, `indexer.rescan_interval_seconds` and the indexer
+  timeouts were administrator-editable settings that nothing read; the indexer
+  took those values from the environment instead. It now reads them from the
+  configuration store, and re-reads the rescan interval each pass so a change
+  lands without a restart.
 - A freshly bootstrapped database crashed the gateway at startup, because an
   empty tenant list was treated as a configuration error. That is the state
   every new deployment is in; an empty registry is now valid and `/readyz`

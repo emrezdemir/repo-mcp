@@ -142,6 +142,7 @@ connectors:
 | [Architecture](docs/architecture.md) | components, data flow, what is not built yet |
 | [Roles and permissions](docs/roles-and-permissions.md) | capabilities, roles, chapters, how the axes combine |
 | [Deployment](docs/deployment.md) | Keycloak/LDAP, webhooks, CI, production notes |
+| [Environments](docs/environments.md) | how a branch becomes something running, and what each environment owns |
 | [Scaling](docs/scaling.md) | storage topologies, what to watch, capacity planning |
 | [Development](docs/development.md) | the scripts, the test layers, how to debug |
 | [Code standards](docs/code-standards.md) | binding code, test and documentation rules |

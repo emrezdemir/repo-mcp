@@ -33,9 +33,6 @@ class Settings:
     cbm_idle_timeout_s: float
     cbm_call_timeout_s: float
 
-    # --- tenancy ---
-    tenants_file: Path
-
     # --- LLM (LiteLLM proxy) ---
     litellm_base_url: str
     litellm_api_key: str
@@ -58,7 +55,6 @@ class Settings:
             cbm_repo_root=Path(os.getenv("CBM_REPO_ROOT", "/var/lib/repo-mcp/repos")),
             cbm_idle_timeout_s=float(os.getenv("CBM_IDLE_TIMEOUT_S", "900")),
             cbm_call_timeout_s=float(os.getenv("CBM_CALL_TIMEOUT_S", "120")),
-            tenants_file=Path(os.getenv("TENANTS_FILE", "/etc/repo-mcp/tenants.yaml")),
             litellm_base_url=os.getenv("LITELLM_BASE_URL", ""),
             litellm_api_key=os.getenv("LITELLM_API_KEY", ""),
             litellm_model=os.getenv("LITELLM_MODEL", "gpt-4o-mini"),

@@ -25,9 +25,6 @@ spec:
         app.kubernetes.io/component: gateway
         {{- with .Values.podLabels }}{{- toYaml . | nindent 8 }}{{- end }}
       annotations:
-        # Restart when the tenant configuration changes; role and squad edits
-        # are read once at startup.
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         {{- if .Values.metrics.enabled }}
         prometheus.io/scrape: "true"
         prometheus.io/port: "8080"
@@ -43,7 +40,7 @@ spec:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
         - name: gateway
-          image: {{ include "repo-mcp.image" . }}
+          image: {{ include "repo-mcp.gatewayImage" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
@@ -52,31 +49,12 @@ spec:
               containerPort: 8080
           env:
             {{- include "repo-mcp.commonEnv" . | nindent 12 }}
+            {{- include "repo-mcp.databaseEnv" . | nindent 12 }}
             {{- include "repo-mcp.secretEnv" . | nindent 12 }}
-            - name: TENANTS_FILE
-              value: /etc/repo-mcp/tenants.yaml
             - name: WEB_CONCURRENCY
               value: {{ .Values.gateway.webConcurrency | quote }}
-            - name: OIDC_ISSUER
-              value: {{ .Values.gateway.config.oidcIssuer | quote }}
-            - name: OIDC_AUDIENCE
-              value: {{ .Values.gateway.config.oidcAudience | quote }}
-            - name: OIDC_GROUPS_CLAIM
-              value: {{ .Values.gateway.config.oidcGroupsClaim | quote }}
-            - name: CBM_IDLE_TIMEOUT_S
-              value: {{ .Values.gateway.config.cbmIdleTimeoutSeconds | quote }}
-            - name: CBM_CALL_TIMEOUT_S
-              value: {{ .Values.gateway.config.cbmCallTimeoutSeconds | quote }}
             - name: CBM_LOG_LEVEL
               value: {{ .Values.gateway.config.logLevel | quote }}
-            - name: SMART_TOOLS_ENABLED
-              value: {{ .Values.gateway.config.smartToolsEnabled | quote }}
-            - name: LITELLM_BASE_URL
-              value: {{ .Values.litellm.baseUrl | quote }}
-            - name: LITELLM_MODEL
-              value: {{ .Values.litellm.model | quote }}
-            - name: LITELLM_TIMEOUT_S
-              value: {{ .Values.litellm.timeoutSeconds | quote }}
             {{- with .Values.gateway.extraEnv }}{{- toYaml . | nindent 12 }}{{- end }}
           livenessProbe:
             httpGet: { path: /healthz, port: http }
@@ -95,9 +73,6 @@ spec:
           resources:
             {{- toYaml .Values.gateway.resources | nindent 12 }}
           volumeMounts:
-            - name: config
-              mountPath: /etc/repo-mcp
-              readOnly: true
             # Mounted read-write although the indexer is the only logical
             # writer: SQLite in WAL mode creates -wal and -shm files to read,
             # and the engine keeps its own state under the cache root. The
@@ -109,9 +84,6 @@ spec:
             - name: tmp
               mountPath: /tmp
       volumes:
-        - name: config
-          configMap:
-            name: {{ include "repo-mcp.fullname" . }}-config
         - name: cache
           {{- if .Values.persistence.enabled }}
           persistentVolumeClaim:

@@ -61,7 +61,6 @@ def make_settings(tmp_path: Path, binary: str, call_timeout: float = 10.0) -> Se
         cbm_repo_root=tmp_path / "repos",
         cbm_idle_timeout_s=900.0,
         cbm_call_timeout_s=call_timeout,
-        tenants_file=tmp_path / "tenants.yaml",
         litellm_base_url="",
         litellm_api_key="",
         litellm_model="test",

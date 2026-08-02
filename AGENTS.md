@@ -61,8 +61,9 @@ reinventing the invocation.
 | `make generate-key` | Print a new `SECRETS_KEY` |
 | `make check-branch` | Check the branch name against the convention |
 | `make check-docs` | Enforce the documentation rules mechanically |
+| `make check-chart` | Check the Helm templates against `values.yaml`, without a cluster |
 | `make check-secrets` | Audit every tracked file for secrets |
-| `make verify` | Tests, documentation rules and secret scan — the definition of done |
+| `make verify` | Tests, documentation rules, chart consistency and secret scan — the definition of done |
 | `make helm-lint` | Lint the Helm chart |
 
 Never invent a workflow that one of these already covers. If a workflow is
@@ -201,7 +202,7 @@ Documentation ships in the same change as the code. A feature that is not in
 
 A change is done when all of these hold:
 
-- [ ] `make verify` is green (tests, documentation rules, secret scan)
+- [ ] `make verify` is green (tests, documentation rules, chart consistency, secret scan)
 - [ ] New behaviour has a test, including the denial path where relevant
 - [ ] Documentation updated in the same commit
 - [ ] An ADR added or updated, if §8 requires one

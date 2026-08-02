@@ -85,14 +85,28 @@ all**:
 | `deploy/.env.example` | `deploy/.env` |
 | `deploy/tenants.example.yaml` | `deploy/tenants.yaml` |
 | `deploy/scan.example.yaml` | `deploy/scan.yaml` |
+| `deploy/helm/values-*.example.yaml` | `deploy/helm/values-*.yaml` |
 | Helm chart defaults in `values.yaml` | your own values file, passed with `-f` |
 
-Every real value arrives from the environment, from an ignored file, or from a
-Kubernetes secret. `main` and `dev` therefore carry byte-identical
-configuration, and a merge only ever has to reconcile actual code.
+Every real value arrives from the environment, from an ignored file, from a
+Kubernetes secret, or — for anything an administrator can change — from the
+database. `main` and `dev` therefore carry byte-identical configuration, and a
+merge only ever has to reconcile actual code.
 
-CI enforces this: a job fails if `.env`, `deploy/tenants.yaml` or
-`deploy/scan.yaml` is ever tracked on any branch.
+CI enforces this: a job fails if `.env`, `deploy/tenants.yaml`,
+`deploy/scan.yaml` or a non-example `deploy/helm/values-*.yaml` is ever
+tracked on any branch.
+
+## Branches are not environments
+
+`main` and `dev` are a code lifecycle. Where the code *runs* is decided by
+which image tag an environment deploys, not by which branch it sits on:
+`dev` publishes `:dev-<sha>`, a version tag publishes `:vX.Y.Z`, and
+production runs a tag that already ran in dev. Adding an environment is a
+values file and a database, never a fourth long-lived branch.
+
+The mechanics are in [environments.md](environments.md), and the reasoning in
+[ADR-0008](adr/0008-environments-and-promotion.md).
 
 ## Secrets never reach the repository
 

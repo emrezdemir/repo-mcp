@@ -23,7 +23,6 @@ spec:
         app.kubernetes.io/component: indexer
         {{- with .Values.podLabels }}{{- toYaml . | nindent 8 }}{{- end }}
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         {{- if .Values.metrics.enabled }}
         prometheus.io/scrape: "true"
         prometheus.io/port: "8080"
@@ -42,7 +41,7 @@ spec:
       terminationGracePeriodSeconds: 120
       containers:
         - name: indexer
-          image: {{ include "repo-mcp.image" . }}
+          image: {{ include "repo-mcp.indexerImage" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
@@ -51,13 +50,8 @@ spec:
               containerPort: 8080
           env:
             {{- include "repo-mcp.commonEnv" . | nindent 12 }}
+            {{- include "repo-mcp.databaseEnv" . | nindent 12 }}
             {{- include "repo-mcp.secretEnv" . | nindent 12 }}
-            - name: SCAN_CONFIG
-              value: /etc/repo-mcp/scan.yaml
-            - name: INDEX_CONCURRENCY
-              value: {{ .Values.indexer.config.concurrency | quote }}
-            - name: RESCAN_INTERVAL_S
-              value: {{ .Values.indexer.config.rescanIntervalSeconds | quote }}
             - name: CBM_LOG_LEVEL
               value: {{ .Values.indexer.config.logLevel | quote }}
             - name: WEB_CONCURRENCY
@@ -77,9 +71,6 @@ spec:
           resources:
             {{- toYaml .Values.indexer.resources | nindent 12 }}
           volumeMounts:
-            - name: config
-              mountPath: /etc/repo-mcp
-              readOnly: true
             - name: cache
               mountPath: /var/lib/repo-mcp/cache
             - name: repos
@@ -87,9 +78,6 @@ spec:
             - name: tmp
               mountPath: /tmp
       volumes:
-        - name: config
-          configMap:
-            name: {{ include "repo-mcp.fullname" . }}-config
         - name: cache
           {{- if .Values.persistence.enabled }}
           persistentVolumeClaim:

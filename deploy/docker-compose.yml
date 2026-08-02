@@ -52,6 +52,10 @@ services:
       SECRETS_KEY: ${SECRETS_KEY:?set SECRETS_KEY — generate one with 'make generate-key'}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      # Local evaluation applies migrations automatically. The Helm chart
+      # defaults this to false — see docs/adr/0008-environments-and-promotion.md.
+      MIGRATE_ON_START: ${MIGRATE_ON_START:-true}
+      ENVIRONMENT: ${ENVIRONMENT:-local}
     entrypoint: ["/usr/bin/tini", "--"]
     command: ["repo-mcp-admin", "init"]
 
@@ -124,6 +128,8 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://repomcp:${POSTGRES_PASSWORD}@postgres:5432/repomcp}
       SECRETS_KEY: ${SECRETS_KEY:?set SECRETS_KEY — generate one with 'make generate-key'}
       CONFIG_POLL_SECONDS: ${CONFIG_POLL_SECONDS:-15}
+      ENVIRONMENT: ${ENVIRONMENT:-local}
+      ENVIRONMENT: ${ENVIRONMENT:-local}
       # Local evaluation without Keycloak: set DEV_INSECURE_AUTH=true and a
       # DEV_STATIC_TOKEN in deploy/.env. Never do this in production.
       DEV_INSECURE_AUTH: ${DEV_INSECURE_AUTH:-false}

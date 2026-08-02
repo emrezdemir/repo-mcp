@@ -70,6 +70,19 @@ class Indexer:
 
     # ── lifecycle ────────────────────────────────────────────────────
 
+    def apply_settings(
+        self, *, concurrency: int, git_timeout_s: float, index_timeout_s: float
+    ) -> None:
+        """Adopt the administrator-set values from the configuration store.
+
+        Timeouts are read per job, so a change takes effect on the next one.
+        The worker count is fixed when the workers start; raising it applies
+        at the next restart and the queue absorbs the difference meanwhile.
+        """
+        self._concurrency = max(1, concurrency)
+        self._git_timeout = git_timeout_s
+        self._index_timeout = index_timeout_s
+
     async def start(self) -> None:
         self._workers = [
             asyncio.create_task(self._run(), name=f"indexer-{i}")
