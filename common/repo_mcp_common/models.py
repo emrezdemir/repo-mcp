@@ -17,7 +17,9 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -222,3 +224,72 @@ class AuditEntry(Base):
     action: Mapped[str] = mapped_column(String(64))
     target: Mapped[str | None] = mapped_column(String(256), nullable=True)
     detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+
+class ProjectIndexState(Base):
+    """When a project's graph last changed, as a monotonic epoch.
+
+    The answer cache is keyed on it. An answer computed from an older graph is
+    not wrong so much as stale, and nothing in the answer text says which — so
+    invalidation has to be exact rather than time-based. Bumping this one
+    integer retires every answer from the previous graph at once.
+
+    See docs/adr/0009-answer-cache.md.
+    """
+
+    __tablename__ = "project_index_state"
+
+    tenant: Mapped[str] = mapped_column(String(64), primary_key=True)
+    project: Mapped[str] = mapped_column(String(200), primary_key=True)
+    epoch: Mapped[int] = mapped_column(Integer, default=1)
+    last_commit: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    last_indexed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, server_default=func.now()
+    )
+
+
+class AnswerCacheEntry(Base):
+    """One cached LLM answer, scoped to a squad, a project and a graph epoch.
+
+    The embedding is stored as raw float32 bytes rather than in a vector
+    column: after filtering by squad, project, tool and epoch the candidate
+    set is small enough to score in the gateway, and a portable column keeps
+    the cache testable on SQLite and free of a PostgreSQL extension. The
+    threshold for revisiting that is in ADR-0009.
+    """
+
+    __tablename__ = "answer_cache"
+    __table_args__ = (
+        # The exact-match tier: one indexed read, no embedding call.
+        UniqueConstraint(
+            "tenant", "project", "tool", "epoch", "question_hash", name="uq_answer_cache_exact"
+        ),
+        Index("ix_answer_cache_candidates", "tenant", "project", "tool", "epoch"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    tenant: Mapped[str] = mapped_column(String(64))
+    project: Mapped[str] = mapped_column(String(200))
+    tool: Mapped[str] = mapped_column(String(64))
+    epoch: Mapped[int] = mapped_column(Integer)
+
+    #: sha256 of the normalised question. Not a security boundary — it is a
+    #: lookup key, and the question is stored beside it.
+    question_hash: Mapped[str] = mapped_column(String(64))
+    question: Mapped[str] = mapped_column(Text)
+    answer: Mapped[str] = mapped_column(Text)
+
+    #: Which model produced the answer, and which produced the embedding.
+    #: Entries are never compared across embedding models: the vectors are not
+    #: in the same space, and a similarity score between them is meaningless.
+    answer_model: Mapped[str] = mapped_column(String(128))
+    embedding_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    embedding: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    embedding_dim: Mapped[int] = mapped_column(Integer, default=0)
+
+    hits: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, server_default=func.now(), index=True
+    )
+    last_hit_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

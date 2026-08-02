@@ -11,6 +11,7 @@ from repo_mcp_common.bootstrap import NotBootstrapped, inspect_state
 from repo_mcp_common.db import Database, DatabaseUnavailable
 
 from .admin_api import build_router
+from .answer_cache import AnswerCache
 from .audit import AuditEvent, emit
 from .auth import Authenticator, AuthError
 from .cbm import CbmPool
@@ -29,7 +30,9 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
     pool = CbmPool(settings)
     llm = LlmClient(settings)
     provider = ConfigurationProvider(database, settings)
-    router = McpRouter(settings, registry=None, pool=pool, llm=llm)  # registry per request
+    cache = AnswerCache(database, llm)
+    # registry per request; the cache is a no-op until an administrator enables it
+    router = McpRouter(settings, registry=None, pool=pool, llm=llm, cache=cache)
 
     #: Set once the database has a schema and an administrator. Until then the
     #: service answers health probes and nothing else, with a message naming

@@ -125,3 +125,42 @@ class LlmClient:
             raise LlmError(f"malformed LiteLLM response: {exc}") from exc
         LLM_CALLS.labels(model, "ok").inc()
         return content
+
+    async def embed(self, *, tenant: Tenant, username: str, text: str, model: str) -> list[float]:
+        """One embedding, through the same proxy and the same squad key.
+
+        The engine's own embeddings are compiled into its binary and cannot be
+        reached, so the answer cache uses this instead (docs/engine.md,
+        docs/adr/0009-answer-cache.md).
+        """
+        if not self._settings.litellm_base_url:
+            raise LlmError("LITELLM_BASE_URL is not set")
+        if not model:
+            raise LlmError("no embedding model is configured (answer_cache.embedding_model)")
+
+        started = time.perf_counter()
+        try:
+            response = await self._http().post(
+                "/embeddings",
+                json={"model": model, "input": text, "user": username},
+                headers={"Authorization": f"Bearer {self._api_key(tenant)}"},
+            )
+        except httpx.HTTPError as exc:
+            LLM_CALLS.labels(model, "unreachable").inc()
+            raise LlmError(f"cannot reach LiteLLM: {exc}") from exc
+        finally:
+            LLM_DURATION.labels(model).observe(time.perf_counter() - started)
+
+        if response.status_code >= 400:
+            LLM_CALLS.labels(model, f"http_{response.status_code // 100}xx").inc()
+            raise LlmError(f"LiteLLM returned {response.status_code}: {response.text[:500]}")
+        try:
+            vector = response.json()["data"][0]["embedding"]
+        except (KeyError, IndexError, ValueError) as exc:
+            LLM_CALLS.labels(model, "malformed").inc()
+            raise LlmError(f"malformed embedding response: {exc}") from exc
+        if not isinstance(vector, list) or not vector:
+            LLM_CALLS.labels(model, "malformed").inc()
+            raise LlmError("embedding response carried no vector")
+        LLM_CALLS.labels(model, "ok").inc()
+        return [float(x) for x in vector]

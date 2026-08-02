@@ -191,6 +191,37 @@ deletions and pushes to other refs are acknowledged and ignored.
       -d "{\"repository\": \"$GITHUB_REPOSITORY\", \"sha\": \"$GITHUB_SHA\"}"
 ```
 
+## The answer cache
+
+Off by default. It stores `ask_codebase` answers per squad, so a repeated
+question costs one row read instead of thousands of tokens, and it is keyed on
+the project's index epoch — a reindex retires every answer computed from the
+previous graph.
+
+```bash
+repo-mcp-admin set answer_cache.enabled true
+# Optional. Without it, only exact repeats hit; with it, close questions do too.
+repo-mcp-admin set answer_cache.embedding_model text-embedding-3-small
+repo-mcp-admin set answer_cache.similarity_threshold 0.95
+repo-mcp-admin set answer_cache.ttl_seconds 604800
+```
+
+The threshold is high on purpose: a miss costs tokens and seconds, while a
+false hit is fluent, plausible, about a different question and very hard to
+notice. Lower it deliberately, watching
+`repo_mcp_answer_cache_lookups_total`.
+
+Two things to weigh before enabling it. Cached answers contain synthesised
+knowledge of a squad's source, so the database now holds more than
+configuration — the squad boundary applies to every lookup, but the blast
+radius of a database disclosure is larger. And the embedding model is called
+with the question text through the same LiteLLM proxy, with the squad's own
+key. `DELETE /admin/answer-cache` clears it; setting `answer_cache.enabled`
+to false stops it.
+
+Why there is no vector database here, and when there should be, is in
+[ADR-0009](adr/0009-answer-cache.md).
+
 ## Kubernetes and more than one environment
 
 The Helm chart deploys one environment. Configuration is not part of it —

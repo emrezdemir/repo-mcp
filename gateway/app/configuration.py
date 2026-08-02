@@ -89,6 +89,10 @@ class ConfigurationProvider:
             smart_tools_enabled=bool(snapshot.setting("smart_tools.enabled")),
             cbm_idle_timeout_s=float(snapshot.setting("engine.idle_timeout_seconds")),
             cbm_call_timeout_s=float(snapshot.setting("engine.call_timeout_seconds")),
+            answer_cache_enabled=bool(snapshot.setting("answer_cache.enabled")),
+            answer_cache_embedding_model=str(snapshot.setting("answer_cache.embedding_model")),
+            answer_cache_threshold=float(snapshot.setting("answer_cache.similarity_threshold")),
+            answer_cache_ttl_s=float(snapshot.setting("answer_cache.ttl_seconds")),
         )
 
         return RuntimeConfig(

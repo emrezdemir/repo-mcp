@@ -8,6 +8,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Answer cache.** `ask_codebase` answers are cached per squad and keyed on
+  the project's index epoch, so a repeated question costs one indexed row read
+  instead of thousands of tokens, and a reindex retires every answer computed
+  from the previous graph in one step. An exact-question tier runs first and
+  needs no embedding; a semantic tier over the same squad, project and epoch
+  runs only when an embedding model is configured, above a deliberately high
+  similarity threshold. Off by default, cleared from `/admin/answer-cache`,
+  and never crossing a squad boundary.
+  [ADR-0009](docs/adr/0009-answer-cache.md).
+- **No vector database.** The research behind that is in ADR-0009: after
+  filtering by squad, project, tool and epoch the candidate set is small
+  enough to score in the gateway, so pgvector buys nothing measurable yet and
+  Qdrant buys a second stateful service. The ADR names the number at which
+  pgvector becomes the right answer, and the metric that reports it.
+- **`project_index_state`** — a monotonic epoch per squad and project, written
+  by the indexer after every successful index. Also the first durable answer
+  to "when was this project last indexed, and at which commit".
+
 - **Environments are separated by artifact and database, not by branch.** CI
   publishes `:dev-<sha>` and `:dev-latest` from `dev`; a `v*.*.*` tag
   publishes `:vX.Y.Z`, `:sha-<commit>` and `:latest`, and packages the chart
@@ -125,6 +143,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Migration `0001` created the schema by calling `Base.metadata.create_all`,
+  so it built whatever the models happened to contain — including tables added
+  by later revisions, which then failed on a table that already existed. It is
+  now transcribed explicitly, and a test compares the migrated schema to the
+  models in both directions.
 - The Helm chart still mounted `tenants.yaml` and `scan.yaml` and passed OIDC
   and LiteLLM settings as environment variables, none of which the services
   read any more, and it supplied no `DATABASE_URL` at all — so a chart install
