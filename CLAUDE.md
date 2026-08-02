@@ -59,6 +59,12 @@ and report the conclusion.
   mean to change the shipped default; edit the local file when you mean to
   change your own setup. Committing the local one is blocked by a hook.
 - Anything under `gateway/.venv/` or `indexer/.venv/` is not source.
+- **The site renders `docs/`.** `site/*.html` is the landing page, in Turkish
+  and English; every page under `/docs/` on the site is generated from the
+  markdown by `scripts/render-docs.py`. Edit the markdown, not the output. A
+  new document must be added to that script's `ORDER`, or the build fails —
+  publishing a page nothing links to is the same as not publishing it.
+  `.site-venv/` holds Python-Markdown and is not source.
 - `CBM_*` environment variable names, the engine binary name and
   `gateway/app/cbm.py` keep the engine's own naming — that is a real contract.
   Prose elsewhere says "the engine".

@@ -67,6 +67,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **The whole documentation is on the site.** It linked out to thirteen files
+  on GitHub, which meant the site was an advertisement and the documentation
+  lived somewhere else. `scripts/render-docs.py` now renders every document
+  under `docs/` — twelve documents and eleven decision records — into the
+  site's own shell, with a sidebar, working links between them and a
+  decision index that carries each ADR's status and its actual decision.
+
+  The markdown stays the single source: the pages are generated from it on
+  every build, so there is no second copy to drift. A new document that is not
+  added to the script's index fails the build rather than being published with
+  no way to reach it. The reference documentation remains in English; the
+  landing pages are Turkish and English.
+- **The Turkish reads like Turkish.** The landing page and the primary README
+  were written as a translation of the English — calqued sentence shapes, an
+  archaic participle where an ordinary one belonged, headings that were not
+  sentences. Both were rewritten, the use-case descriptions in particular.
 - **Both READMEs are a landing page, not a manual.** 699 lines each became
   127: what it is, the six things that matter, four commands to install, the
   interface in pictures, and links. Everything cut is on the site or in
@@ -84,6 +100,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   other, which needs no repository setting and survives the default branch
   being changed. Verified by dispatch: `deploy-pages` reported success and
   `https://emrezdemir.github.io/repo-mcp/` is live.
+- **A documentation check had been passing without checking anything.**
+  `check-docs.sh` verified that every document the README's index points at
+  exists, by reading the section under `## Documentation` — and the day the
+  primary README became Turkish that heading became `## Belgeler`, so the
+  check matched nothing and reported success. It now reads both READMEs
+  whole, accepts the site URLs they mostly use now, and fails if it matches
+  implausibly few links, so the next time it goes hollow it says so.
 - **An interface test had been red since the capability gate landed.**
   `NodeDetailPanel`'s "Show code" button is now behind `useCan`, and the test
   has no session, so the button it clicks was never rendered. The test asserts

@@ -16,8 +16,11 @@ on:
     branches: [dev, main]
     paths:
       - "site/**"
-      - "docs/images/**"
+      # The reference documentation is rendered onto the site, so a change to
+      # any of it has to republish.
+      - "docs/**"
       - "scripts/build-site.sh"
+      - "scripts/render-docs.py"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -44,23 +47,30 @@ jobs:
       - name: Assemble
         run: scripts/build-site.sh
 
+      # Every page, including the rendered documentation, and resolved
+      # relative to the page rather than to the site root — docs/adr/ sits two
+      # levels down and its links are written accordingly.
       - name: Every page and asset it references exists
         run: |
           python3 - <<'PY'
           import pathlib, re, sys
           root = pathlib.Path("_site")
-          missing = []
-          for page in root.glob("*.html"):
+          missing, checked = [], 0
+          for page in sorted(root.rglob("*.html")):
               text = page.read_text(encoding="utf-8")
-              for ref in re.findall(r'(?:src|href)="([^"#:]+)"', text):
-                  if ref.startswith(("http", "mailto", "//")):
+              for ref, _ in re.findall(r'(?:src|href)="([^"#:]*)(#[^"]*)?"', text):
+                  if not ref or ref.startswith(("http", "mailto", "//")):
                       continue
-                  if not (root / ref).exists():
-                      missing.append(f"{page.name}: {ref}")
+                  checked += 1
+                  target = (page.parent / ref).resolve()
+                  if target.is_dir():
+                      target = target / "index.html"
+                  if not target.exists():
+                      missing.append(f"{page.relative_to(root)}: {ref}")
           if missing:
               print("\n".join(missing))
               sys.exit(1)
-          print("every local reference resolves")
+          print(f"every local reference resolves ({checked} checked)")
           PY
 
       # enablement turns Pages on for the repository if it is off, which is

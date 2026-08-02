@@ -8,8 +8,8 @@ Indexes GitHub, GitLab and Bitbucket repositories centrally and exposes the
 code graph over MCP to coding agents, chatbots and CI.
 
 [**Site**](https://emrezdemir.github.io/repo-mcp/en.html) ·
+[**Docs**](https://emrezdemir.github.io/repo-mcp/docs/) ·
 [Türkçe](README.md) (primary) ·
-[Docs](docs/) ·
 [Changelog](CHANGELOG.md)
 
 Version 0.3.0 · MIT
@@ -55,9 +55,13 @@ repo-mcp-admin secret set connector.acme-github.token
 repo-mcp-admin connector set acme-github \
   --provider github --squad payments --setting org=acme \
   --token-secret connector.acme-github.token
+
+repo-mcp-admin connector check acme-github
+# acme-github: ok — 34 of 41 repositories would be indexed
 ```
 
-For development without Docker, `make dev`.
+`check` asks the provider what the connector can actually see, and names what
+is wrong when something is. For development without Docker, `make dev`.
 
 ## The interface
 
@@ -98,20 +102,24 @@ capability for, or that is outside the squad's tool profile, is not in it.
 
 ## Documentation
 
-How it is used, the scenarios and the screenshots:
-**[emrezdemir.github.io/repo-mcp](https://emrezdemir.github.io/repo-mcp/en.html)**
+All of it is on the site — how it is used, the scenarios, the screenshots and
+the reasoning behind each decision:
+**[emrezdemir.github.io/repo-mcp/docs](https://emrezdemir.github.io/repo-mcp/docs/)**
 
 | | |
 | --- | --- |
-| [Architecture](docs/architecture.md) | Two services, one engine, a shared graph directory |
-| [Web interface](docs/web-interface.md) | How it is built, how sign-in works, what it does not do |
-| [Administration](docs/administration.md) | The terminal and the console, side by side |
-| [Roles and permissions](docs/roles-and-permissions.md) | What a role may do, what a squad may reach |
-| [Deployment](docs/deployment.md) | Compose, Kubernetes, Keycloak and LDAP |
-| [Environments](docs/environments.md) | Branches produce artifacts, artifacts promote |
-| [Scaling](docs/scaling.md) | Replicas, the queue and storage |
-| [ADRs](docs/adr/) | Decisions, and the costs accepted with them |
-| [Development](docs/development.md) | Local setup, the tests, the contribution flow |
+| [Architecture](https://emrezdemir.github.io/repo-mcp/docs/architecture.html) | Two services, one engine, a shared graph directory |
+| [Web interface](https://emrezdemir.github.io/repo-mcp/docs/web-interface.html) | How it is built, how sign-in works, what it does not do |
+| [Administration](https://emrezdemir.github.io/repo-mcp/docs/administration.html) | The terminal and the console, side by side |
+| [Roles and permissions](https://emrezdemir.github.io/repo-mcp/docs/roles-and-permissions.html) | What a role may do, what a squad may reach |
+| [Deployment](https://emrezdemir.github.io/repo-mcp/docs/deployment.html) | Compose, Kubernetes, Keycloak and LDAP |
+| [Environments](https://emrezdemir.github.io/repo-mcp/docs/environments.html) | Branches produce artifacts, artifacts promote |
+| [Scaling](https://emrezdemir.github.io/repo-mcp/docs/scaling.html) | Replicas, the queue and storage |
+| [Decisions](https://emrezdemir.github.io/repo-mcp/docs/adr/0001-wrap-dont-fork.html) | Why not a fork, why a database, why this interface |
+| [Development](https://emrezdemir.github.io/repo-mcp/docs/development.html) | Local setup, the tests, the contribution flow |
+
+The source is the markdown under [`docs/`](docs/); the site is rendered from
+it, so there is no second copy to drift.
 
 ## Contributing and security
 

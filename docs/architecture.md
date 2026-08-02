@@ -3,7 +3,7 @@
 repo-mcp turns code intelligence from a single-user local tool into a shared
 service: point it at a GitHub organisation, GitLab group or Bitbucket
 workspace, and every repository underneath becomes queryable — by coding
-agents over MCP, by chatbots, and (on the roadmap) by a web UI.
+agents over MCP, by chatbots, by CI, and from a web interface.
 
 Parsing and graph construction are done by an embedded third-party engine.
 Read [engine.md](engine.md) first: several decisions below follow directly

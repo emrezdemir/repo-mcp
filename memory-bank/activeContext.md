@@ -57,6 +57,15 @@ That work also found the interface test suite red — `NodeDetailPanel`'s "Show
 code" test broke when session 12 put the button behind `useCan`, and CI's
 `web interface` job had been failing since. It was the only red job.
 
+Last, the site. The Turkish on it and in the README was a translation rather
+than Turkish, so both were rewritten; and the site linked out to thirteen
+files on GitHub, which meant the documentation did not actually live there.
+`scripts/render-docs.py` now renders all of `docs/` into the site — the
+markdown stays the single source, and a document missing from the script's
+index fails the build. That surfaced a second hollow check: `check-docs.sh`
+looked for a `## Documentation` heading that the Turkish README stopped having
+months ago, so it had been passing without checking anything.
+
 **Session 12 — auditing the adopted interface, and the Ask tab.** Driving
 every surface against the real engine found that the interface was hiding
 refusals: a squad on the analysis profile cannot call `manage_adr`, and the
