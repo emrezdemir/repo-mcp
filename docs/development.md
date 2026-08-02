@@ -24,7 +24,17 @@ configuration into `deploy/tenants.yaml` and `deploy/scan.yaml`, and writes
 configuration is never overwritten.
 
 `scripts/setup.sh --no-venv` installs into the active environment instead, if
-you manage environments yourself.
+you manage environments yourself, and `--config-only` skips Python altogether —
+that one is for a server that will only run the Docker stack, see
+[deployment.md](deployment.md).
+
+Python 3.11 or newer is required, and CI tests 3.11 through 3.13. A newer
+interpreter is allowed and warned about, because a dependency without a wheel
+for it fails during `pip` in a way that looks like a fault here.
+
+On Debian and Ubuntu, `venv` is a separate package. Without it `python3 -m venv`
+creates the directory and then fails, so setup checks first and tells you to
+`apt install python3-venv` rather than reporting a missing `pip`.
 
 It also installs a pre-commit hook that refuses to commit secrets or
 environment-specific configuration. Install it on its own with `make hooks`,

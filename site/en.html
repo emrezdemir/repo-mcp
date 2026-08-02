@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>repo-mcp — organisation-wide code intelligence</title>
 <meta name="description" content="A self-hosted service that centrally indexes GitHub, GitLab and Bitbucket repositories and exposes the resulting code graph over MCP to coding agents, chatbots and CI.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cg fill='none' stroke='%231da27e' stroke-width='1.2'%3E%3Cpath d='M4 4.5 8 8m0 0 4-3.5M8 8v4'/%3E%3C/g%3E%3Cg fill='%231da27e'%3E%3Ccircle cx='4' cy='4' r='2'/%3E%3Ccircle cx='12' cy='4' r='2'/%3E%3Ccircle cx='8' cy='13' r='2'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="icon" href="favicon.svg">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -18,7 +18,7 @@
       <a href="#interface">Interface</a>
       <a href="#cases">Use cases</a>
       <a href="#install">Install</a>
-      <a href="#docs">Docs</a>
+      <a href="docs/">Docs</a>
     </nav>
     <span class="spacer"></span>
     <a class="lang" href="./">Türkçe</a>
@@ -44,7 +44,7 @@
     </div>
     <div class="cta">
       <a class="button solid" href="#install">Install in five minutes</a>
-      <a class="button ghost" href="https://github.com/emrezdemir/repo-mcp">Open on GitHub</a>
+      <a class="button ghost" href="docs/">Read the docs</a>
     </div>
   </div>
 </div>
@@ -255,11 +255,13 @@
       </div>
       <div class="step">
         <h3>Define a connector</h3>
-        <p>From the terminal or the web console — both call the same function.</p>
+        <p>From the terminal or the web console — both call the same function. <code>check</code> asks the provider what it can actually see.</p>
 <pre><span class="p">repo-mcp-admin</span> secret set connector.acme-github.token
 <span class="p">repo-mcp-admin</span> connector set acme-github \
   --provider github --squad payments --setting org=acme \
-  --token-secret connector.acme-github.token</pre>
+  --token-secret connector.acme-github.token
+<span class="p">repo-mcp-admin</span> connector check acme-github
+<span class="c">acme-github: ok — 34 of 41 repositories would be indexed</span></pre>
       </div>
       <div class="step">
         <h3>Connect</h3>
@@ -283,20 +285,22 @@
     <p class="eyebrow">Documentation</p>
     <h2>How it works, and why it is like that</h2>
     <p>
-      The reasoning behind each decision is kept in an ADR — including what it
-      cost. Every document lives in the repository and is updated with the
-      release.
+      All of it is here — architecture through deployment, roles through
+      scaling. Every page is rendered from the markdown in the repository, so
+      what you read is the running version's documentation. The reasoning
+      behind each decision is kept in an ADR, including what was ruled out and
+      what the decision cost.
     </p>
 
     <div class="links">
-      <a href="https://github.com/emrezdemir/repo-mcp/blob/main/docs/architecture.md"><strong>Architecture</strong><span>Two services, one engine, a shared graph directory</span></a>
-      <a href="https://github.com/emrezdemir/repo-mcp/blob/main/docs/web-interface.md"><strong>Web interface</strong><span>How it is built, how sign-in works, what it does not do</span></a>
-      <a href="https://github.com/emrezdemir/repo-mcp/blob/main/docs/administration.md"><strong>Administration</strong><span>The terminal and the console, side by side</span></a>
-      <a href="https://github.com/emrezdemir/repo-mcp/blob/main/docs/roles-and-permissions.md"><strong>Roles and permissions</strong><span>What a role may do, what a squad may reach</span></a>
-      <a href="https://github.com/emrezdemir/repo-mcp/blob/main/docs/deployment.md"><strong>Deployment</strong><span>Compose, Kubernetes, Keycloak and LDAP</span></a>
-      <a href="https://github.com/emrezdemir/repo-mcp/blob/main/docs/environments.md"><strong>Environments</strong><span>Branches produce artifacts, artifacts promote</span></a>
-      <a href="https://github.com/emrezdemir/repo-mcp/blob/main/docs/scaling.md"><strong>Scaling</strong><span>Replicas, the queue and storage</span></a>
-      <a href="https://github.com/emrezdemir/repo-mcp/tree/main/docs/adr"><strong>ADRs</strong><span>Decisions, and the costs accepted with them</span></a>
+      <a href="docs/"><strong>All documentation</strong><span>Twelve documents and eleven decision records, on one page</span></a>
+      <a href="docs/architecture.html"><strong>Architecture</strong><span>Two services, one engine, a shared graph directory</span></a>
+      <a href="docs/administration.html"><strong>Administration</strong><span>The terminal and the console, side by side</span></a>
+      <a href="docs/roles-and-permissions.html"><strong>Roles and permissions</strong><span>What a role may do, what a squad may reach</span></a>
+      <a href="docs/deployment.html"><strong>Deployment</strong><span>Compose, Kubernetes, Keycloak and LDAP</span></a>
+      <a href="docs/web-interface.html"><strong>Web interface</strong><span>How it is built, how sign-in works, what it does not do</span></a>
+      <a href="docs/scaling.html"><strong>Scaling</strong><span>Replicas, the queue and storage</span></a>
+      <a href="docs/adr/0001-wrap-dont-fork.html"><strong>Decisions</strong><span>Why not a fork, why a database, why this interface</span></a>
     </div>
   </div>
 </section>

@@ -204,6 +204,16 @@ The administrative console. Documented in
 
 ![The administrative console](images/ui-admin.png)
 
+Two things about the connector form are worth knowing here rather than there.
+**Check** asks the provider what this connector can currently see and reports
+it — `34 of 41 repositories would be indexed`, or the reason it cannot. It
+runs against what is on screen rather than what is stored, so a wrong token or
+a wrong organisation surfaces before saving instead of hours later as an empty
+index; and it writes nothing. A token can also be stored from that form
+(*store a new token here*) instead of leaving for the Secrets section and
+losing everything typed so far. Both are the same functions
+`repo-mcp-admin connector check` and `secret set` call.
+
 ## How it is built
 
 The interface is the engine project's own, adopted rather than rewritten —

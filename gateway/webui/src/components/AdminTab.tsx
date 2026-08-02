@@ -46,7 +46,7 @@ const PROVIDERS = ["github", "gitlab", "bitbucket"];
 const MODES = ["moderate", "fast", "full", "cross-repo-intelligence"];
 
 /* Provider settings differ, so the form asks for the right ones rather than
- * offering a key/value box. indexer/app/providers.py is where these are read. */
+ * offering a key/value box. common/repo_mcp_common/providers.py reads them. */
 const PROVIDER_FIELDS: Record<string, [string, string, string][]> = {
   github: [["org", "Organisation", "acme"], ["base_url", "API base URL (Enterprise only)", ""]],
   gitlab: [["group", "Group", "acme/backend"], ["base_url", "Base URL", "https://gitlab.example.com"]],
@@ -401,11 +401,11 @@ function Connectors({ config, run }: { config: admin.Config; run: Run }) {
             </span>,
           ])}
         />
-        {config.connectors.length === 0 && (
-          <p className="text-[11px] text-muted-foreground/70 mt-2">
-            Nothing is discovered or indexed until one exists.
-          </p>
-        )}
+        <p className="text-[11px] text-muted-foreground/70 mt-2">
+          {config.connectors.length === 0
+            ? "Nothing is discovered or indexed until one exists."
+            : "Open one and press Check to ask the provider what it can currently see."}
+        </p>
       </div>
 
       {!creating && !editing && (
@@ -433,17 +433,65 @@ function ConnectorEditor({
   const [enabled, setEnabled] = useState(connector ? connector.enabled : true);
   const [fields, setFields] = useState<Record<string, string>>(connector?.settings ?? {});
 
+  /* A new token normally means leaving this form, storing a secret on another
+   * tab and coming back — losing everything typed so far. The token can be
+   * stored from here instead. */
+  const [newSecret, setNewSecret] = useState(false);
+  const [secretValue, setSecretValue] = useState("");
+
+  const [checking, setChecking] = useState(false);
+  const [result, setResult] = useState<admin.ConnectorCheck | null>(null);
+  const [checkError, setCheckError] = useState("");
+
+  const providerSettings = () => {
+    const settings: Record<string, string> = {};
+    for (const [key] of PROVIDER_FIELDS[provider] ?? []) {
+      if (fields[key]?.trim()) settings[key] = fields[key].trim();
+    }
+    return settings;
+  };
+
+  /* Storing the secret is a real write, so it happens before the check that
+   * needs it and before the save that references it — not twice. */
+  const storeSecretIfNew = async () => {
+    if (!newSecret) return;
+    if (!token.trim()) throw new Error("the new secret needs a name");
+    if (!secretValue) throw new Error("the new secret needs a value");
+    await admin.putSecret(token.trim(), secretValue, `token for the ${name || "new"} connector`);
+    setNewSecret(false);
+    setSecretValue("");
+  };
+
+  const check = async () => {
+    setChecking(true);
+    setCheckError("");
+    setResult(null);
+    try {
+      await storeSecretIfNew();
+      setResult(
+        await admin.checkConnector({
+          provider,
+          settings: providerSettings(),
+          token_secret: token.trim() || null,
+          include: asList(include),
+          exclude: asList(exclude),
+        }),
+      );
+    } catch (exception) {
+      setCheckError((exception as Error).message);
+    } finally {
+      setChecking(false);
+    }
+  };
+
   const save = () =>
     run(async () => {
       const target = (connector?.name ?? name).trim();
       if (!target) throw new Error("a connector needs a name");
-      const settings: Record<string, string> = {};
-      for (const [key, , ] of PROVIDER_FIELDS[provider] ?? []) {
-        if (fields[key]?.trim()) settings[key] = fields[key].trim();
-      }
+      await storeSecretIfNew();
       await admin.putConnector(target, {
-        provider, tenant: squad, settings,
-        token_secret: token || null,
+        provider, tenant: squad, settings: providerSettings(),
+        token_secret: token.trim() || null,
         include: asList(include), exclude: asList(exclude),
         mode, persistence, enabled,
       });
@@ -472,11 +520,30 @@ function ConnectorEditor({
           {config.tenants.map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
         </select>
       </Field>
-      <Field label="Token secret" hint="The name of a stored secret. Add it under Secrets first.">
-        <select className={input} value={token} onChange={(e) => setToken(e.target.value)}>
-          <option value="">(none)</option>
-          {config.secrets.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
-        </select>
+      <Field label="Token secret" hint="Encrypted at rest; the value is never sent back.">
+        {newSecret ? (
+          <div className="space-y-1.5">
+            <input className={input} value={token} placeholder="connector.acme-github.token"
+                   onChange={(e) => setToken(e.target.value)} />
+            <input className={input} type="password" autoComplete="off" value={secretValue}
+                   placeholder="paste the token" onChange={(e) => setSecretValue(e.target.value)} />
+            <button className="text-[11px] text-muted-foreground hover:text-foreground"
+                    onClick={() => { setNewSecret(false); setToken(connector?.token_secret ?? ""); setSecretValue(""); }}>
+              use a stored secret instead
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            <select className={input} value={token} onChange={(e) => setToken(e.target.value)}>
+              <option value="">(none)</option>
+              {config.secrets.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
+            </select>
+            <button className="text-[11px] text-primary hover:underline"
+                    onClick={() => { setNewSecret(true); setToken(""); }}>
+              store a new token here
+            </button>
+          </div>
+        )}
       </Field>
       <Field label="Include"><input className={input} value={include} onChange={(e) => setInclude(e.target.value)} /></Field>
       <Field label="Exclude"><input className={input} value={exclude} placeholder="legacy-*"
@@ -496,8 +563,57 @@ function ConnectorEditor({
       </label>
       <div className="flex gap-2">
         <button className={primary} onClick={save}>{connector ? "Save" : "Create"}</button>
+        <button className={plain} disabled={checking} onClick={() => void check()}>
+          {checking ? "Checking…" : "Check"}
+        </button>
         <button className={plain} onClick={onDone}>Cancel</button>
       </div>
+
+      {checkError && <p className="text-[12px] text-red-400">{checkError}</p>}
+      {result && <CheckReport result={result} />}
+    </div>
+  );
+}
+
+/* What the provider answered.
+ *
+ * The counts matter more than the names: "34 of 41" says the patterns are
+ * doing something, and a zero says which of the four things to change. The
+ * names are there because a valid token pointed at the wrong organisation
+ * returns a perfectly healthy-looking count of the wrong repositories. */
+function CheckReport({ result }: { result: admin.ConnectorCheck }) {
+  return (
+    <div className={`${card} space-y-2`}>
+      <p className={`text-[12px] ${result.ok ? "text-primary" : "text-red-400"}`}>
+        {result.ok
+          ? `${result.matched} of ${result.discovered}${result.truncated ? "+" : ""} repositories would be indexed`
+          : result.reason}
+      </p>
+      {result.sample.length > 0 && (
+        <ul className="text-[11px] font-mono text-muted-foreground space-y-0.5">
+          {result.sample.map((name) => <li key={name}>{name}</li>)}
+          {result.matched > result.sample.length && (
+            <li className="text-muted-foreground/60">
+              and {result.matched - result.sample.length} more
+            </li>
+          )}
+        </ul>
+      )}
+      {result.excluded.length > 0 && (
+        <p className="text-[11px] text-muted-foreground/60">
+          Excluded by the patterns: {result.excluded.join(", ")}
+        </p>
+      )}
+      {result.skipped > 0 && (
+        <p className="text-[11px] text-muted-foreground/60">
+          {result.skipped} archived or empty, which are never indexed.
+        </p>
+      )}
+      {result.truncated && (
+        <p className="text-[11px] text-muted-foreground/60">
+          Stopped after the first {result.discovered}; the real total is higher.
+        </p>
+      )}
     </div>
   );
 }

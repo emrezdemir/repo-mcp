@@ -30,6 +30,29 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`GET /api/ui-config`**, backed by a new `ui.language` setting, so an
   installation can pin the interface's language instead of following the
   browser. The interface asked for this endpoint on every load and got a 404.
+- **A connector can be checked before it is trusted.** Configuring one is four
+  things that must all be right at once — the provider, the container name, a
+  token with the right scope, and patterns that keep something — and until now
+  none of them was confirmed when it was typed. A wrong organisation and an
+  expired token produced the same symptom hours later: nothing indexed, with
+  no indication which of the four was wrong.
+
+  `repo-mcp-admin connector check NAME` and a **Check** button on the console's
+  connector form now run real discovery against the provider and report what
+  came back — `34 of 41 repositories would be indexed`, with the names — or
+  the reason, in words that name what to change: the token was refused, no
+  such organisation, the patterns keep none of them. Read-only and bounded;
+  the console's version runs against what is on screen rather than what is
+  stored, and writes nothing. The command exits non-zero when the connector
+  does not work, so a deployment script can use it.
+
+  A token can also be stored from that form now, instead of leaving for the
+  Secrets section and losing everything typed so far.
+
+  Repository discovery moved from `indexer/app/providers.py` to
+  `common/repo_mcp_common/providers.py`: the gateway needs it to answer this,
+  and duplicating three provider clients to avoid moving one file would be the
+  worse trade.
 - **`dev` no longer falls behind `main`.** Merging through a pull request
   leaves one commit on `main` that `dev` never gets — the merge commit GitHub
   writes — so the content stayed identical while the history diverged by one
@@ -41,9 +64,30 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and the job fails with the offending commits printed rather than discarding
   them. Rehearsed against a throwaway repository first: the normal flow, a
   second run, and the case where `dev` has diverged.
+- **`make setup ARGS=--config-only`**, for a server that will only run
+  `make up`. It writes `deploy/.env` and the two YAML files and installs no
+  Python packages at all — the stack is entirely containers, and the
+  virtualenvs exist for developing and testing here. Without it a deployment
+  had to install a Python toolchain to produce a `.env` file.
 
 ### Changed
 
+- **The whole documentation is on the site.** It linked out to thirteen files
+  on GitHub, which meant the site was an advertisement and the documentation
+  lived somewhere else. `scripts/render-docs.py` now renders every document
+  under `docs/` — twelve documents and eleven decision records — into the
+  site's own shell, with a sidebar, working links between them and a
+  decision index that carries each ADR's status and its actual decision.
+
+  The markdown stays the single source: the pages are generated from it on
+  every build, so there is no second copy to drift. A new document that is not
+  added to the script's index fails the build rather than being published with
+  no way to reach it. The reference documentation remains in English; the
+  landing pages are Turkish and English.
+- **The Turkish reads like Turkish.** The landing page and the primary README
+  were written as a translation of the English — calqued sentence shapes, an
+  archaic participle where an ordinary one belonged, headings that were not
+  sentences. Both were rewritten, the use-case descriptions in particular.
 - **Both READMEs are a landing page, not a manual.** 699 lines each became
   127: what it is, the six things that matter, four commands to install, the
   interface in pictures, and links. Everything cut is on the site or in
@@ -51,6 +95,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **`make setup` could put itself in a state it never recovered from.** On
+  Debian and Ubuntu `venv` is a separate package, and without it
+  `python3 -m venv` creates the directory and *then* fails for want of
+  `ensurepip`. Setup tested `[[ -d .venv ]]`, so it took that wreckage for a
+  finished environment and went straight to `./.venv/bin/pip: No such file or
+  directory` — and every re-run did the same, because the directory was still
+  there. Reported from a fresh Ubuntu server install.
+
+  It now checks for `ensurepip` before doing any work and names the package to
+  install; tests for the pip binary rather than the directory, so a half-made
+  environment is rebuilt rather than trusted; checks the exit status of every
+  `venv` and `pip` call, which none of them did; and warns when the interpreter
+  is newer than the 3.13 CI tests against, since a dependency with no wheel for
+  it fails during `pip` in a way that looks like a fault here.
 - **The site published nothing and the URL answered 404.** The workflow ran on
   pushes to `main`; GitHub creates the `github-pages` deployment environment
   with a branch policy that admits the default branch alone, and this
@@ -61,6 +119,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   other, which needs no repository setting and survives the default branch
   being changed. Verified by dispatch: `deploy-pages` reported success and
   `https://emrezdemir.github.io/repo-mcp/` is live.
+- **A documentation check had been passing without checking anything.**
+  `check-docs.sh` verified that every document the README's index points at
+  exists, by reading the section under `## Documentation` — and the day the
+  primary README became Turkish that heading became `## Belgeler`, so the
+  check matched nothing and reported success. It now reads both READMEs
+  whole, accepts the site URLs they mostly use now, and fails if it matches
+  implausibly few links, so the next time it goes hollow it says so.
+- **An interface test had been red since the capability gate landed.**
+  `NodeDetailPanel`'s "Show code" button is now behind `useCan`, and the test
+  has no session, so the button it clicks was never rendered. The test asserts
+  that fetched source is escaped rather than injected as HTML — worth keeping
+  working — so it now mocks a caller whose role may read source.
 - **Search answered from the screen rather than the project.** The graph is
   drawn up to a node budget, and the search box filtered only what was drawn
   — so a symbol that exists but was outside the budget produced "No matches".

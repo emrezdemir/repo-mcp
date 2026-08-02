@@ -39,6 +39,7 @@ repo-mcp-admin role set ROLE --group LDAP_GROUP [--group ...]
 
 repo-mcp-admin connector list
 repo-mcp-admin connector set NAME --provider P --squad S [--setting k=v ...]
+repo-mcp-admin connector check NAME
 repo-mcp-admin connector remove NAME
 
 repo-mcp-admin secret list
@@ -117,6 +118,37 @@ The token is not stored on the connector; it is a secret, referenced by name.
 Provider settings differ — `org` for GitHub, `group` and `base_url` for
 GitLab, `workspace` and `project_key` for Bitbucket — and the console asks for
 the right ones per provider rather than offering a free-form box.
+
+### Checking one
+
+Four things must be right at once — the provider, the container name, a token
+with the right scope, and patterns that keep something — and getting any of
+them wrong looks identical afterwards: nothing is indexed. So ask:
+
+```console
+$ repo-mcp-admin connector check acme-github
+acme-github: ok — 34 of 41 repositories would be indexed
+  acme/payments-api
+  acme/payments-web
+  …
+  (2 archived or empty, which are never indexed)
+```
+
+It runs real discovery against the provider — read-only, never cloning — and
+names what is wrong when something is:
+
+| What it says | What to change |
+| --- | --- |
+| `the token was refused` | The secret's value, or the token's scope |
+| `no such organisation, or the token cannot see it` | The `org`, `group` or `workspace` setting |
+| `N repositories found and the patterns keep none of them` | `--include` and `--exclude` |
+| `the provider answered but holds no repositories` | The container is genuinely empty, or the token sees nothing in it |
+| `github needs the 'org' setting` | A missing provider setting |
+
+The console has the same thing as a **Check** button on the connector form,
+and there it runs against what is on screen rather than what is stored — so a
+wrong token is found before saving. It exits non-zero when the connector does
+not work, which is what makes it usable from a deployment script.
 
 ## Secrets
 

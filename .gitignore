@@ -52,3 +52,5 @@ gateway/webui/node_modules/
 gateway/webui/dist/
 gateway/webui/tsconfig.tsbuildinfo
 _site/
+# The site build's own environment: Python-Markdown and nothing else.
+.site-venv/

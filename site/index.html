@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>repo-mcp — organizasyon çapında kod zekâsı</title>
-<meta name="description" content="GitHub, GitLab ve Bitbucket repository'lerini merkezî olarak indeksleyen, kod graph'ını MCP üzerinden coding agent'lara, chatbot'lara ve CI'a açan kendi sunucunuzda çalışan bir servis.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cg fill='none' stroke='%231da27e' stroke-width='1.2'%3E%3Cpath d='M4 4.5 8 8m0 0 4-3.5M8 8v4'/%3E%3C/g%3E%3Cg fill='%231da27e'%3E%3Ccircle cx='4' cy='4' r='2'/%3E%3Ccircle cx='12' cy='4' r='2'/%3E%3Ccircle cx='8' cy='13' r='2'/%3E%3C/g%3E%3C/svg%3E">
+<title>repo-mcp — şirket çapında kod zekâsı</title>
+<meta name="description" content="Şirketinizdeki bütün repository'leri tek yerden indeksleyen, çıkan kod graph'ını MCP üzerinden coding agent'lara, chatbot'lara ve CI'a açan, kendi sunucunuzda çalışan bir servis.">
+<link rel="icon" href="favicon.svg">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -14,11 +14,11 @@
   <div class="wrap">
     <a class="brand" href="./"><span class="dot"></span> repo-mcp</a>
     <nav class="top">
-      <a href="#ne">Ne yapar</a>
+      <a href="#ne">Ne işe yarar</a>
       <a href="#ekranlar">Ekranlar</a>
       <a href="#senaryolar">Senaryolar</a>
       <a href="#kurulum">Kurulum</a>
-      <a href="#belgeler">Belgeler</a>
+      <a href="docs/">Belgeler</a>
     </nav>
     <span class="spacer"></span>
     <a class="lang" href="en.html">English</a>
@@ -27,13 +27,13 @@
 
 <div class="hero">
   <div class="wrap">
-    <h1>Şirketin bütün kodu, <em>tek bir graph</em>.</h1>
+    <h1>Şirketin bütün kodu <em>tek bir graph'ta</em>.</h1>
     <p class="lede">
-      repo-mcp; GitHub, GitLab ve Bitbucket üzerindeki repository'leri merkezî
-      olarak indeksler ve elde edilen kod graph'ını MCP üzerinden erişilebilir
-      kılar. Coding agent'lar, şirket içi chatbot'lar ve CI pipeline'ları aynı
-      endpoint'e bağlanır; erişim OIDC ile doğrulanır, LDAP grup üyeliğine göre
-      role ve takıma çevrilir.
+      repo-mcp, GitHub / GitLab / Bitbucket'taki repository'lerinizi tek yerden
+      indeksler ve ortaya çıkan kod graph'ını MCP üzerinden kullanıma açar.
+      Coding agent'lar, şirket içi chatbot'lar ve CI pipeline'ları aynı adrese
+      bağlanır. Kimin neyi görebileceğine ise gelen OIDC token'ı karar verir:
+      kullanıcının LDAP grupları bir role ve bir takıma çevrilir.
     </p>
     <div class="badges">
       <span class="badge">kendi sunucunuzda</span>
@@ -44,7 +44,7 @@
     </div>
     <div class="cta">
       <a class="button solid" href="#kurulum">Beş dakikada kur</a>
-      <a class="button ghost" href="https://github.com/emrezdemir/repo-mcp">GitHub'da aç</a>
+      <a class="button ghost" href="docs/">Belgeleri oku</a>
     </div>
   </div>
 </div>
@@ -52,55 +52,57 @@
 <section id="ne">
   <div class="wrap">
     <p class="eyebrow">Sorun</p>
-    <h2>Kod indeksleme araçları tek geliştiricinin makinesi için tasarlanır</h2>
+    <h2>Kod indeksleme araçları tek kişilik çalışmaya göre tasarlanmış</h2>
     <p>
-      Birden fazla takımın aynı repository'ler üzerinde çalıştığı bir yerde bu üç
-      şeyi kırar: aynı repository herkesin makinesinde yeniden indekslenir, bir
-      takımın çıkardığı graph diğerine kapalıdır, ve sonuç CI'dan veya bir
-      chatbot'tan erişilemez çünkü veri birinin diskindedir.
+      Aynı repository'ler üzerinde birden fazla takımın çalıştığı bir şirkette
+      bu üç şeyi birden bozuyor. Aynı repository herkesin makinesinde yeniden
+      indeksleniyor. Bir takımın çıkardığı graph'tan diğer takım
+      yararlanamıyor. Sonuca ne CI'dan ne de bir chatbot'tan erişilebiliyor,
+      çünkü veri birinin diskinde duruyor.
     </p>
 
     <div class="grid">
       <div class="card">
         <span class="mark">MERKEZÎ İNDEKSLEME</span>
-        <h3>Bir kez indeksle, herkes kullansın</h3>
-        <p>Connector bir GitHub organizasyonunu, GitLab grubunu veya Bitbucket
-        workspace'ini kapsar. Yeni açılan repository sonraki taramada
-        yapılandırma değiştirmeden devreye girer.</p>
+        <h3>Bir kez indekslenir, herkes kullanır</h3>
+        <p>Bir connector, bir GitHub organizasyonunu veya GitLab grubunu bütün
+        olarak kapsar. Sonradan açılan repository'ler bir sonraki taramada
+        kendiliğinden devreye girer; yapılandırmaya dokunmanız gerekmez.</p>
       </div>
       <div class="card">
         <span class="mark">ÜÇ BAĞIMSIZ KATMAN</span>
-        <h3>Yetkilendirme tek yerde değil</h3>
-        <p>Gateway'de rol yetkileri ve proje allowlist'i, motorda tool profili,
-        dosya sisteminde takım başına ayrı kök dizin. Bir katmandaki hata
+        <h3>Yetki tek bir yere emanet değil</h3>
+        <p>Gateway'de rolün yetkileri ve takımın proje listesi, motorda tool
+        profili, dosya sisteminde takıma özel kök dizin. Birinde açılan gedik
         diğerlerini açmaz.</p>
       </div>
       <div class="card">
         <span class="mark">RESTART YOK</span>
-        <h3>Çalışırken değişen yapılandırma</h3>
+        <h3>Yapılandırma çalışırken değişir</h3>
         <p>Takımlar, roller, connector'lar ve şifrelenmiş token'lar
-        PostgreSQL'de. Her değişiklik bir generation sayacını artırır, servisler
-        onu izler.</p>
+        PostgreSQL'de tutulur. Her değişiklik bir sayacı artırır; servisler o
+        sayacı izleyip kendilerini günceller.</p>
       </div>
       <div class="card">
         <span class="mark">GRAPH'TAN CEVAP</span>
-        <h3>Modelden graph tahmini istenmez</h3>
+        <h3>Modele graph tahmin ettirilmez</h3>
         <p><code>ask_codebase</code> önce <code>get_architecture</code> ve
-        <code>search_graph</code> çalıştırır, cevabı yalnızca dönen kanıta
-        dayandırır ve andığı sembolleri kaynağıyla gösterir.</p>
+        <code>search_graph</code> çalıştırır, cevabı yalnızca bunlardan dönen
+        veriye dayandırır ve adı geçen sembolleri kaynağıyla gösterir.</p>
       </div>
       <div class="card">
         <span class="mark">İKİ YÜZEY, TEK DAVRANIŞ</span>
-        <h3>Terminal ve arayüz aynı şey</h3>
+        <h3>Terminal ne yapıyorsa arayüz de onu yapar</h3>
         <p><code>repo-mcp-admin</code> ile web konsolu aynı fonksiyonları
-        çağırır. Aynı doğrulamadan geçer, aynı audit kaydını üretir. Farkı
-        bir test yakalar.</p>
+        çağırır: aynı doğrulamadan geçer, aynı audit kaydını bırakır. İkisinin
+        ayrışmasını bir test engelliyor.</p>
       </div>
       <div class="card">
         <span class="mark">AUDIT</span>
-        <h3>Reddedilenler dahil her çağrı</h3>
-        <p>Her tool çağrısı için stdout'a tek satır JSON. Yapılandırma
-        değişiklikleri ayrıca veritabanındaki audit tablosuna yazılır.</p>
+        <h3>Reddedilenler dahil, her çağrı</h3>
+        <p>Her tool çağrısı için stdout'a tek satırlık bir JSON kaydı düşer.
+        Yapılandırma değişiklikleri ayrıca veritabanındaki audit tablosuna
+        yazılır.</p>
       </div>
     </div>
   </div>
@@ -109,44 +111,45 @@
 <section id="ekranlar">
   <div class="wrap">
     <p class="eyebrow">Arayüz</p>
-    <h2>Graph'a bakılabilir bir yer</h2>
+    <h2>Graph'a gözle bakabileceğiniz bir yer</h2>
     <p>
-      Arayüz <code>/ui</code> adresinde. Sıfırdan yazılmadı: motorun kendi
-      arayüzü (React + Three.js, MIT) alınıp bu platforma bağlandı. Codebase
-      hakkındaki her sorusu kullanıcının kendi token'ıyla <code>/mcp</code>'ye
-      gider — yani tarayıcının yapabildiği her şeyi bir MCP istemcisi de
-      yapabilir, ikisi aynı kodla yetkilendirilir.
+      Arayüz <code>/ui</code> adresinde çalışıyor. Sıfırdan yazılmadı: motorun
+      kendi arayüzü (React + Three.js, MIT) alınıp bu platforma bağlandı. Kod
+      hakkındaki her soru, kullanıcının kendi token'ıyla <code>/mcp</code>'ye
+      gidiyor — yani tarayıcının yapabildiği her şeyi bir MCP istemcisi de
+      yapabilir, ikisi de aynı kodla yetkilendirilir.
     </p>
 
     <figure>
       <img class="shot" src="images/ui-graph.png" alt="854 düğüm ve 4.454 kenarlı bir kod graph'ının 3D görünümü; solda düğüm tipi, ilişki tipi ve klasör filtreleri">
-      <figcaption>3D graph. Yerleşimi motor C tarafında hesaplar, gateway yetkilendirip proxy'ler — 860 satırlık kodu yeniden yazmak yerine.</figcaption>
+      <figcaption>3D graph. Yerleşimi motorun C tarafı hesaplıyor; gateway yetkilendirip proxy'liyor. 860 satırlık o kodu yeniden yazmaktansa olduğu gibi kullanmak daha doğruydu.</figcaption>
     </figure>
 
     <div class="gallery">
       <figure>
         <img class="shot" src="images/ui-ask.png" alt="Doğal dille soru sorma ekranı, örnek sorular listeli">
-        <figcaption>Soru sor. Cevap graph kanıtına dayanır, andığı her sembolün qualified name'i gösterilir.</figcaption>
+        <figcaption>Soru sorun. Cevap graph'tan gelen kanıta dayanıyor; adı geçen her sembol tam adıyla listeleniyor.</figcaption>
       </figure>
       <figure>
         <img class="shot" src="images/ui-projects.png" alt="İndekslenmiş projeler listesi, düğüm ve kenar sayıları ile">
-        <figcaption>Projeler. Takımın indekslediği her şey, sağlığı ve ADR'siyle.</figcaption>
+        <figcaption>Projeler. Takımın indekslediği her şey; sağlık durumu ve ADR'siyle birlikte.</figcaption>
       </figure>
       <figure>
         <img class="shot" src="images/ui-admin.png" alt="Yönetim konsolu: takımlar tablosu, profil ve LDAP grupları">
-        <figcaption>Yönetim konsolu. Takımlar, roller, connector'lar, secret'lar, ayarlar, audit.</figcaption>
+        <figcaption>Yönetim konsolu. Takımlar, roller, connector'lar, secret'lar, ayarlar ve audit kaydı.</figcaption>
       </figure>
       <figure>
         <img class="shot" src="images/ui-signin.png" alt="Giriş ekranı, kimlik sağlayıcı üzerinden">
-        <figcaption>Giriş. PKCE ile Authorization Code; tarayıcı public client, client secret yok.</figcaption>
+        <figcaption>Giriş. PKCE'li Authorization Code akışı; tarayıcı public client olduğu için client secret yok.</figcaption>
       </figure>
     </div>
 
     <p class="note">
-      Platformun reddedeceği bir kontrol gizlenmez — gerekçesi üzerinde yazılı
-      olarak devre dışı gösterilir. Gelen reddi platformun kendi cümlesiyle
-      görürsünüz: <code>'manage_adr' is not available in this session (role:
-      lead, squad: payments)</code>. Hiçbir şey sessizce başarısız olmaz.
+      Platformun reddedeceği bir düğme gizlenmiyor; gerekçesi üzerinde yazılı
+      olarak pasif gösteriliyor. Bir istek reddedildiğinde de platformun kendi
+      cümlesini olduğu gibi görüyorsunuz: <code>'manage_adr' is not available
+      in this session (role: lead, squad: payments)</code>. Hiçbir şey sessizce
+      başarısız olmuyor.
     </p>
   </div>
 </section>
@@ -154,20 +157,21 @@
 <section id="senaryolar">
   <div class="wrap">
     <p class="eyebrow">Senaryolar</p>
-    <h2>Kimin ne için kullandığı</h2>
+    <h2>Kim, ne için kullanıyor</h2>
 
     <div class="case">
       <div>
         <p class="who">Geliştirici · coding agent</p>
-        <h3>“Bunu değiştirirsem ne kırılır?”</h3>
+        <h3>“Burayı değiştirirsem ne kırılır?”</h3>
         <p>
-          Agent'ınız kendi makinesinde indeksleme yapmadan bağlanır. Graph
-          merkezî, son merge'den dakikalar sonra güncel. Cevap tahmin değil:
-          önce graph sorgusu çalışır.
+          Agent'ınız kendi makinesinde indeksleme yapmadan doğrudan bağlanıyor.
+          Graph merkezde duruyor ve son merge'den birkaç dakika sonra güncel
+          oluyor. Cevap tahmine dayanmıyor: önce graph sorgusu çalışıyor, model
+          yalnızca dönen sonucu yorumluyor.
         </p>
         <ul>
-          <li>Bir sembolü çağıran yerler — <code>search_graph</code>, <code>trace_path</code></li>
-          <li>Değişikliğin etkilediği semboller — <code>detect_changes</code></li>
+          <li>Bir sembolü kimlerin çağırdığı — <code>search_graph</code>, <code>trace_path</code></li>
+          <li>Değişiklikten etkilenen semboller — <code>detect_changes</code></li>
           <li>İlgili kaynak parçası — <code>get_code_snippet</code></li>
         </ul>
       </div>
@@ -177,15 +181,15 @@
     <div class="case flip">
       <div>
         <p class="who">Takım lideri</p>
-        <h3>Kendi servisini detayda, başkasınınkini topolojide gör</h3>
+        <h3>Kendi servisiniz ayrıntısıyla, diğerleri yalnızca yapısıyla</h3>
         <p>
-          Her takım kendi kodunu tam detayla görür; diğer takımların
-          servislerini yalnızca yapı olarak. Kaynak kod takımın dışına çıkmadan
-          servisler arası soru sorulabilir.
+          Her takım kendi kodunu tam ayrıntısıyla görüyor, diğer takımların
+          servislerini ise yalnızca yapı olarak. Böylece kaynak kod takımın
+          dışına çıkmadan servisler arası soru sorulabiliyor.
         </p>
         <ul>
-          <li>Takım kapsamı LDAP grubuna göre, proje allowlist'i glob ile</li>
-          <li><code>scout</code> profili: yapı var, kaynak yok</li>
+          <li>Takımın kapsamı LDAP grubundan, projeleri glob'larla belirlenir</li>
+          <li><code>scout</code> profilinde yapı görünür, kaynak görünmez</li>
           <li>Ortak katman <code>org-public</code>: herkese açık, yalnızca topoloji</li>
         </ul>
       </div>
@@ -195,16 +199,17 @@
     <div class="case">
       <div>
         <p class="who">Platform ekibi · DevOps</p>
-        <h3>Tek komutla ayağa kalksın, restart olmadan yönetilsin</h3>
+        <h3>Tek komutla kurulur, restart gerektirmeden yönetilir</h3>
         <p>
-          Compose ile dört container yeter; kimlik sağlayıcınız ve model
-          proxy'niz varsa isteğe bağlı olanları hiç indirmezsiniz. Yapılandırma
-          veritabanında, değişiklik servislere kendiliğinden ulaşır.
+          Compose ile dört container yetiyor. Kendi kimlik sağlayıcınız ve
+          model proxy'niz varsa isteğe bağlı olanlar hiç indirilmiyor.
+          Yapılandırma veritabanında durduğu için değişiklikler servislere
+          kendiliğinden ulaşıyor.
         </p>
         <ul>
-          <li><code>make setup</code> beş soruyla profilleri yazar</li>
-          <li>Helm chart'ı; production ortamında sabitlenmemiş image tag'ini reddeder</li>
-          <li>Terminal ve web konsolu aynı işlemleri yapar</li>
+          <li><code>make setup</code> beş soru sorup profilleri sizin yerinize yazar</li>
+          <li>Helm chart'ı, production'da sabitlenmemiş bir image tag'ini reddeder</li>
+          <li><code>connector check</code> ile bir connector'ın gerçekten ne gördüğü sorulur</li>
         </ul>
       </div>
       <figure><img class="shot" src="images/05-admin.svg" alt="Yönetim API'sinden yapılan bir değişikliğin generation sayacını artırması"></figure>
@@ -213,15 +218,16 @@
     <div class="case flip">
       <div>
         <p class="who">CI pipeline'ı</p>
-        <h3>Pull request'e otomatik etki yorumu</h3>
+        <h3>Pull request'e otomatik etki analizi</h3>
         <p>
-          Servis hesabıyla bağlanan bir job, değişikliğin etki kümesini graph'tan
-          hesaplayıp özetletebilir. Repository başına iş tanımlamak gerekmez.
+          Servis hesabıyla bağlanan bir job, değişikliğin etki alanını graph'tan
+          çıkarıp özetleyebiliyor. Bunun için repository başına ayrı iş
+          tanımlamanız gerekmiyor.
         </p>
         <ul>
-          <li>Keycloak realm'i CI için hazır bir service client ile gelir</li>
+          <li>Keycloak realm'i, CI için hazır bir service client'la geliyor</li>
           <li><code>explain_change_impact</code> önce <code>detect_changes</code> çalıştırır</li>
-          <li>Webhook, zamanlanmış tarama veya CI tetikleyicisiyle yeniden indeksleme</li>
+          <li>Yeniden indeksleme webhook, zamanlanmış tarama veya CI tetiğiyle olur</li>
         </ul>
       </div>
       <figure><img class="shot" src="images/02-readyz.svg" alt="Servisin hazırlık endpoint'i çıktısı"></figure>
@@ -234,33 +240,35 @@
     <p class="eyebrow">Kurulum</p>
     <h2>Beş dakika, dört komut</h2>
     <p>
-      Docker Engine 24+ ve Compose v2 yeter. Linux üzerinde çalışır; motor
+      Docker Engine 24+ ve Compose v2 yeterli. Linux üzerinde çalışıyor; motor
       binary'si <code>linux/amd64</code> ve <code>linux/arm64</code> için
-      statik derlenmiş olarak iner.
+      statik derlenmiş halde iniyor.
     </p>
 
     <div class="steps">
       <div class="step">
-        <h3>Klonla ve yapılandır</h3>
-        <p>Beş soru sorar, cevapları <code>deploy/.env</code> içine yazar: veritabanı, kimlik, model backend'i, sıkıştırma, provider.</p>
+        <h3>Klonlayın ve yapılandırın</h3>
+        <p>Beş soru sorar, cevapları <code>deploy/.env</code> dosyasına yazar: veritabanı, kimlik doğrulama, model backend'i, sıkıştırma ve provider.</p>
 <pre><span class="p">git</span> clone https://github.com/emrezdemir/repo-mcp
 <span class="p">cd</span> repo-mcp && <span class="p">make</span> setup</pre>
       </div>
       <div class="step">
-        <h3>Ayağa kaldır</h3>
-        <p>Şema oluşturulur, ilk yönetici hesabı açılır ve parolası bir kez yazdırılır.</p>
+        <h3>Ayağa kaldırın</h3>
+        <p>Şema oluşturulur, ilk yönetici hesabı açılır ve parolası bir kereye mahsus ekrana yazılır.</p>
 <pre><span class="p">make</span> up</pre>
       </div>
       <div class="step">
-        <h3>Bir connector tanımla</h3>
-        <p>Terminalden ya da web konsolundan — ikisi aynı fonksiyonu çağırır.</p>
+        <h3>Bir connector tanımlayın</h3>
+        <p>Terminalden ya da web konsolundan; ikisi de aynı fonksiyonu çağırır. <code>check</code>, provider'a sorup gerçekten ne göreceğini söyler.</p>
 <pre><span class="p">repo-mcp-admin</span> secret set connector.acme-github.token
 <span class="p">repo-mcp-admin</span> connector set acme-github \
   --provider github --squad payments --setting org=acme \
-  --token-secret connector.acme-github.token</pre>
+  --token-secret connector.acme-github.token
+<span class="p">repo-mcp-admin</span> connector check acme-github
+<span class="c">acme-github: ok — 34 of 41 repositories would be indexed</span></pre>
       </div>
       <div class="step">
-        <h3>Bağlan</h3>
+        <h3>Bağlanın</h3>
         <p>Tarayıcıdan <code>http://localhost:8080/ui</code>, MCP istemcisinden <code>POST /mcp</code>.</p>
 <pre><span class="p">curl</span> -s http://localhost:8080/mcp \
   -H <span class="c">"Authorization: Bearer $TOKEN"</span> \
@@ -269,9 +277,9 @@
     </div>
 
     <p class="note">
-      Docker'sız geliştirme için <code>make dev</code>: SQLite ile yerel bir
-      veritabanı kurar, servisleri auto-reload ile başlatır ve kullanılacak
-      token'ı yazdırır.
+      Docker'sız geliştirmek için <code>make dev</code>: SQLite ile yerel bir
+      veritabanı kurar, servisleri auto-reload ile başlatır ve kullanacağınız
+      token'ı ekrana yazar.
     </p>
   </div>
 </section>
@@ -279,22 +287,31 @@
 <section id="belgeler">
   <div class="wrap">
     <p class="eyebrow">Belgeler</p>
-    <h2>Nasıl çalıştığı, neden öyle olduğu</h2>
+    <h2>Nasıl çalıştığı ve neden öyle olduğu</h2>
     <p>
-      Kararların gerekçesi ADR'lerde tutulur — olumsuz sonuçları da dahil. Her
-      belge repository'de, sürümle birlikte güncellenir.
+      Sistemin bütün belgeleri burada — mimarisinden kurulumuna, rollerden
+      ölçeklemeye kadar. Her sayfa repository'deki markdown dosyasından
+      üretiliyor, yani okuduğunuz şey çalışan sürümün belgesi. Kararların
+      gerekçesi ADR'lerde duruyor: neyin elendiği ve karşılığında neyin kabul
+      edildiği dahil.
     </p>
 
     <div class="links">
-      <a href="https://github.com/emrezdemir/repo-mcp/blob/main/docs/architecture.md"><strong>Mimari</strong><span>İki servis, bir motor, paylaşılan graph dizini</span></a>
-      <a href="https://github.com/emrezdemir/repo-mcp/blob/main/docs/web-interface.md"><strong>Web arayüzü</strong><span>Nasıl kurulu, giriş nasıl çalışıyor, ne yapmıyor</span></a>
-      <a href="https://github.com/emrezdemir/repo-mcp/blob/main/docs/administration.md"><strong>Yönetim</strong><span>Terminal ve konsol, yan yana</span></a>
-      <a href="https://github.com/emrezdemir/repo-mcp/blob/main/docs/roles-and-permissions.md"><strong>Roller ve yetkiler</strong><span>Rol ne yapar, takım neye erişir</span></a>
-      <a href="https://github.com/emrezdemir/repo-mcp/blob/main/docs/deployment.md"><strong>Kurulum</strong><span>Compose, Kubernetes, Keycloak ve LDAP</span></a>
-      <a href="https://github.com/emrezdemir/repo-mcp/blob/main/docs/environments.md"><strong>Ortamlar</strong><span>Branch'ten artifact'e, artifact'ten ortama</span></a>
-      <a href="https://github.com/emrezdemir/repo-mcp/blob/main/docs/scaling.md"><strong>Ölçekleme</strong><span>Replika, kuyruk ve depolama</span></a>
-      <a href="https://github.com/emrezdemir/repo-mcp/tree/main/docs/adr"><strong>ADR'ler</strong><span>Kararlar ve kabul edilen bedelleri</span></a>
+      <a href="docs/"><strong>Bütün belgeler</strong><span>On iki başlık ve on bir karar kaydı, tek sayfada</span></a>
+      <a href="docs/architecture.html"><strong>Mimari</strong><span>İki servis, bir motor, paylaşılan graph dizini</span></a>
+      <a href="docs/administration.html"><strong>Yönetim</strong><span>Terminal ve konsol, yan yana</span></a>
+      <a href="docs/roles-and-permissions.html"><strong>Roller ve yetkiler</strong><span>Rol ne yapar, takım neye erişir</span></a>
+      <a href="docs/deployment.html"><strong>Kurulum</strong><span>Compose, Kubernetes, Keycloak ve LDAP</span></a>
+      <a href="docs/web-interface.html"><strong>Web arayüzü</strong><span>Nasıl kurulu, giriş nasıl çalışıyor, ne yapmıyor</span></a>
+      <a href="docs/scaling.html"><strong>Ölçekleme</strong><span>Replika, kuyruk ve depolama</span></a>
+      <a href="docs/adr/0001-wrap-dont-fork.html"><strong>Kararlar</strong><span>Neden fork edilmedi, neden veritabanı, neden bu arayüz</span></a>
     </div>
+
+    <p class="note">
+      Referans belgeleri İngilizce yazıldı; tek bir kaynaktan üretildikleri için
+      ikinci bir kopyayla arasında fark oluşmuyor. Tanıtım sayfaları — burası ve
+      README — Türkçe.
+    </p>
   </div>
 </section>
 
@@ -302,7 +319,7 @@
   <div class="wrap">
     <span>MIT · <a href="https://github.com/emrezdemir/repo-mcp">github.com/emrezdemir/repo-mcp</a></span>
     <span class="spacer"></span>
-    <span>İndeksleme motoru <a href="https://github.com/DeusData/codebase-memory-mcp">codebase-memory-mcp</a> (MIT), sarmalanarak kullanılır.</span>
+    <span>İndeksleme motoru <a href="https://github.com/DeusData/codebase-memory-mcp">codebase-memory-mcp</a> (MIT), sarmalanarak kullanılıyor.</span>
   </div>
 </footer>
 

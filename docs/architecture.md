@@ -3,7 +3,7 @@
 repo-mcp turns code intelligence from a single-user local tool into a shared
 service: point it at a GitHub organisation, GitLab group or Bitbucket
 workspace, and every repository underneath becomes queryable — by coding
-agents over MCP, by chatbots, and (on the roadmap) by a web UI.
+agents over MCP, by chatbots, by CI, and from a web interface.
 
 Parsing and graph construction are done by an embedded third-party engine.
 Read [engine.md](engine.md) first: several decisions below follow directly
@@ -51,8 +51,7 @@ tenancy, audit, reasoning — sits cleanly outside it. See
             ▼
  ┌───────────────────────────────────────────────────────────────────────┐
  │ Indexer (indexer/)                                                    │
- │   providers.py  discover repos in a GitHub org / GitLab group /       │
- │                 Bitbucket workspace                                   │
+ │   repos.py      connectors, tenant routing, per-repo bindings         │
  │   webhooks.py   verified push events from all three providers         │
  │   worker.py     queue → git sync → `cbm cli index_repository`         │
  │   main.py       scheduled rescans, CI trigger endpoint                │
@@ -60,6 +59,12 @@ tenancy, audit, reasoning — sits cleanly outside it. See
             ▲                    ▲                      ▲
        push webhook        nightly schedule        CI/CD trigger
 ```
+
+Both services install `common/` (`repo_mcp_common`): the schema and migrations,
+the configuration store, secret encryption, the `repo-mcp-admin` command — and
+repository discovery, `providers.py`, which is shared rather than the
+indexer's own because the gateway checks a connector against the provider
+before the indexer ever runs it.
 
 ## Identity: LDAP through Keycloak
 

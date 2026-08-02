@@ -36,6 +36,7 @@ from .admin import (
 )
 from .answer_cache import purge as purge_answers
 from .answer_cache import stats as cache_stats
+from .connector_check import check_connector
 from .db import Database
 from .models import (
     AdminUser,
@@ -46,7 +47,7 @@ from .models import (
     Setting,
     Tenant,
 )
-from .store import DEFAULT_SETTINGS
+from .store import DEFAULT_SETTINGS, ConfigStore
 
 ACTOR = "cli"
 
@@ -226,6 +227,56 @@ async def cmd_connector_set(args) -> int:
                 actor=ACTOR,
             )
         _print(f"connector {args.name} saved")
+        return 0
+
+    return await _with_database(work)
+
+
+async def cmd_connector_check(args) -> int:
+    """Ask the provider what a stored connector can actually see.
+
+    The same check the web console runs, against the same function, so the
+    two surfaces cannot disagree about whether a connector works.
+    """
+
+    async def work(database: Database) -> int:
+        async with database.read() as session:
+            connector = (
+                await session.execute(select(Connector).where(Connector.name == args.name))
+            ).scalar_one_or_none()
+            if connector is None:
+                return _fail(f"no connector named {args.name!r}")
+            fields = {
+                "provider": connector.provider,
+                "settings": dict(connector.settings or {}),
+                "token_secret": connector.token_secret or "",
+                "include": list(connector.include or ["*"]),
+                "exclude": list(connector.exclude or []),
+            }
+
+        snapshot = await ConfigStore(database).snapshot()
+        result = await check_connector(
+            provider=fields["provider"],
+            settings=fields["settings"],
+            token=snapshot.secrets.get(fields["token_secret"]),
+            include=fields["include"],
+            exclude=fields["exclude"],
+        )
+
+        if not result.ok:
+            _print(f"{args.name}: {result.reason}")
+            for name in result.excluded:
+                _print(f"  excluded  {name}")
+            return 1
+
+        found = f"{result.matched} of {result.discovered}"
+        if result.truncated:
+            found += "+ (stopped early)"
+        _print(f"{args.name}: ok — {found} repositories would be indexed")
+        for name in result.sample:
+            _print(f"  {name}")
+        if result.skipped:
+            _print(f"  ({result.skipped} archived or empty, which are never indexed)")
         return 0
 
     return await _with_database(work)
@@ -434,9 +485,14 @@ def register(sub) -> dict:
     )
 
     # ── connector ────────────────────────────────────────────────────
-    connector = sub.add_parser("connector", help="list, create or remove a connector")
+    connector = sub.add_parser("connector", help="list, create, check or remove a connector")
     connector_sub = connector.add_subparsers(dest="subcommand", required=True)
     connector_sub.add_parser("list", help="show every connector")
+
+    connector_check = connector_sub.add_parser(
+        "check", help="ask the provider what this connector can see"
+    )
+    connector_check.add_argument("name")
 
     connector_set = connector_sub.add_parser("set", help="create or update a connector")
     connector_set.add_argument("name")
@@ -498,6 +554,7 @@ def register(sub) -> dict:
             "role set": cmd_role_set,
             "connector list": cmd_connector_list,
             "connector set": cmd_connector_set,
+            "connector check": cmd_connector_check,
             "connector remove": cmd_connector_remove,
             "secret list": cmd_secret_list,
             "secret set": cmd_secret_set,

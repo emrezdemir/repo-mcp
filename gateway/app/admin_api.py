@@ -33,6 +33,7 @@ from repo_mcp_common.admin import (
 )
 from repo_mcp_common.answer_cache import purge as purge_answers
 from repo_mcp_common.answer_cache import stats as cache_stats
+from repo_mcp_common.connector_check import check_connector
 from repo_mcp_common.db import Database
 from repo_mcp_common.models import (
     AdminUser,
@@ -131,6 +132,21 @@ class ConnectorRequest(BaseModel):
     mode: str = "moderate"
     persistence: bool = True
     enabled: bool = True
+
+
+class ConnectorCheckRequest(BaseModel):
+    """The fields a check needs — deliberately not the whole connector.
+
+    A check runs against what is on screen, not against what is stored, so an
+    administrator finds out the token is wrong before saving rather than
+    after. Nothing here is written down.
+    """
+
+    provider: str
+    settings: dict = Field(default_factory=dict)
+    token_secret: str | None = None
+    include: list[str] = Field(default_factory=lambda: ["*"])
+    exclude: list[str] = Field(default_factory=list)
 
 
 class SecretRequest(BaseModel):
@@ -368,6 +384,35 @@ def build_router(database: Database, provider: ConfigurationProvider) -> APIRout
         await provider.invalidate()
         audit(actor, "connector.put", name)
         return {"status": "ok", "connector": name}
+
+    @router.post("/connectors/check")
+    async def check_connector_route(request: ConnectorCheckRequest, actor: str = Actor) -> dict:
+        """Ask the provider what this connector can see.
+
+        Read-only and unsaved: it enumerates repositories and reports them.
+        A provider that refuses is an answer with a 200, not an error — the
+        caller is a form that wants the sentence, and an HTTP error status
+        would make "the token is wrong" indistinguishable from "the gateway
+        is broken".
+        """
+        config = await provider.current()
+        result = await check_connector(
+            provider=request.provider,
+            settings=request.settings,
+            token=config.secrets.get(request.token_secret or ""),
+            include=request.include,
+            exclude=request.exclude,
+        )
+        audit(
+            actor,
+            "connector.check",
+            request.settings.get("org")
+            or request.settings.get("group")
+            or request.settings.get("workspace")
+            or request.provider,
+            outcome="ok" if result.ok else "failed",
+        )
+        return result.as_dict()
 
     @router.delete("/connectors/{name}")
     async def remove_connector(name: str, actor: str = Actor) -> dict:

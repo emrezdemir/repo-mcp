@@ -150,19 +150,33 @@ else
   note "ADR problems:"$'\n'"$(printf '          %s\n' "${adr_problems[@]}")"
 fi
 
-# ── 7. README documentation index is complete ─────────────────────────
+# ── 7. every document a README points at exists ───────────────────────
+#
+# Both forms count: a relative `docs/x.md` link, and the site URL the READMEs
+# mostly use now, which maps back to the same file because the site is
+# rendered from it. Checking both is the point — an earlier version of this
+# looked only under a `## Documentation` heading, and the day the primary
+# README became Turkish it silently started checking nothing.
 
 index_missing=()
+index_checked=0
 while IFS= read -r target; do
   [[ -z "$target" ]] && continue
+  index_checked=$(( index_checked + 1 ))
   [[ -e "$target" ]] || index_missing+=("$target")
-done <<< "$(sed -n '/^## Documentation/,/^## /p' README.md \
-            | grep -oE '\]\((docs/[^)]+)\)' | sed 's/](//; s/)//' | sort -u)"
+done <<< "$(grep -ohE '\]\((docs/[^)]+|https://emrezdemir\.github\.io/repo-mcp/docs/[^)]*)\)' \
+              README.md README.en.md \
+            | sed -e 's/^](//' -e 's/)$//' \
+                  -e 's#^https://emrezdemir\.github\.io/repo-mcp/##' \
+                  -e 's#\.html$#.md#' \
+            | sort -u)"
 
-if [[ ${#index_missing[@]} -eq 0 ]]; then
-  pass "every document in the README index exists"
+if [[ $index_checked -lt 5 ]]; then
+  note "the README documentation index matched only $index_checked link(s) — this check has gone hollow"
+elif [[ ${#index_missing[@]} -eq 0 ]]; then
+  pass "every document the READMEs link to exists ($index_checked checked)"
 else
-  note "README documentation index points at missing files: ${index_missing[*]}"
+  note "READMEs point at missing documents: ${index_missing[*]}"
 fi
 
 # ── 8. no assistant or tool attribution ───────────────────────────────

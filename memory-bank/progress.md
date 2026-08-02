@@ -74,9 +74,14 @@ away.
 **Administration**
 - `repo-mcp-admin` and the console cover the same operations through the same
   functions: squads, roles, connectors, secrets, settings, audit,
-  administrator accounts, answer cache. 18 tests, including one that fails if
-  an API operation arrives without a matching command, and one that a CLI
-  change reaches a running service through the generation counter.
+  administrator accounts, answer cache. Tests include one that fails if an API
+  operation arrives without a matching command, and one that a CLI change
+  reaches a running service through the generation counter.
+- `connector check` on both surfaces: runs real discovery against the provider
+  and reports what it can see, or names which of provider / container name /
+  token / patterns is wrong. Verified against a stand-in GitHub API through
+  the real HTTP endpoint and the real command — six failure paths, each with
+  its own sentence. Exits non-zero when the connector does not work.
 
 **Indexer**
 - Discovery for GitHub organisations, GitLab groups (nested subgroups) and
@@ -100,17 +105,27 @@ away.
 - Argon2id passwords, Fernet-encrypted credentials.
 
 **Tooling**
-- `make setup` / `test` / `dev` / `debug` / `stack` / `check-secrets` — all run
-  end to end in a clean checkout.
+- `make setup` / `test` / `verify` / `dev` / `debug` / `stack` / `site` /
+  `check-secrets` — all run end to end in a clean checkout **here**. Note the
+  qualifier: `make setup` ran cleanly in this sandbox for twelve sessions and
+  still failed on the maintainer's Ubuntu server, because `venv` ships
+  separately there. A green run in one environment is not a green run.
+- `make setup ARGS=--config-only` writes configuration and installs no Python
+  at all, for a server that only runs the Docker stack.
 - Secret scanning: verified in both directions — zero false positives across
   the tracked tree, every planted secret caught, and a live commit blocked by
   the hook.
-- 50 unit tests, `ruff` clean.
+- 176 Python tests (92 common, 63 gateway, 21 indexer) and 34 interface tests,
+  `ruff` clean.
 
 **Documentation**
 - Architecture, engine constraints (with source references), roles and
-  permissions, deployment, scaling, development, branching, roadmap, 5 ADRs.
-- `AGENTS.md`, `CLAUDE.md`, this memory bank, code standards.
+  permissions, deployment, scaling, development, branching, roadmap,
+  administration, web interface, code standards — 12 documents and 11 ADRs.
+- All of it rendered onto the project site from the same markdown by
+  `scripts/render-docs.py`; 901 local references across 26 built pages
+  resolve. The site is live and publishes from the default branch.
+- `AGENTS.md`, `CLAUDE.md`, this memory bank.
 
 ## Built, unverified
 
@@ -129,7 +144,7 @@ external system. Treat their behaviour as unproven.
 | Image publishing and the release workflow | No push to a registry has happened; the tag guard, the packaged chart and the `dev-<sha>` publish are all unexercised |
 | The bootstrap hook Job | Never run in a cluster; the same `repo-mcp-admin init` command was run directly |
 | End-to-end script | Never run; needs Docker |
-| Keycloak/LDAP federation | Documented, never stood up |
+| LDAP federation | A real directory. Keycloak 26 itself *was* stood up here — the realm imported, groups and both clients created, a user made by `scripts/keycloak-user.sh` — but no LDAP server has ever been federated into it, so group mapping from a directory is unproven |
 | Headroom | Never started. The routing, the fallback and the embedding bypass are unit-tested against a mock transport; no Headroom container has run, and its own upstream configuration is its documentation, not ours |
 | The answer cache's semantic tier | A real embedding model. The storage, scoring, isolation and invalidation are unit-tested with synthetic vectors; no `/embeddings` call has been made |
 
@@ -182,6 +197,10 @@ Not bugs — consequences of decisions, recorded so nobody rediscovers them.
 | `deploy/docker-compose.yml` did not parse: unquoted `${VAR:-default}` in a flow mapping, and a duplicate `ENVIRONMENT` key | Running `docker compose config` while adding a service | Quoted, deduplicated, and `make test` validates the file now |
 | Migration 0001 built the schema from the live models, so it created 0002's tables and 0002 then failed | Adding the second migration | 0001 transcribed explicitly, plus a test comparing the migrated schema to the models |
 | Four administrator-editable `indexer.*` settings were read by nothing | Checking which chart values were still real | The indexer reads them from the store, re-reading the rescan interval each pass |
+| `make setup` guarded venv creation on `[[ -d .venv ]]`, and on Debian/Ubuntu a failed `python3 -m venv` leaves the directory behind — so a first failure became permanent, and no `venv` or `pip` exit status was checked | The maintainer running it on a fresh Ubuntu server | Preflight `ensurepip` check naming the package, test the pip binary rather than the directory, rebuild a half-made environment, check every exit status |
+| `check-docs.sh` read the README section under `## Documentation`, and the Turkish README's heading is `## Belgeler` — so it matched nothing and passed | Moving the README's links to the site and wondering why the check stayed green | Reads both READMEs whole, resolves site URLs back to `docs/*.md`, and fails when it matches implausibly few links |
+| A capability gate added in session 12 hid the button `NodeDetailPanel`'s test clicks, so CI's `web interface` job had been red ever since and nobody looked | Running `npm test` while adding a test beside it | The test mocks a caller whose role may read source; it asserts source is escaped rather than injected, which is worth keeping |
+| Nothing confirmed a connector worked: provider, container name, token scope and patterns all fail the same way — silently, hours later | Asked to make adding a connector from the interface good | `connector check` on both surfaces, running real discovery and naming which of the four is wrong |
 | The Pages site 404'd while the build job was green: the `github-pages` environment admits the default branch only, and the workflow published from `main` while the default is `dev` | The maintainer reporting the URL, twice | Publish from whichever branch is the default; other branches skip visibly instead of failing with no steps and no message |
 
 ## Never verified in this environment
@@ -196,3 +215,12 @@ Stated plainly so nobody assumes otherwise:
   been cut. The release workflow's guards are unexercised.
 - The engine binary was never available here; the bridge is tested against a
   fake engine that speaks the same protocol.
+- No provider was ever contacted for real. Every connector and discovery test,
+  including `connector check`, ran against a stand-in GitHub API on loopback.
+  The request shapes come from the provider documentation, not from a live
+  round trip against github.com.
+- **The maintainer is now deploying to a real Ubuntu server.** That is the
+  first environment outside this sandbox, and it has already produced one
+  defect this sandbox could never have shown (`make setup` and Debian's
+  separate `venv` package). Expect more of that class, and prefer their report
+  over anything asserted here.

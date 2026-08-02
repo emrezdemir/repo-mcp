@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import fnmatch
 import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
-
-from .providers import DiscoveredRepo, Provider, build_provider
+from repo_mcp_common.providers import DiscoveredRepo, Provider, build_provider, selected
 
 VALID_MODES = {"full", "moderate", "fast", "cross-repo-intelligence"}
 
@@ -52,17 +50,7 @@ class Connector:
     def matches(self, repo: DiscoveredRepo) -> bool:
         if not repo.is_indexable():
             return False
-        short = repo.full_name.split("/")[-1]
-        included = any(
-            fnmatch.fnmatchcase(repo.full_name, p) or fnmatch.fnmatchcase(short, p)
-            for p in self.include
-        )
-        if not included:
-            return False
-        return not any(
-            fnmatch.fnmatchcase(repo.full_name, p) or fnmatch.fnmatchcase(short, p)
-            for p in self.exclude
-        )
+        return selected(repo.full_name, self.include, self.exclude)
 
     def build(self) -> Provider:
         # A token stored in the configuration database wins; the environment

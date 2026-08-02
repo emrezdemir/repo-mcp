@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import pytest
+from repo_mcp_common.providers import DiscoveredRepo
 
-from app.providers import DiscoveredRepo
 from app.repos import ConfigError, ScanConfig, project_name
 from app.webhooks import (
     PushEvent,

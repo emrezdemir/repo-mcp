@@ -12,6 +12,14 @@ vi.mock("../api/rpc", () => ({
   RpcError: class extends Error {},
 }));
 
+/* And a caller whose role may read source: the panel hides the button
+ * otherwise, and this test is about how the source is rendered once it
+ * arrives, not about who is allowed to ask for it. */
+vi.mock("../api/session", () => ({
+  canCall: () => true,
+  onSession: () => () => {},
+}));
+
 const NODE: GraphNode = {
   id: 7,
   x: 0,
