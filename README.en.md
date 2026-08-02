@@ -1,72 +1,73 @@
 # repo-mcp
 
-**Centralized code intelligence for the whole organisation.** Point it at a
-GitHub organisation, GitLab group or Bitbucket workspace, and every repository
-underneath becomes a queryable knowledge graph — for coding agents over MCP,
-for chatbots, and for CI pipelines.
+**One code intelligence service for the whole company.** Point it at a GitHub
+org, a GitLab group or a Bitbucket workspace, and every repo underneath turns
+into one queryable graph. Coding agents, chatbots and CI pipelines connect to
+it over MCP.
 
-Version 0.1.0 · [Türkçe](README.md) (primary) · [Release notes](CHANGELOG.md)
+Version 0.1.0 · [Türkçe](README.md) (primary) · [Changelog](CHANGELOG.md)
 
 ---
 
-Ask *"who calls this function?"*, *"what breaks if I change this?"* or *"which
-services hit this endpoint?"* and get an answer computed from the code itself,
-not guessed from a context window.
+You ask "who calls this function?", "what breaks if I change this?", "which
+services hit this endpoint?" — and the answer is computed from the code, not
+guessed from a context window.
 
-repo-mcp runs as a service your whole company shares: LDAP-backed login,
-squad-level isolation, role-based permissions, automatic repository discovery,
-audit logging, and an LLM reasoning layer routed through your own
-[LiteLLM](https://github.com/BerriAI/litellm) proxy — hosted models, vLLM or
-Ollama, your choice.
+It runs as a service: LDAP login, per-squad isolation, role-based permissions,
+automatic repo discovery, audit logs, and an LLM layer that goes through your
+own [LiteLLM](https://github.com/BerriAI/litellm) proxy. You pick the model —
+a hosted one, your own vLLM, or Ollama.
 
 ## Why
 
-Code intelligence tools are built for one developer on one laptop. That is the
-wrong shape for a company: every developer reindexes the same repositories, no
-graph is ever shared between teams, cross-service questions cannot be answered
-at all, and none of that knowledge is reachable from a chatbot or a CI job.
+Code intelligence tools are built for one developer on one laptop. That does
+not hold at company scale: everyone reindexes the same repos, no graph is ever
+shared between teams, cross-service questions cannot be answered at all, and
+none of it is reachable from a bot or a CI job.
 
-repo-mcp makes it a shared service — indexed once, centrally, with the access
-control an organisation actually needs.
+repo-mcp turns it into a shared service. Indexed once, centrally, with the
+access control a company actually needs.
 
 ## What it does
 
-- **Discovers repositories automatically.** One connector per GitHub
-  organisation, GitLab group (nested subgroups included) or Bitbucket
-  workspace, filtered with glob patterns. New repositories are picked up
-  without touching configuration.
-- **Keeps the graph fresh, four ways.** Verified push webhooks, a periodic
-  rescan, an explicit CI trigger, and manual re-index.
-- **Speaks MCP over HTTP.** Any MCP client — Claude Code, Cursor, Copilot, a
-  chatbot, a pipeline — connects to one endpoint with an OIDC token.
-- **Authenticates against LDAP.** Active Directory or OpenLDAP, federated
-  through Keycloak; repo-mcp keeps no user table of its own.
-- **Isolates by squad, with three independent layers.** Role capabilities and
-  project allowlists at the gateway, a fail-closed tool profile inside the
-  engine process, and per-tenant filesystem roots. A mistake in one does not
+- **Finds repos on its own.** One connector per GitHub org, GitLab group
+  (nested subgroups included) or Bitbucket workspace, filtered with patterns.
+  A new repo is picked up without touching any config.
+- **Keeps the graph current, four ways.** Verified push webhooks, a periodic
+  scan, a CI trigger, and manual reindexing.
+- **Speaks MCP over HTTP.** Claude Code, Cursor, Copilot, a bot, a pipeline —
+  any MCP client connects to one endpoint with an OIDC token.
+- **Gets identity from LDAP.** Active Directory or OpenLDAP, through Keycloak.
+  repo-mcp keeps no user table of its own.
+- **Separates squads, in three independent layers.** Role permissions and a
+  project list at the gateway, a closed-by-default tool profile inside the
+  engine, a separate directory per squad on disk. A mistake in one does not
   open the others.
-- **Answers in prose when that helps.** Change-impact summaries for pull
-  requests and natural-language questions, always grounded in a graph query
-  first — the model is never asked to guess the graph.
-- **Audits everything.** One structured JSON record per call, including
-  denials, because reading a snippet means reading real source.
+- **Answers in plain text when that helps.** It summarises the impact of a
+  change and answers questions in natural language — but it always queries the
+  graph first. The model is never asked to guess the graph.
+- **Writes every call to an audit log**, refusals included. Reading a snippet
+  means reading real source code.
 
-## Architecture at a glance
+## Architecture
 
 ```
- Agents · Chatbots · CI ──MCP over HTTP + OIDC──▶ Gateway ──▶ indexing engine
-                                                    │          (per tenant)
-                                                    └──HTTPS──▶ LiteLLM ──▶ model
+ Agent · Bot · CI ──MCP / HTTP + OIDC──▶ Gateway ──▶ engine (one per squad)
+                                            │
+                                            └──HTTPS──▶ LiteLLM ──▶ model
 
- GitHub · GitLab · Bitbucket ──webhook/schedule──▶ Indexer ──▶ graph store
+ GitHub · GitLab · Bitbucket ──webhook / schedule──▶ Indexer ──▶ graph
 ```
 
-Two services and a database. The **gateway** authenticates, authorizes and
-serves the MCP surface. The **indexer** discovers repositories and keeps their
-graphs current. **PostgreSQL** holds the configuration — squads, roles,
-connectors, settings and encrypted provider tokens — which an administrator
-changes through an API while the platform runs. See
-[docs/architecture.md](docs/architecture.md).
+Two services and a database.
+
+The **gateway** authenticates, checks permissions and serves MCP.
+The **indexer** finds repos and keeps their graphs up to date.
+**PostgreSQL** holds the settings: squads, roles, connectors, preferences and
+encrypted provider tokens. An admin changes them through an API while the
+platform runs — no restart.
+
+Details: [docs/architecture.md](docs/architecture.md).
 
 ## Quick start
 
@@ -74,13 +75,13 @@ changes through an API while the platform runs. See
 git clone https://github.com/emrezdemir/repo-mcp
 cd repo-mcp
 
-make setup      # virtualenvs, dependencies, config files, generated secrets
-# edit deploy/.env (add a provider token) and deploy/scan.yaml
-make up         # build and start the Docker stack
-make smoke      # verify it end to end
+make setup      # venvs, dependencies, config files, generated secrets
+# put a provider token in deploy/.env, edit deploy/scan.yaml
+make up         # bring up the Docker stack
+make smoke      # check it end to end
 ```
 
-Then discover and index:
+Then start discovery and indexing:
 
 ```bash
 source deploy/.env
@@ -88,25 +89,24 @@ curl -X POST http://localhost:8082/rescan -H "Authorization: Bearer $CI_TRIGGER_
 curl http://localhost:8082/repos
 ```
 
-Point an MCP client at `http://localhost:8080/mcp` with an OIDC bearer token
-and an `X-Tenant` header. The full walkthrough, including Keycloak and LDAP
-setup, is in [docs/deployment.md](docs/deployment.md).
+Point your MCP client at `http://localhost:8080/mcp` with an OIDC token and an
+`X-Tenant` header. The full walkthrough, Keycloak and LDAP included, is in
+[docs/deployment.md](docs/deployment.md).
 
-If something does not work, `make debug` checks the toolchain, the engine, the
-configuration, storage, both services, an MCP round trip and the model
-backend — and reports everything it finds rather than stopping at the first
-problem.
+If something does not work, run `make debug`. It checks the toolchain, the
+engine, the config, storage, both services, a live MCP call and the model side.
+It does not stop at the first problem — it reports everything it finds.
 
-## Configuration
+## Settings
 
-Configuration lives in PostgreSQL and is changed through the admin API or
-`repo-mcp-admin`, not by editing files. Only what is needed before the
-database can be read stays in the environment (`DATABASE_URL`,
-`SECRETS_KEY`, engine paths).
+Settings live in PostgreSQL. You change them through the admin API or
+`repo-mcp-admin`, not by editing files. The environment only carries what has
+to be known before the database can be read: `DATABASE_URL`, `SECRETS_KEY` and
+the engine paths.
 
-The shapes below are what the API and the importer accept.
+The two formats below are what both the importer and the API accept.
 
-`tenants.yaml` — who may do what, to which data:
+Who may do what, to which data:
 
 ```yaml
 roles:
@@ -117,11 +117,11 @@ roles:
 tenants:
   payments:
     ldap_groups: [squad-payments, chapter-devops]
-    tool_profile: analysis          # read-only engine surface
+    tool_profile: analysis          # read-only engine profile
     projects: ["acme-payments-*", "acme-ledger"]
 ```
 
-`scan.yaml` — what to index:
+What to index:
 
 ```yaml
 connectors:
@@ -137,29 +137,30 @@ connectors:
 
 ## What it looks like
 
-There is no web interface — the platform is an MCP endpoint, an admin API and
-health endpoints. These are captured from a running instance by
-`make screenshots`, so they cannot drift from what the code actually does.
+There is no web interface — an MCP endpoint, an admin API and health
+endpoints. These come from a running instance and are regenerated with
+`make screenshots`.
 
-Bringing it up: schema, seed data and the first administrator, in one command.
+Bringing it up: schema, settings and the first admin, in one command.
 
 ![Bootstrap](docs/images/01-bootstrap.svg)
 
-The gateway says which squads it loaded and which configuration generation it
-is serving.
+The gateway tells you which squads are loaded and which config generation it
+is on.
 
 ![Readiness](docs/images/02-readyz.svg)
 
-An MCP round trip. A client sees the tools its role and profile allow.
+An MCP call: the client lists tools and sees whatever its permissions allow.
 
 ![MCP tools/list](docs/images/03-mcp-tools.svg)
 
-An unauthorized request is refused with the reason, not answered emptily.
+An unauthorized request does not come back empty — it is refused with the
+reason.
 
 ![Refusals](docs/images/04-denied.svg)
 
-An administrative change bumps the generation counter, and every replica picks
-it up without a restart.
+You change a setting through the admin API, the generation number goes up, and
+every replica picks up the new value without a restart.
 
 ![Admin API](docs/images/05-admin.svg)
 
@@ -168,14 +169,14 @@ it up without a restart.
 | | |
 | --- | --- |
 | [Architecture](docs/architecture.md) | components, data flow, what is not built yet |
-| [Roles and permissions](docs/roles-and-permissions.md) | capabilities, roles, chapters, how the axes combine |
+| [Roles and permissions](docs/roles-and-permissions.md) | permissions, roles, chapters |
 | [Deployment](docs/deployment.md) | Keycloak/LDAP, webhooks, CI, production notes |
-| [Environments](docs/environments.md) | how a branch becomes something running, and what each environment owns |
-| [Scaling](docs/scaling.md) | storage topologies, what to watch, capacity planning |
-| [Development](docs/development.md) | the scripts, the test layers, how to debug |
-| [Code standards](docs/code-standards.md) | binding code, test and documentation rules |
-| [Branching](docs/branching.md) | main/dev flow, and how secrets stay out of the repo |
-| [Indexing engine](docs/engine.md) | what the embedded engine does, and the limits it imposes |
+| [Environments](docs/environments.md) | how a branch becomes something running |
+| [Scaling](docs/scaling.md) | storage options, what to watch, capacity |
+| [Development](docs/development.md) | the scripts, the test layers, debugging |
+| [Code standards](docs/code-standards.md) | code, test and documentation rules |
+| [Branching](docs/branching.md) | main/dev flow, keeping secrets out of the repo |
+| [Indexing engine](docs/engine.md) | what the engine does, and the limits it brings |
 | [Roadmap](docs/roadmap.md) | done, next, and explicitly not planned |
 | [Decision records](docs/adr/) | why the design is what it is |
 
@@ -183,43 +184,43 @@ it up without a restart.
 
 Early — version 0.1.0.
 
-The gateway and the indexer work and are covered by tests. The web UI and
-graph history are designed but not built. Provider discovery, webhooks and the
-reasoning layer are written and unit-tested, but have never run against a real
-GitHub organisation, a live LiteLLM proxy or Keycloak.
+The gateway and the indexer work and have tests. The web UI and graph history
+are designed but not built. Provider discovery, webhooks and the LLM layer are
+written and unit-tested, but have never run against a real GitHub org, a live
+LiteLLM proxy or Keycloak.
 
 [docs/roadmap.md](docs/roadmap.md) and
-[memory-bank/progress.md](memory-bank/progress.md) are explicit about which is
-which — read them before assuming a feature exists.
+[memory-bank/progress.md](memory-bank/progress.md) say plainly what is in which
+state. Look there before assuming a feature exists.
 
 ## Development
 
 ```bash
-make setup      # virtualenvs and dependencies
+make setup      # venvs and dependencies
 make test       # lint and unit tests for both services
 make dev        # run both services locally, no Docker, auto-reload
-make debug      # diagnose whatever is not working
-make verify     # the gate to pass before calling anything finished
-make help       # everything else
+make debug      # find whatever is not working
+make verify     # the check to pass before calling anything finished
+make help       # the rest
 ```
 
-Every target is a script in [`scripts/`](scripts/) — run them directly if you
-prefer. Details in [docs/development.md](docs/development.md).
+Every target is a script under [`scripts/`](scripts/) — run them directly if
+you prefer. Details in [docs/development.md](docs/development.md).
 
-Kubernetes deployment uses the Helm chart in
-[`deploy/helm/repo-mcp`](deploy/helm/repo-mcp); read
-[docs/scaling.md](docs/scaling.md) before raising any replica count, because
-the storage topology constrains it.
+For Kubernetes there is a chart in
+[`deploy/helm/repo-mcp`](deploy/helm/repo-mcp). Read
+[docs/scaling.md](docs/scaling.md) before raising any replica count — the
+storage layout limits it.
 
-The version lives in one place, [`VERSION`](VERSION). `scripts/version.sh`
-propagates it to the packages and the chart, and `make verify` checks that
-they all still agree.
+The version lives in one file, [`VERSION`](VERSION). `scripts/version.sh`
+spreads it to the packages and the chart, and `make verify` checks that they
+all still agree.
 
-Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
+Contributions welcome: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Licence
 
-MIT — see [LICENSE](LICENSE).
+MIT — [LICENSE](LICENSE).
 
-repo-mcp bundles a third-party indexing engine; its licence and attribution
+repo-mcp bundles a third-party indexing engine. Its licence and attribution
 are in [NOTICE](NOTICE).
