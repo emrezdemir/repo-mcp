@@ -35,4 +35,4 @@ body:
       label: Scope
       options:
         - label: This would change the tenancy or authorization model (an ADR is likely needed)
-        - label: This would require a change in codebase-memory-mcp itself
+        - label: This would require a change in the indexing engine itself

@@ -1,24 +1,23 @@
 # Architecture
 
-repo-mcp turns [codebase-memory-mcp][cbm] from a single-user local tool into a
-shared service: point it at a GitHub organisation, GitLab group or Bitbucket
+repo-mcp turns code intelligence from a single-user local tool into a shared
+service: point it at a GitHub organisation, GitLab group or Bitbucket
 workspace, and every repository underneath becomes queryable — by coding
 agents over MCP, by chatbots, and (on the roadmap) by a web UI.
 
-Read [cbm-constraints.md](cbm-constraints.md) first. Most of the decisions
-below follow directly from what the engine does and does not do.
-
-[cbm]: https://github.com/DeusData/codebase-memory-mcp
+Parsing and graph construction are done by an embedded third-party engine.
+Read [engine.md](engine.md) first: several decisions below follow directly
+from what that engine does and does not do.
 
 ## Design principle
 
 > Wrap the engine; do not fork it.
 
-CBM carries 158 vendored tree-sitter grammars, a hybrid LSP layer for eleven
-languages, a compiled-in embedding model and a signed release pipeline.
-Forking means owning all of that. Wrapping means tracking upstream by changing
-a version number. Everything repo-mcp adds — transport, identity, tenancy,
-audit, reasoning — sits cleanly outside the engine. See
+The engine carries 158 vendored tree-sitter grammars, a hybrid LSP layer for
+eleven languages, a compiled-in embedding model and a signed release pipeline.
+Forking means owning all of that. Wrapping means adopting new versions by
+changing a version number. Everything repo-mcp adds — transport, identity,
+tenancy, audit, reasoning — sits cleanly outside it. See
 [ADR-0001](adr/0001-wrap-dont-fork.md).
 
 ## Components
@@ -35,14 +34,14 @@ audit, reasoning — sits cleanly outside the engine. See
  │    roles.py    role → capabilities                                    │
  │    tenants.py  squad → tenant, project allowlist, tool profile        │
  │    mcp.py      MCP surface; three independent authorization layers    │
- │    cbm.py      one CBM process per tenant, over stdio                 │
+ │    cbm.py      one engine process per tenant, over stdio                 │
  │    smart_tools.py  LiteLLM-backed composite tools                     │
  │    audit.py    one JSON record per call                               │
  └───────┬───────────────────────────────────────────┬───────────────────┘
          │ stdio (line-delimited JSON-RPC)           │ HTTPS
          ▼                                           ▼
  ┌───────────────────────┐                ┌──────────────────────────────┐
- │ CBM processes         │                │ LiteLLM proxy                │
+ │ engine processes         │                │ LiteLLM proxy                │
  │  per tenant:          │                │  squad = virtual key         │
  │   CBM_CACHE_DIR       │                │  budgets, rate limits, logs  │
  │   CBM_ALLOWED_ROOT    │                │  hosted, vLLM or Ollama      │
@@ -92,7 +91,7 @@ account whose group membership grants the same scopes.
 | Layer | Enforced by | Protects against |
 | --- | --- | --- |
 | Role capabilities + project allowlist | `gateway/app/mcp.py` | a user calling a tool or touching a project they should not |
-| CBM tool profile (`--tool-profile`) | the engine process | a gateway bug widening the tool surface |
+| Engine tool profile (`--tool-profile`) | the engine process | a gateway bug widening the tool surface |
 | Filesystem (`CBM_CACHE_DIR`, `CBM_ALLOWED_ROOT`) | the OS | a process reaching another squad's data at all |
 
 None of the three depends on the others being correct.
@@ -118,7 +117,7 @@ layer, which by construction contains no function bodies. See
 
 ## Indexing: four ways in
 
-CBM ships a git-polling watcher. Centrally that becomes N repositories polled
+The engine ships a git-polling watcher. Centrally that becomes N repositories polled
 forever, so repo-mcp drives indexing explicitly instead:
 
 1. **Discovery** — connectors enumerate repositories under an org, group or
@@ -131,7 +130,7 @@ forever, so repo-mcp drives indexing explicitly instead:
 4. **CI trigger** — `POST /trigger` indexes one repository at one commit, for
    pipelines that want the graph fresh before running impact analysis.
 
-The queue serialises per project (CBM holds an OS-level mutation lock per
+The queue serialises per project (the engine holds an OS-level mutation lock per
 project) and coalesces bursts, since consecutive pushes converge on the same
 head.
 
@@ -141,7 +140,7 @@ does not replace local use — they share the same artifact.
 
 ## Reasoning: LiteLLM above the engine
 
-CBM contains no model and its embeddings cannot be redirected, so the
+The engine contains no model and its embeddings cannot be redirected, so the
 reasoning layer sits above it. Because every call goes through LiteLLM,
 self-hosted backends (Ollama, vLLM, llama.cpp) are a proxy configuration
 concern rather than a code change.
@@ -151,7 +150,7 @@ concern rather than a code change.
 | `explain_change_impact` | `detect_changes` → blast radius → prose risk summary for a pull request |
 | `ask_codebase` | question → graph evidence → answer with symbol references |
 
-Raw CBM tools are proxied unchanged, so an agent that wants
+Raw engine tools are proxied unchanged, so an agent that wants
 `search_graph` gets it deterministically and at no token cost. The model is
 involved only where synthesis is the point, and it is never asked to guess the
 graph — evidence is gathered first.
@@ -168,7 +167,7 @@ separated by squad on the LiteLLM side.
 2. What reaches the model is logged by LiteLLM. Even with a fully local
    backend this matters for incident review, not just compliance.
 
-Never expose CBM directly: it has no authentication of its own. The gateway is
+Never expose the engine directly: it has no authentication of its own. The gateway is
 the only ingress, and `CBM_ALLOWED_ROOT` is the backstop rather than the
 control.
 
@@ -179,7 +178,7 @@ Being explicit about this matters more than the diagram above:
 - **Web UI.** The codebase map and manual search are on the roadmap and are
   the single largest remaining chunk. The upstream 3D visualiser cannot be
   reused — it binds to localhost by construction.
-- **Graph history.** CBM stores only the current graph; before/after
+- **Graph history.** The engine stores only the current graph; before/after
   comparison over time needs retained artifacts and a diff service. See
   [ADR-0004](adr/0004-graph-history.md).
 - **On-demand branch indexing.** Querying an arbitrary feature branch that the

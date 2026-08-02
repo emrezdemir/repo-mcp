@@ -1,7 +1,7 @@
-"""Bridge to the codebase-memory-mcp (CBM) engine.
+"""Bridge to the indexing engine.
 
-CBM speaks line-delimited JSON-RPC over stdio and nothing else — there is no
-network transport (see docs/cbm-constraints.md). This module keeps one CBM
+The engine speaks line-delimited JSON-RPC over stdio and nothing else — there is no
+network transport (see docs/engine.md). This module keeps one engine
 process per tenant, serialises calls onto its single stdio stream, and reaps
 processes that have gone idle.
 
@@ -27,14 +27,14 @@ log = logging.getLogger(__name__)
 
 PROTOCOL_VERSION = "2025-06-18"
 
-#: CBM can emit very large single-line responses (a full architecture dump on
+#: The engine can emit very large single-line responses (a full architecture dump on
 #: a big monorepo). The default asyncio stream limit of 64 KiB would truncate
 #: them into unparseable fragments.
 _MAX_LINE_BYTES = 64 * 1024 * 1024
 
 
 class CbmError(RuntimeError):
-    """A CBM call failed."""
+    """An engine call failed."""
 
 
 @dataclass
@@ -49,7 +49,7 @@ class ToolResult:
 
 
 class CbmSession:
-    """A single CBM process. Calls are serialised over its stdio stream."""
+    """A single engine process. Calls are serialised over its stdio stream."""
 
     def __init__(self, settings: Settings, tenant: Tenant) -> None:
         self._settings = settings
@@ -97,7 +97,7 @@ class CbmSession:
 
         argv = [self._settings.cbm_binary, *self._tenant.cbm_profile_flag()]
         reason = "restart" if self._started_before else "first_start"
-        log.info("starting CBM for tenant=%s argv=%s", self._tenant.name, argv)
+        log.info("starting engine for tenant=%s argv=%s", self._tenant.name, argv)
         try:
             proc = await asyncio.create_subprocess_exec(
                 *argv,
@@ -194,10 +194,10 @@ class CbmSession:
                 # reply would be mistaken for the next call's result. Tearing
                 # the process down is the only safe exit.
                 await self.close()
-                raise CbmError(f"CBM call timed out after {timeout}s: {method}") from exc
+                raise CbmError(f"engine call timed out after {timeout}s: {method}") from exc
             if not line:
                 await self.close()
-                raise CbmError("CBM process exited unexpectedly")
+                raise CbmError("engine process exited unexpectedly")
             try:
                 message = json.loads(line)
             except json.JSONDecodeError:
@@ -271,7 +271,7 @@ class CbmPool:
                     stale = [n for n, s in self._sessions.items() if s.last_used < cutoff]
                     victims = [self._sessions.pop(n) for n in stale]
                 for name, session in zip(stale, victims, strict=True):
-                    log.info("reaping idle CBM session for tenant=%s", name)
+                    log.info("reaping idle engine session for tenant=%s", name)
                     await session.close()
         except asyncio.CancelledError:
             pass

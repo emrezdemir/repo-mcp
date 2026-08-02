@@ -43,7 +43,7 @@ body:
     attributes:
       label: Environment
       description: |
-        How it runs (compose, Kubernetes, local), the CBM version, and the
+        How it runs (compose, Kubernetes, local), the engine version, and the
         identity provider if relevant. Please redact tokens and hostnames.
 
   - type: textarea

@@ -2,27 +2,27 @@
 
 - **Status:** Accepted
 - **Context:** Building a central, multi-tenant, LDAP-protected code
-  intelligence platform on top of codebase-memory-mcp (CBM)
+  intelligence platform on top of an existing indexing engine
 
 ## Context
 
-CBM already produces the knowledge graph we want, but has none of what a
+The engine already produces the knowledge graph we want, but has none of what a
 central deployment needs: no network transport, no authentication, no
-multi-tenancy (see [cbm-constraints.md](../cbm-constraints.md)).
+multi-tenancy (see [engine.md](../engine.md)).
 
 Two options:
 
-1. **Fork** — add HTTP transport, auth and tenancy to CBM itself.
-2. **Wrap** — leave CBM untouched and solve the gaps in a service above it.
+1. **Fork** — add HTTP transport, auth and tenancy to the engine itself.
+2. **Wrap** — leave the engine untouched and solve the gaps in a service above it.
 
 ## Decision
 
-Wrap. We never modify the CBM binary; we use only its CLI and stdio
+Wrap. We never modify the engine binary; we use only its CLI and stdio
 interfaces, its environment variables and its `--tool-profile` flag.
 
 ## Rationale
 
-**Forking costs far more than it returns.** CBM vendors 158 tree-sitter
+**Forking costs far more than it returns.** The engine vendors 158 tree-sitter
 grammars, a hand-written hybrid LSP layer for eleven languages, a compiled-in
 embedding model, and a release pipeline with SLSA provenance and Sigstore
 signatures. Upstream maintains all of it today. In a fork, we would — including
@@ -49,7 +49,7 @@ isolation regardless.
 - Upstream releases are adopted by changing a pinned version.
 - The security surface is ours: changing authorization does not mean
   recompiling C.
-- The gateway is testable against a fake engine, independently of CBM.
+- The gateway is testable against a fake engine, independently of the real engine.
 
 **Negative, accepted**
 

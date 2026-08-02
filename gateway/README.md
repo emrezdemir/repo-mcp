@@ -1,13 +1,12 @@
 # repo-mcp gateway
 
 The MCP surface agents, chatbots and CI pipelines talk to. It authenticates
-callers against OIDC, authorizes them by role and squad, and proxies the
-[codebase-memory-mcp][cbm] engine — which speaks stdio only — over HTTP.
+callers against OIDC, authorizes them by role and squad, and puts the indexing
+engine — which speaks stdio only — behind an HTTP endpoint.
 
-Part of [repo-mcp](../README.md); see [../docs/architecture.md](../docs/architecture.md)
-for how it fits together.
-
-[cbm]: https://github.com/DeusData/codebase-memory-mcp
+Part of [repo-mcp](../README.md); see
+[../docs/architecture.md](../docs/architecture.md) for how it fits together
+and [../docs/engine.md](../docs/engine.md) for what the engine imposes.
 
 ## Layout
 

@@ -58,7 +58,7 @@ fi
 
 # ── 2. engine ─────────────────────────────────────────────────────────
 
-log "engine (codebase-memory-mcp)"
+log "indexing engine"
 CBM="${CBM_BINARY:-codebase-memory-mcp}"
 if command -v "$CBM" >/dev/null 2>&1; then
   ok "binary $(command -v "$CBM")"
@@ -66,13 +66,13 @@ if command -v "$CBM" >/dev/null 2>&1; then
     ok "version $version"
     dim "      all processes sharing a cache root must run this exact build"
   else
-    note_issue "$CBM --version failed"
+    note_issue "engine --version failed ($CBM)"
   fi
 else
   if [[ "$MODE" == "docker" ]]; then
     dim "      not on the host PATH — expected, it lives inside the containers"
   else
-    note_issue "$CBM is not on PATH (needed by scripts/dev.sh)"
+    note_issue "engine binary not on PATH: $CBM (needed by scripts/dev.sh)"
   fi
 fi
 

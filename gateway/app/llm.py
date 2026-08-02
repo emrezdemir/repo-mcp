@@ -1,8 +1,8 @@
 """LiteLLM proxy client.
 
-CBM has no LLM inside it and its embeddings are compiled into the binary, so
-nothing can be routed through LiteLLM *underneath* CBM (see
-docs/cbm-constraints.md). The reasoning layer therefore sits *above* it.
+The engine has no LLM inside it and its embeddings are compiled into the binary, so
+nothing can be routed through LiteLLM *underneath* the engine (see
+docs/engine.md). The reasoning layer therefore sits *above* it.
 
 Because everything goes through LiteLLM, self-hosted backends — Ollama, vLLM,
 llama.cpp — are a proxy configuration concern rather than a change here.

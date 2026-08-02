@@ -8,7 +8,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- **Gateway** — MCP over HTTP in front of codebase-memory-mcp: one engine
+- **Gateway** — MCP over HTTP in front of the indexing engine: one engine
   process per tenant over stdio, with idle reaping and timeout recovery.
 - **Identity** — OIDC/JWT verification against JWKS, with LDAP groups arriving
   as token claims; a development mode with a static token.

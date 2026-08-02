@@ -14,7 +14,7 @@ from .providers import DiscoveredRepo, Provider, build_provider
 
 VALID_MODES = {"full", "moderate", "fast", "cross-repo-intelligence"}
 
-#: CBM validates project names; keep to a conservative, path-safe subset.
+#: The engine validates project names; keep to a conservative, path-safe subset.
 _UNSAFE = re.compile(r"[^A-Za-z0-9._-]+")
 
 
@@ -23,7 +23,7 @@ class ConfigError(ValueError):
 
 
 def project_name(full_name: str) -> str:
-    """Derive a stable CBM project name from a provider-qualified repo name.
+    """Derive a stable engine project name from a provider-qualified repo name.
 
     ``acme/backend/payments-api`` becomes ``acme-backend-payments-api``. It has
     to stay stable across runs: changing it orphans the existing graph.

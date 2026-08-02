@@ -13,7 +13,7 @@ import yaml
 
 from .roles import Role, RoleAssignment, resolve_role
 
-# Tools exposed by each restricted CBM profile, mirrored from the upstream
+# Tools exposed by each restricted engine profile, mirrored from the engine's
 # allowlist in src/mcp/mcp.c. The gateway enforces the same sets independently
 # so that a missing `--tool-profile` flag cannot silently widen the surface.
 ANALYSIS_TOOLS = frozenset(
@@ -82,7 +82,7 @@ class Tenant:
         return tools - self.denied_tools
 
     def cbm_profile_flag(self) -> list[str]:
-        """Flag passed to the CBM process; the full profile passes none."""
+        """Flag passed to the engine process; the full profile passes none."""
         if self.tool_profile == "all":
             return []
         return [f"--tool-profile={self.tool_profile}"]

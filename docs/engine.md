@@ -1,14 +1,19 @@
-# Engine constraints (codebase-memory-mcp)
+# The indexing engine
 
-repo-mcp wraps [codebase-memory-mcp][cbm] (CBM) rather than reimplementing it.
-This page records the engine behaviours that constrain the design, verified
-against the upstream source rather than its documentation, so that anyone
-reviewing the architecture can check the reasoning instead of taking it on
-trust.
+repo-mcp does not parse source code itself. It embeds a third-party engine —
+`codebase-memory-mcp`, MIT licensed, attributed in [NOTICE](../NOTICE) — which
+turns a repository into a knowledge graph and answers structural queries
+against it. Everything else in this project is built around it.
 
-Verified against upstream `main`. File references point into the CBM tree.
+**This is the one page that talks about the engine's internals.** It exists
+because the engine's design decides several of ours, and those decisions are
+easier to review when the reasons are written down. Elsewhere in the docs the
+engine is treated as a component with a known contract.
 
-[cbm]: https://github.com/DeusData/codebase-memory-mcp
+Every claim below is verified against the engine's source rather than its
+documentation, so a reviewer can check the reasoning instead of taking it on
+trust. File references point into the engine's own tree; see the NOTICE file
+for where that lives.
 
 ## 1. stdio is the only transport
 

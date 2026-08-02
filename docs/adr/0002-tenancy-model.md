@@ -9,7 +9,7 @@ Squads should not read each other's source. At the same time, "who calls my
 endpoint?" has to be answerable across the whole organisation.
 
 Two verified engine behaviours put these in direct tension
-([cbm-constraints.md §7](../cbm-constraints.md)):
+([engine.md §7](../engine.md)):
 
 - The isolation unit is the cache directory. Stores open as
   `<CBM_CACHE_DIR>/<project>.db` and `list_projects` returns everything in

@@ -1,10 +1,10 @@
 """Indexing worker.
 
-CBM ships a git-polling watcher, but a central deployment turns that into N
+The engine ships a git-polling watcher, but a central deployment turns that into N
 repositories being polled forever. Webhook- and schedule-driven indexing is
 deterministic, has measurable latency, and costs nothing while idle.
 
-CBM holds an OS-backed mutation lock per project, so two workers indexing the
+The engine holds an OS-backed mutation lock per project, so two workers indexing the
 same project would simply block each other. The queue therefore serialises per
 project and coalesces bursts.
 """

@@ -28,7 +28,7 @@ the LDAP groups it impersonates — it picks the first tenant's groups from your
 
 Data lives in `.dev/` and is safe to delete.
 
-The engine itself is not bundled. Without `codebase-memory-mcp` on `PATH`,
+The engine binary is not bundled for local runs. Without it on `PATH`,
 everything except tool execution works — and a tool call returns a clear
 `engine binary not found` error rather than a 500.
 
@@ -84,7 +84,7 @@ Common findings and what they mean:
 
 | Finding | Cause |
 | --- | --- |
-| `codebase-memory-mcp is not on PATH` | Expected with `--docker` (it lives in the image); a real problem for `scripts/dev.sh` |
+| `engine binary not on PATH` | Expected with `--docker` (it lives in the image); a real problem for `scripts/dev.sh` |
 | `GITHUB_TOKEN=MISSING` | Discovery will find nothing; fill in `deploy/.env` |
 | `authentication failed (HTTP 401)` | Wrong token, or `DEV_INSECURE_AUTH` is off and you sent a static one |
 | `authorization failed (HTTP 403)` | You belong to several squads — pass `--tenant` |

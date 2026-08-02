@@ -7,7 +7,7 @@
 ## Context
 
 The engine keeps each project's graph in its own SQLite database, in WAL mode,
-under a cache directory ([cbm-constraints.md §7](../cbm-constraints.md)).
+under a cache directory ([engine.md §7](../engine.md)).
 Two components touch it: the indexer writes, the gateway reads.
 
 SQLite in WAL mode supports many concurrent readers and a single writer — but

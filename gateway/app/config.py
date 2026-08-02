@@ -26,7 +26,7 @@ class Settings:
     dev_static_token: str
     dev_static_groups: tuple[str, ...]
 
-    # --- CBM engine ---
+    # --- indexing engine ---
     cbm_binary: str
     cbm_cache_root: Path
     cbm_repo_root: Path

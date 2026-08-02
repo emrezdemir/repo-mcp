@@ -1,7 +1,7 @@
 # Scaling
 
 Two constraints shape every topology here, both verified in
-[cbm-constraints.md](cbm-constraints.md):
+[engine.md](engine.md):
 
 1. **The engine's cache is SQLite in WAL mode.** Many readers, one writer, on
    a POSIX filesystem. Not on NFS.

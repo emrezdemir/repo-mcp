@@ -1,6 +1,6 @@
 """LLM-backed composite tools.
 
-The raw CBM tools are proxied unchanged; these exist only where synthesis is
+The raw engine tools are proxied unchanged; these exist only where synthesis is
 genuinely needed. Each one runs the deterministic graph query first and hands
 the result to the model — the model is never asked to guess the graph.
 """
@@ -56,7 +56,7 @@ SMART_TOOL_DEFINITIONS: list[dict] = [
 
 SMART_TOOL_NAMES = frozenset(t["name"] for t in SMART_TOOL_DEFINITIONS)
 
-#: Underlying CBM tools each composite tool depends on. A tenant that cannot
+#: Underlying engine tools each composite tool depends on. A tenant that cannot
 #: call the primitives cannot reach them through the composite tool either.
 SMART_TOOL_REQUIREMENTS: dict[str, frozenset[str]] = {
     "explain_change_impact": frozenset({"detect_changes"}),

@@ -43,7 +43,7 @@ pytest
 
 ## Why not the engine's own watcher
 
-codebase-memory-mcp ships a git-polling watcher. Centrally that becomes N
+The indexing engine ships a git-polling watcher. Centrally that becomes N
 repositories polled forever, with latency nobody can predict. Webhook- and
 schedule-driven indexing is deterministic, measurable, and free while idle.
 

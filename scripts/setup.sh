@@ -91,7 +91,7 @@ LITELLM_MODEL=ollama/qwen2.5-coder:14b
 OLLAMA_BASE_URL=http://ollama:11434
 
 # --- engine ---
-# Pin this in production: all CBM processes sharing a cache root must be the
+# Pin this in production: all engine processes sharing a cache root must be the
 # same build (exact-build admission barrier).
 CBM_VERSION=latest
 

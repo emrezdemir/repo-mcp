@@ -1,10 +1,10 @@
 """The MCP surface exposed to agents (JSON-RPC over HTTP).
 
-CBM tools are proxied through a filter, with LLM-backed composite tools added
+Engine tools are proxied through a filter, with LLM-backed composite tools added
 on top. Authorization is applied independently in three places:
 
 1. here — role capabilities, tenant tool profile and project allowlist;
-2. in the CBM process — via ``--tool-profile``;
+2. in the engine process — via ``--tool-profile``;
 3. on the filesystem — per-tenant ``CBM_CACHE_DIR`` and ``CBM_ALLOWED_ROOT``.
 
 A mistake in any one layer does not open the others.
@@ -278,7 +278,7 @@ class McpRouter:
 
         if name in PROJECT_ARG_TOOLS:
             project = args.get("project")
-            # When the argument is optional, let CBM raise its own error; when
+            # When the argument is optional, let the engine raise its own error; when
             # it is supplied it is always validated.
             if project is not None and (
                 not isinstance(project, str) or not session.tenant.allows_project(project)

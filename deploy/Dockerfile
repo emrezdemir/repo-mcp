@@ -1,7 +1,7 @@
-# Shared image for the gateway and the indexer. Both need the CBM binary: the
+# Shared image for the gateway and the indexer. Both need the engine binary: the
 # gateway spawns it as an MCP server, the indexer invokes its CLI.
 #
-# CBM enforces an exact-build admission barrier — every CBM process sharing a
+# The engine enforces an exact-build admission barrier — every engine process sharing a
 # cache root must be the same build. Pinning CBM_VERSION and running one image
 # everywhere is what keeps that invariant true.
 #
@@ -13,6 +13,12 @@ FROM debian:bookworm-slim AS engine
 ARG CBM_VERSION=latest
 # Optional: set to the published SHA-256 of the binary to verify the download.
 ARG CBM_SHA256=
+# Where to fetch the engine from. Override to point at an internal mirror or
+# artifact repository — useful in air-gapped builds and when you want the
+# supply chain to run through your own infrastructure.
+ARG CBM_RELEASE_BASE=https://github.com/DeusData/codebase-memory-mcp/releases
+# Set to a full URL to bypass the version/architecture layout entirely.
+ARG CBM_DOWNLOAD_URL=
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl \
@@ -25,11 +31,12 @@ RUN set -eux; \
       arm64) cbm_arch=arm64 ;; \
       *) echo "unsupported architecture: $arch" >&2; exit 1 ;; \
     esac; \
-    base="https://github.com/DeusData/codebase-memory-mcp/releases"; \
-    if [ "$CBM_VERSION" = "latest" ]; then \
-      url="$base/latest/download/codebase-memory-mcp-linux-${cbm_arch}"; \
+    if [ -n "$CBM_DOWNLOAD_URL" ]; then \
+      url="$CBM_DOWNLOAD_URL"; \
+    elif [ "$CBM_VERSION" = "latest" ]; then \
+      url="${CBM_RELEASE_BASE}/latest/download/codebase-memory-mcp-linux-${cbm_arch}"; \
     else \
-      url="$base/download/${CBM_VERSION}/codebase-memory-mcp-linux-${cbm_arch}"; \
+      url="${CBM_RELEASE_BASE}/download/${CBM_VERSION}/codebase-memory-mcp-linux-${cbm_arch}"; \
     fi; \
     curl -fsSL --retry 3 --retry-delay 2 "$url" -o /out-cbm; \
     if [ -n "$CBM_SHA256" ]; then \
@@ -69,7 +76,7 @@ LABEL org.opencontainers.image.title="repo-mcp ${SERVICE}" \
 
 # git is a runtime dependency: the indexer clones and fetches working copies.
 # tini reaps the engine processes the gateway spawns — without an init, a
-# crashed CBM process would linger as a zombie for the container's lifetime.
+# crashed engine process would linger as a zombie for the container's lifetime.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates git tini curl \
     && rm -rf /var/lib/apt/lists/* \

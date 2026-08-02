@@ -6,7 +6,7 @@
 
 ## Context
 
-CBM stores exactly one graph per project: the current one. `detect_changes`
+The engine stores exactly one graph per project: the current one. `detect_changes`
 compares a working tree against a base branch using git — it does not read
 stored snapshots. Reindexing a project overwrites the previous graph.
 

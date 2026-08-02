@@ -9,32 +9,25 @@ for chatbots, and for CI pipelines.
 
 ---
 
-`repo-mcp` wraps [codebase-memory-mcp][cbm] (CBM), an excellent local code
-intelligence engine, and supplies what a shared deployment needs and CBM
-deliberately does not have: network transport, LDAP-backed identity,
-squad-level tenancy, role-based authorization, audit logging, automatic
-repository discovery, and an LLM reasoning layer routed through
-[LiteLLM][litellm].
+Ask *"who calls this function?"*, *"what breaks if I change this?"* or *"which
+services hit this endpoint?"* and get an answer computed from the code itself,
+not guessed from a context window.
 
-The engine is never modified. Upstream releases are adopted by changing a
-version number — see [ADR-0001](docs/adr/0001-wrap-dont-fork.md).
-
-[cbm]: https://github.com/DeusData/codebase-memory-mcp
-[litellm]: https://github.com/BerriAI/litellm
+repo-mcp runs as a service your whole company shares: LDAP-backed login,
+squad-level isolation, role-based permissions, automatic repository discovery,
+audit logging, and an LLM reasoning layer routed through your own
+[LiteLLM](https://github.com/BerriAI/litellm) proxy — hosted models, vLLM or
+Ollama, your choice.
 
 ## Why
 
-CBM indexes a repository into a knowledge graph so an agent can ask *"who
-calls this function?"* instead of grepping. It is fast, offline and
-single-user by design: stdio only, no authentication, one cache directory per
-account.
+Code intelligence tools are built for one developer on one laptop. That is the
+wrong shape for a company: every developer reindexes the same repositories, no
+graph is ever shared between teams, cross-service questions cannot be answered
+at all, and none of that knowledge is reachable from a chatbot or a CI job.
 
-That design is right for a laptop and wrong for an organisation. Every
-developer reindexes the same repositories, no graph is shared across teams,
-and there is no way to answer a cross-service question or to hand the same
-knowledge to a chatbot or a CI job.
-
-repo-mcp keeps the engine and adds the missing half.
+repo-mcp makes it a shared service — indexed once, centrally, with the access
+control an organisation actually needs.
 
 ## What it does
 
@@ -47,27 +40,30 @@ repo-mcp keeps the engine and adds the missing half.
 - **Speaks MCP over HTTP.** Any MCP client — Claude Code, Cursor, Copilot, a
   chatbot, a pipeline — connects to one endpoint with an OIDC token.
 - **Authenticates against LDAP.** Active Directory or OpenLDAP, federated
-  through Keycloak; the gateway keeps no user table of its own.
+  through Keycloak; repo-mcp keeps no user table of its own.
 - **Isolates by squad, with three independent layers.** Role capabilities and
-  project allowlists in the gateway, the engine's own fail-closed tool profile,
-  and per-tenant filesystem roots. A mistake in one does not open the others.
-- **Adds reasoning through LiteLLM.** Change-impact narratives and
-  natural-language questions, backed by hosted models, vLLM or Ollama — a proxy
-  configuration choice, not a code change.
+  project allowlists at the gateway, a fail-closed tool profile inside the
+  engine process, and per-tenant filesystem roots. A mistake in one does not
+  open the others.
+- **Answers in prose when that helps.** Change-impact summaries for pull
+  requests and natural-language questions, always grounded in a graph query
+  first — the model is never asked to guess the graph.
 - **Audits everything.** One structured JSON record per call, including
-  denials, because `get_code_snippet` returns real source.
+  denials, because reading a snippet means reading real source.
 
 ## Architecture at a glance
 
 ```
- Agents · Chatbots · CI ──MCP over HTTP + OIDC──▶ Gateway ──stdio──▶ CBM (per tenant)
-                                                    │
+ Agents · Chatbots · CI ──MCP over HTTP + OIDC──▶ Gateway ──▶ indexing engine
+                                                    │          (per tenant)
                                                     └──HTTPS──▶ LiteLLM ──▶ model
 
  GitHub · GitLab · Bitbucket ──webhook/schedule──▶ Indexer ──▶ graph store
 ```
 
-Full detail in [docs/architecture.md](docs/architecture.md).
+Two services. The **gateway** authenticates, authorizes and serves the MCP
+surface. The **indexer** discovers repositories and keeps their graphs current.
+Both drive an embedded indexing engine; see [docs/architecture.md](docs/architecture.md).
 
 ## Quick start
 
@@ -136,11 +132,11 @@ connectors:
 | | |
 | --- | --- |
 | [Architecture](docs/architecture.md) | components, data flow, what is not built yet |
-| [Engine constraints](docs/cbm-constraints.md) | source-verified CBM behaviours that shape the design |
 | [Roles and permissions](docs/roles-and-permissions.md) | capabilities, roles, chapters, how the axes combine |
 | [Deployment](docs/deployment.md) | Keycloak/LDAP, webhooks, CI, production notes |
 | [Scaling](docs/scaling.md) | storage topologies, what to watch, capacity planning |
 | [Development](docs/development.md) | the scripts, the test layers, how to debug |
+| [Indexing engine](docs/engine.md) | what the embedded engine does, and the limits it imposes |
 | [Roadmap](docs/roadmap.md) | done, next, and explicitly not planned |
 | [Decision records](docs/adr/) | why the design is what it is |
 
@@ -174,7 +170,7 @@ Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Licence
 
-MIT, matching the engine it wraps. See [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).
 
-`repo-mcp` is an independent project, not affiliated with or endorsed by the
-codebase-memory-mcp maintainers.
+repo-mcp bundles a third-party indexing engine; its licence and attribution
+are in [NOTICE](NOTICE).

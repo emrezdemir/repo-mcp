@@ -2,39 +2,32 @@
 
 **Organizasyon geneli merkezi kod zekâsı.** Bir GitHub organizasyonu, GitLab
 grubu veya Bitbucket workspace'i verirsiniz; altındaki tüm repolar
-sorgulanabilir bir bilgi grafiğine dönüşür — MCP üzerinden kodlama
-agent'ları, chatbotlar ve CI pipeline'ları için.
+sorgulanabilir bir bilgi grafiğine dönüşür — MCP üzerinden kodlama agent'ları,
+chatbotlar ve CI pipeline'ları için.
 
 [English](README.md)
 
 ---
 
-`repo-mcp`, mükemmel bir yerel kod zekâsı motoru olan
-[codebase-memory-mcp][cbm]'yi (CBM) sarmalar ve paylaşımlı bir kurulumun
-ihtiyaç duyduğu, CBM'in ise tasarım gereği içermediği parçaları ekler: ağ
-transportu, LDAP tabanlı kimlik, squad bazlı kiracılık, rol tabanlı
-yetkilendirme, denetim kaydı, otomatik repo keşfi ve [LiteLLM][litellm]
-üzerinden geçen bir akıl katmanı.
+*"Bu fonksiyonu kim çağırıyor?"*, *"Bunu değiştirirsem ne kırılır?"* veya
+*"Bu endpoint'i hangi servisler çağırıyor?"* diye sorun; cevabı bir context
+penceresinden tahmin edilmiş değil, kodun kendisinden hesaplanmış olarak alın.
 
-Motora hiç dokunulmaz. Upstream sürümleri bir versiyon numarası değiştirilerek
-alınır — bkz. [ADR-0001](docs/adr/0001-wrap-dont-fork.md).
-
-[cbm]: https://github.com/DeusData/codebase-memory-mcp
-[litellm]: https://github.com/BerriAI/litellm
+repo-mcp tüm şirketin paylaştığı bir servis olarak çalışır: LDAP tabanlı giriş,
+squad bazlı izolasyon, rol tabanlı yetkiler, otomatik repo keşfi, denetim kaydı
+ve kendi [LiteLLM](https://github.com/BerriAI/litellm) proxy'nizden geçen bir
+akıl katmanı — hosted model, vLLM veya Ollama, seçim sizin.
 
 ## Neden
 
-CBM bir repoyu bilgi grafiğine indeksler; böylece agent grep yapmak yerine
-*"bu fonksiyonu kim çağırıyor?"* diye sorabilir. Hızlı, çevrimdışı ve tasarımı
-gereği tek kullanıcılıdır: yalnız stdio, kimlik doğrulama yok, hesap başına tek
-cache dizini.
+Kod zekâsı araçları tek geliştirici, tek dizüstü için tasarlanmıştır. Bu bir
+şirket için yanlış şekildir: her geliştirici aynı repoları yeniden indeksler,
+takımlar arasında hiçbir graph paylaşılmaz, servisler arası sorular hiç
+cevaplanamaz ve bu bilginin hiçbiri bir chatbot'tan veya CI işinden
+erişilebilir değildir.
 
-Bu tasarım bir dizüstü için doğru, bir organizasyon için yanlıştır. Her
-geliştirici aynı repoları yeniden indeksler, takımlar arasında graph
-paylaşılamaz, servisler arası bir soru cevaplanamaz ve aynı bilgi bir chatbot
-veya CI işine verilemez.
-
-repo-mcp motoru olduğu gibi bırakıp eksik yarıyı ekler.
+repo-mcp bunu paylaşımlı bir servise dönüştürür — merkezî olarak bir kez
+indekslenmiş, bir organizasyonun gerçekten ihtiyaç duyduğu erişim kontrolüyle.
 
 ## Ne yapar
 
@@ -47,47 +40,47 @@ repo-mcp motoru olduğu gibi bırakıp eksik yarıyı ekler.
 - **MCP'yi HTTP üzerinden konuşur.** Herhangi bir MCP istemcisi — Claude Code,
   Cursor, Copilot, chatbot, pipeline — tek bir uca OIDC token'ıyla bağlanır.
 - **LDAP ile kimlik doğrular.** Active Directory veya OpenLDAP, Keycloak
-  üzerinden federe edilir; gateway kendi kullanıcı tablosunu tutmaz.
+  üzerinden federe edilir; repo-mcp kendi kullanıcı tablosunu tutmaz.
 - **Squad bazında izole eder, üç bağımsız katmanla.** Gateway'de rol
-  yetenekleri ve proje allowlist'i, motorun kendi fail-closed araç profili ve
-  kiracı başına dosya sistemi kökleri. Birindeki hata diğerlerini açmaz.
-- **LiteLLM ile akıl ekler.** Değişiklik etkisi anlatımı ve doğal dilde
-  sorular; hosted model, vLLM veya Ollama ile — kod değişikliği değil, proxy
-  yapılandırması meselesi.
+  yetenekleri ve proje allowlist'i, motor process'i içinde fail-closed araç
+  profili ve kiracı başına dosya sistemi kökleri. Birindeki hata diğerlerini
+  açmaz.
+- **Gerektiğinde düz metinle cevaplar.** Pull request'ler için değişiklik
+  etkisi özetleri ve doğal dilde sorular — her zaman önce bir graph sorgusuna
+  dayanarak; modelden graph'i tahmin etmesi asla istenmez.
 - **Her şeyi denetler.** Çağrı başına tek satır JSON kaydı, redler dahil;
-  çünkü `get_code_snippet` gerçek kaynak kod döndürür.
+  çünkü bir snippet okumak gerçek kaynak kodu okumak demektir.
 
 ## Mimari, tek bakışta
 
 ```
- Agent · Chatbot · CI ──MCP over HTTP + OIDC──▶ Gateway ──stdio──▶ CBM (kiracı başına)
-                                                  │
+ Agent · Chatbot · CI ──MCP over HTTP + OIDC──▶ Gateway ──▶ indeksleme motoru
+                                                  │          (kiracı başına)
                                                   └──HTTPS──▶ LiteLLM ──▶ model
 
  GitHub · GitLab · Bitbucket ──webhook/zamanlama──▶ Indexer ──▶ graph deposu
 ```
 
-Ayrıntı: [docs/architecture.md](docs/architecture.md) (İngilizce).
+İki servis. **Gateway** kimlik doğrular, yetkilendirir ve MCP yüzeyini sunar.
+**Indexer** repoları keşfeder ve graph'larını güncel tutar. İkisi de gömülü bir
+indeksleme motorunu sürer; bkz. [docs/architecture.md](docs/architecture.md).
 
 ## Hızlı başlangıç
 
 ```bash
 git clone https://github.com/emrezdemir/repo-mcp
-cd repo-mcp/deploy
+cd repo-mcp
 
-cp tenants.example.yaml tenants.yaml     # roller, squad'lar, proje izinleri
-cp scan.example.yaml scan.yaml           # hangi org/grup indekslenecek
-
-export LITELLM_MASTER_KEY=$(openssl rand -hex 24)
-export GITHUB_TOKEN=ghp_...              # keşif için salt-okunur token
-export CI_TRIGGER_TOKEN=$(openssl rand -hex 24)
-
-docker compose up --build
+make setup      # venv'ler, bağımlılıklar, config dosyaları, üretilmiş secret'lar
+# deploy/.env (bir provider token'ı ekleyin) ve deploy/scan.yaml düzenleyin
+make up         # Docker stack'ini kur ve başlat
+make smoke      # uçtan uca doğrula
 ```
 
 Ardından keşfi ve indekslemeyi başlatın:
 
 ```bash
+source deploy/.env
 curl -X POST http://localhost:8082/rescan -H "Authorization: Bearer $CI_TRIGGER_TOKEN"
 curl http://localhost:8082/repos
 ```
@@ -95,6 +88,10 @@ curl http://localhost:8082/repos
 MCP istemcisini `http://localhost:8080/mcp` adresine, OIDC bearer token'ı ve
 `X-Tenant` başlığıyla yöneltin. Keycloak ve LDAP kurulumu dahil tam anlatım:
 [docs/deployment.md](docs/deployment.md).
+
+Bir şey çalışmazsa `make debug`; toolchain'i, motoru, yapılandırmayı, depolamayı,
+iki servisi, gerçek bir MCP round-trip'ini ve model backend'ini kontrol eder —
+ilk sorunda durmaz, bulduğu her şeyi raporlar.
 
 ## Yapılandırma
 
@@ -136,9 +133,11 @@ Dokümantasyon İngilizcedir.
 | | |
 | --- | --- |
 | [Architecture](docs/architecture.md) | bileşenler, veri akışı, henüz yapılmayanlar |
-| [Engine constraints](docs/cbm-constraints.md) | tasarımı belirleyen, kaynak koddan doğrulanmış CBM davranışları |
 | [Roles and permissions](docs/roles-and-permissions.md) | yetenekler, roller, chapter'lar |
 | [Deployment](docs/deployment.md) | Keycloak/LDAP, webhook, CI, üretim notları |
+| [Scaling](docs/scaling.md) | depolama topolojileri, izlenecek metrikler, kapasite |
+| [Development](docs/development.md) | scriptler, test katmanları, hata ayıklama |
+| [Indexing engine](docs/engine.md) | gömülü motor ne yapar ve hangi sınırları dayatır |
 | [Roadmap](docs/roadmap.md) | yapılan, sıradaki ve açıkça planlanmayan |
 | [Decision records](docs/adr/) | tasarımın gerekçeleri |
 
@@ -152,15 +151,27 @@ varsaymadan önce okuyun.
 ## Geliştirme
 
 ```bash
-cd gateway && pip install -e '.[dev]' && pytest
-cd ../indexer && pip install -e '.[dev]' && pytest
+make setup      # venv'ler ve bağımlılıklar
+make test       # iki servis için lint ve birim testleri
+make dev        # iki servisi lokalde çalıştır, Docker'sız, auto-reload
+make debug      # çalışmayan neyse teşhis et
+make e2e        # image'ları kur, gerçek repo indeksle, sorgula, kapat
+make help       # geri kalan her şey
 ```
+
+Her hedef [`scripts/`](scripts/) altında bir scripttir — isterseniz doğrudan
+çalıştırın. Ayrıntı: [docs/development.md](docs/development.md).
+
+Kubernetes kurulumu [`deploy/helm/repo-mcp`](deploy/helm/repo-mcp) chart'ını
+kullanır; herhangi bir replica sayısını artırmadan önce
+[docs/scaling.md](docs/scaling.md) okuyun — depolama topolojisi bunu
+sınırlıyor.
 
 Katkılar açıktır — bkz. [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Lisans
 
-MIT; sarmaladığı motorla aynı. Bkz. [LICENSE](LICENSE).
+MIT — bkz. [LICENSE](LICENSE).
 
-`repo-mcp` bağımsız bir projedir; codebase-memory-mcp geliştiricileriyle
-bağlantılı veya onlar tarafından onaylanmış değildir.
+repo-mcp üçüncü taraf bir indeksleme motoru paketler; lisansı ve atfı
+[NOTICE](NOTICE) dosyasındadır.

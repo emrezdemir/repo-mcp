@@ -84,12 +84,29 @@ deletions and pushes to other refs are acknowledged and ignored.
 
 ## Production notes
 
-**One pinned engine build.** CBM enforces an exact-build admission barrier
+**One pinned engine build.** The engine enforces an exact-build admission barrier
 across processes sharing a cache root. Pin `CBM_VERSION` in the image and
 upgrade a tenant's processes together — `Recreate`, not `RollingUpdate`. A
 half-upgraded tenant fails with a version cohort conflict.
 
-**Never expose the engine.** CBM has no authentication. The gateway is the only
+**Build the engine in from your own infrastructure.** The image fetches the
+engine binary at build time. For an air-gapped or supply-chain-controlled
+build, mirror the release and point the build at it:
+
+```bash
+docker build -f deploy/Dockerfile \
+  --build-arg SERVICE=gateway \
+  --build-arg CBM_RELEASE_BASE=https://artifacts.internal/repo-mcp/engine \
+  --build-arg CBM_VERSION=v1.2.3 \
+  --build-arg CBM_SHA256=<published checksum> \
+  .
+```
+
+`CBM_DOWNLOAD_URL` bypasses the layout entirely if your mirror names files
+differently. Setting `CBM_SHA256` makes the build fail on any mismatch, which
+is what you want once a version is pinned.
+
+**Never expose the engine.** The engine has no authentication. The gateway is the only
 ingress; `CBM_ALLOWED_ROOT` is the backstop, not the control.
 
 **Storage.** Stores are plain files at `<cache>/tenant/<squad>/<project>.db`,

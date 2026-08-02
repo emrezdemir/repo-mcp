@@ -14,7 +14,7 @@ cd gateway && pip install -e '.[dev]' && pytest && cd ..
 cd indexer && pip install -e '.[dev]' && pytest && cd ..
 ```
 
-The tests need neither the CBM binary nor network access. Anything that does
+The tests need neither the engine binary nor network access. Anything that does
 belongs behind a marker, not in the default run.
 
 For an end-to-end environment, see [docs/deployment.md](docs/deployment.md).
@@ -30,8 +30,8 @@ For an end-to-end environment, see [docs/deployment.md](docs/deployment.md).
 
 ## Things worth knowing before you change things
 
-**The engine is not ours to modify.** repo-mcp wraps codebase-memory-mcp and
-never patches it — see [ADR-0001](docs/adr/0001-wrap-dont-fork.md). If
+**The engine is not ours to modify.** repo-mcp wraps a third-party indexing
+engine (see [NOTICE](NOTICE)) and never patches it — see [ADR-0001](docs/adr/0001-wrap-dont-fork.md). If
 something needs an engine change, it is an upstream issue, and we work around
 it here in the meantime.
 
@@ -42,7 +42,7 @@ that makes one layer depend on another is a change to the security model —
 please raise it as an issue first.
 
 **Claims about engine behaviour need a source reference.**
-[docs/cbm-constraints.md](docs/cbm-constraints.md) cites files in the CBM tree
+[docs/engine.md](docs/engine.md) cites files in the engine's tree
 rather than its documentation, deliberately, so reviewers can verify rather
 than trust. Keep that standard.
 

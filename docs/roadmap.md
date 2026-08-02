@@ -4,7 +4,7 @@ Honest status. Anything not marked *done* is not built yet.
 
 ## Done
 
-- **Engine bridge.** One CBM process per tenant over stdio, with idle reaping,
+- **Engine bridge.** One engine process per tenant over stdio, with idle reaping,
   timeout recovery and per-tenant `CBM_CACHE_DIR` / `CBM_ALLOWED_ROOT`.
 - **MCP over HTTP.** `initialize`, `tools/list`, `tools/call`, single and
   batch requests.
@@ -33,7 +33,7 @@ Honest status. Anything not marked *done* is not built yet.
 **1. Web UI — codebase map and manual search.** The largest remaining piece,
 and effectively a product of its own. The upstream 3D visualiser cannot be
 reused: it binds to `127.0.0.1` by construction
-([cbm-constraints.md §2](cbm-constraints.md)). This needs a read API over the
+([engine.md §2](engine.md)). This needs a read API over the
 graph, a rendering strategy that survives large graphs (level-of-detail,
 server-side layout, viewport queries), and the same authorization the MCP
 surface enforces.
@@ -69,9 +69,9 @@ speaks MCP. A thin adapter for platforms that do not would widen reach.
 ## Not planned
 
 - **Forking the engine.** See [ADR-0001](adr/0001-wrap-dont-fork.md).
-- **Replacing the embedding model.** It is compiled into the CBM binary and
+- **Replacing the embedding model.** It is compiled into the engine binary and
   cannot be redirected. If the bundled model proves insufficient, the answer is
   a second vector layer beside it, not a fork.
 - **Replacing local use.** The `graph.db.zst` artifact is meant to be shared
-  with developer machines so local CBM bootstraps from it. Central indexing and
+  with developer machines so a local engine bootstraps from it. Central indexing and
   local use are complementary.

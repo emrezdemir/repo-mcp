@@ -69,8 +69,8 @@ export DEV_STATIC_GROUPS
 
 if ! command -v "$CBM_BINARY" >/dev/null 2>&1; then
   warn "$CBM_BINARY is not on PATH — gateway tool calls will fail."
-  dim "      Install it: https://github.com/DeusData/codebase-memory-mcp"
-  dim "      Or:         npm install -g codebase-memory-mcp"
+  dim "      Install the indexing engine (see NOTICE), or set CBM_BINARY."
+  dim "      Everything except tool execution works without it."
 fi
 
 cat <<EOF
