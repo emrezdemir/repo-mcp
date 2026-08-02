@@ -27,7 +27,7 @@ real file rather than guessing. Fast orientation:
 | What can a role do? | `gateway/app/roles.py` |
 | How is a squad isolated? | `gateway/app/tenants.py`, `gateway/app/cbm.py` (`_env`) |
 | How does the engine bridge work? | `gateway/app/cbm.py` |
-| How are repositories discovered? | `indexer/app/providers.py` |
+| How are repositories discovered? | `common/repo_mcp_common/providers.py` |
 | How does indexing get triggered? | `indexer/app/main.py`, `indexer/app/worker.py` |
 | Why is the design like this? | `docs/adr/`, `docs/engine.md` |
 

@@ -30,6 +30,29 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`GET /api/ui-config`**, backed by a new `ui.language` setting, so an
   installation can pin the interface's language instead of following the
   browser. The interface asked for this endpoint on every load and got a 404.
+- **A connector can be checked before it is trusted.** Configuring one is four
+  things that must all be right at once — the provider, the container name, a
+  token with the right scope, and patterns that keep something — and until now
+  none of them was confirmed when it was typed. A wrong organisation and an
+  expired token produced the same symptom hours later: nothing indexed, with
+  no indication which of the four was wrong.
+
+  `repo-mcp-admin connector check NAME` and a **Check** button on the console's
+  connector form now run real discovery against the provider and report what
+  came back — `34 of 41 repositories would be indexed`, with the names — or
+  the reason, in words that name what to change: the token was refused, no
+  such organisation, the patterns keep none of them. Read-only and bounded;
+  the console's version runs against what is on screen rather than what is
+  stored, and writes nothing. The command exits non-zero when the connector
+  does not work, so a deployment script can use it.
+
+  A token can also be stored from that form now, instead of leaving for the
+  Secrets section and losing everything typed so far.
+
+  Repository discovery moved from `indexer/app/providers.py` to
+  `common/repo_mcp_common/providers.py`: the gateway needs it to answer this,
+  and duplicating three provider clients to avoid moving one file would be the
+  worse trade.
 - **`dev` no longer falls behind `main`.** Merging through a pull request
   leaves one commit on `main` that `dev` never gets — the merge commit GitHub
   writes — so the content stayed identical while the history diverged by one
@@ -61,6 +84,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   other, which needs no repository setting and survives the default branch
   being changed. Verified by dispatch: `deploy-pages` reported success and
   `https://emrezdemir.github.io/repo-mcp/` is live.
+- **An interface test had been red since the capability gate landed.**
+  `NodeDetailPanel`'s "Show code" button is now behind `useCan`, and the test
+  has no session, so the button it clicks was never rendered. The test asserts
+  that fetched source is escaped rather than injected as HTML — worth keeping
+  working — so it now mocks a caller whose role may read source.
 - **Search answered from the screen rather than the project.** The graph is
   drawn up to a node budget, and the search box filtered only what was drawn
   — so a symbol that exists but was outside the budget produced "No matches".

@@ -14,12 +14,18 @@ The three providers model "a container of repositories" differently:
 
 Each provider returns the same :class:`DiscoveredRepo` shape so the rest of
 the indexer stays provider-agnostic.
+
+This lives in the shared package rather than in the indexer because the
+gateway needs it too: an administrator saving a connector is told there and
+then whether the token works and what it can see, and that answer can only
+come from asking the provider.
 """
 
 from __future__ import annotations
 
+import fnmatch
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterable
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -50,6 +56,21 @@ class Provider(Protocol):
 
     def discover(self) -> AsyncIterator[DiscoveredRepo]:
         ...
+
+
+def selected(full_name: str, include: Iterable[str], exclude: Iterable[str]) -> bool:
+    """Whether a connector's patterns keep this repository.
+
+    Patterns match either the provider-qualified name (``acme/payments-api``)
+    or the last segment alone (``payments-api``), because both are natural to
+    type and guessing which one was meant is worse than accepting both.
+    """
+    short = full_name.split("/")[-1]
+
+    def hit(pattern: str) -> bool:
+        return fnmatch.fnmatchcase(full_name, pattern) or fnmatch.fnmatchcase(short, pattern)
+
+    return any(hit(p) for p in include) and not any(hit(p) for p in exclude)
 
 
 class GitHubProvider:

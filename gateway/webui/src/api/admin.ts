@@ -136,6 +136,28 @@ export const putConnector = (name: string, body: unknown) =>
 export const deleteConnector = (name: string) =>
   request(`/connectors/${encodeURIComponent(name)}`, { method: "DELETE" });
 
+export interface ConnectorCheck {
+  ok: boolean;
+  reason: string;
+  discovered: number;
+  matched: number;
+  skipped: number;
+  truncated: boolean;
+  sample: string[];
+  excluded: string[];
+}
+
+/* Runs against what is on screen rather than what is stored, so a wrong token
+ * or a wrong organisation is found before saving instead of hours later, as
+ * an empty index nobody can explain. Nothing is written. */
+export const checkConnector = (body: {
+  provider: string;
+  settings: Record<string, string>;
+  token_secret: string | null;
+  include: string[];
+  exclude: string[];
+}) => request<ConnectorCheck>("/connectors/check", { method: "POST", body: JSON.stringify(body) });
+
 export const putSecret = (name: string, value: string, description?: string) =>
   request(`/secrets/${encodeURIComponent(name)}`, {
     method: "PUT",

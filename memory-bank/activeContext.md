@@ -44,6 +44,19 @@ elsewhere, so no repository setting is needed and changing the default branch
 cannot break it again. Confirmed by dispatch on `dev`: `deploy-pages` reported
 success and the URL is live.
 
+Then the connector form, which existed but left two gaps: the token secret had
+to be created on another tab first, and nothing confirmed the connector worked
+— a wrong organisation and an expired token both showed up hours later as
+"nothing indexed". `connector check` runs real discovery and reports it in
+words, on both surfaces; a token can be stored from the form. Discovery moved
+to `common/` because the gateway needs it now. Verified against a stand-in
+GitHub API through the real endpoint and the real command: every failure path
+returns its own sentence.
+
+That work also found the interface test suite red — `NodeDetailPanel`'s "Show
+code" test broke when session 12 put the button behind `useCan`, and CI's
+`web interface` job had been failing since. It was the only red job.
+
 **Session 12 — auditing the adopted interface, and the Ask tab.** Driving
 every surface against the real engine found that the interface was hiding
 refusals: a squad on the analysis profile cannot call `manage_adr`, and the
