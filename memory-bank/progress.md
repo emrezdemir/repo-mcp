@@ -75,12 +75,16 @@ external system. Treat their behaviour as unproven.
 | Provider discovery | A real GitHub org, GitLab group or Bitbucket workspace — pagination and rate limits in particular |
 | Webhook endpoints | A real webhook delivery from any provider |
 | LiteLLM composite tools | A live LiteLLM proxy |
-| Container images | Never built here; CI builds them |
+| Container images | Still never built here — no Docker daemon. The engine download and the pip install were each reproduced outside Docker against the real release, and CI builds the image itself |
 | PostgreSQL | Everything was exercised against SQLite. The schema and migration are the same, but no PostgreSQL server has run here |
 | The `init` Compose container | Never started; the same commands were run directly |
-| Helm chart | Never rendered by `helm`; only structurally checked. CI runs `helm lint` and `helm template` |
+| Helm chart | Never rendered by `helm`; `make check-chart` checks templates against `values.yaml`, and CI runs `helm lint` and `helm template` |
+| Image publishing and the release workflow | No push to a registry has happened; the tag guard, the packaged chart and the `dev-<sha>` publish are all unexercised |
+| The bootstrap hook Job | Never run in a cluster; the same `repo-mcp-admin init` command was run directly |
 | End-to-end script | Never run; needs Docker |
 | Keycloak/LDAP federation | Documented, never stood up |
+| Headroom | Never started. The routing, the fallback and the embedding bypass are unit-tested against a mock transport; no Headroom container has run, and its own upstream configuration is its documentation, not ours |
+| The answer cache's semantic tier | A real embedding model. The storage, scoring, isolation and invalidation are unit-tested with synthetic vectors; no `/embeddings` call has been made |
 
 **First real deployment should start here.** These are where surprises live.
 
@@ -122,12 +126,25 @@ Not bugs — consequences of decisions, recorded so nobody rediscovers them.
 | `readme = "../README.md"` rejected by setuptools | `make setup` | Per-service READMEs |
 | `:ro` cache mount would break SQLite WAL readers | Review | Read-write mount; writes prevented by the tool profile instead |
 | `grep` treating `-----BEGIN` as an option | Testing the scanner | `grep -- "$pattern"` |
+| The chart supplied no `DATABASE_URL`, so an install could not have started | Reading the chart while adding environments | Database, secret key and environment label added; ConfigMap removed |
+| The chart pointed both deployments at one image | The same read | Repository is a base, component is a suffix — matching CI |
+| `scripts/dev.sh` and the CI smoke started services with no database | Running `make dev` | `dev.sh` creates and seeds a local SQLite database; CI runs against PostgreSQL |
+| The image build fetched the engine from a URL that has never existed — the release ships a `.tar.gz`, not a bare binary | CI, on the first run that got that far | Fetch and unpack the archive, verified against the release's own `checksums.txt` |
+| The image never copied `common/`, so pip looked for `repo-mcp-common` on PyPI | CI, once the engine download stopped failing first | Both projects copied into the build context and installed in one pip run |
+| Eight shellcheck warnings, one a `cd` whose failure would have run the next command against the wrong tree | CI | Fixed; `make test` runs shellcheck now |
+| `deploy/docker-compose.yml` did not parse: unquoted `${VAR:-default}` in a flow mapping, and a duplicate `ENVIRONMENT` key | Running `docker compose config` while adding a service | Quoted, deduplicated, and `make test` validates the file now |
+| Migration 0001 built the schema from the live models, so it created 0002's tables and 0002 then failed | Adding the second migration | 0001 transcribed explicitly, plus a test comparing the migrated schema to the models |
+| Four administrator-editable `indexer.*` settings were read by nothing | Checking which chart values were still real | The indexer reads them from the store, re-reading the rescan interval each pass |
 
 ## Never verified in this environment
 
 Stated plainly so nobody assumes otherwise:
 
 - No Docker build has run here (proxy restrictions). CI covers it.
-- `helm` could not be installed here. CI covers `lint` and `template`.
+- `helm` could not be installed here — `get.helm.sh` returns 403 through the
+  proxy. `make check-chart` covers the templates without it; CI covers `lint`
+  and `template`.
+- No image has been pushed to a registry from here, and no release tag has
+  been cut. The release workflow's guards are unexercised.
 - The engine binary was never available here; the bridge is tested against a
   fake engine that speaks the same protocol.

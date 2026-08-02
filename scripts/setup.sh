@@ -29,7 +29,7 @@ ok "python $PY_VERSION"
 
 for service in common gateway indexer; do
   log "setting up $service"
-  cd "$REPO_ROOT/$service"
+  cd "$REPO_ROOT/$service" || die "cannot enter $service"
   if (( CREATE_VENV )); then
     [[ -d .venv ]] || python3 -m venv .venv
     ./.venv/bin/pip install --quiet --upgrade pip
@@ -40,7 +40,7 @@ for service in common gateway indexer; do
     ok "$service dependencies installed into the active environment"
   fi
 done
-cd "$REPO_ROOT"
+cd "$REPO_ROOT" || die "cannot enter $REPO_ROOT"
 
 # ── configuration ─────────────────────────────────────────────────────
 

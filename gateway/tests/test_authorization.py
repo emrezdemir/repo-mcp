@@ -44,12 +44,18 @@ def settings(tmp_path=None) -> Settings:
         cbm_repo_root=__import__("pathlib").Path("/var/lib/repo-mcp/repos"),
         cbm_idle_timeout_s=900.0,
         cbm_call_timeout_s=120.0,
-        tenants_file=__import__("pathlib").Path("/dev/null"),
         litellm_base_url="",
         litellm_api_key="",
         litellm_model="test",
         litellm_timeout_s=30.0,
         smart_tools_enabled=False,
+        answer_cache_enabled=False,
+        answer_cache_embedding_model="",
+        answer_cache_threshold=0.95,
+        answer_cache_ttl_s=604800.0,
+        headroom_enabled=False,
+        headroom_base_url="",
+        headroom_fallback=True,
     )
 
 

@@ -61,8 +61,24 @@ check-docs: ## Enforce the documentation rules (docs/code-standards.md §5)
 check-secrets: ## Scan every tracked file for secrets and forbidden paths
 	@scripts/check-secrets.sh --all
 
+.PHONY: version
+version: ## Print the project version (scripts/version.sh --set X.Y.Z to change it)
+	@scripts/version.sh
+
+.PHONY: check-version
+check-version: ## Check that every file agrees with VERSION
+	@scripts/version.sh --check
+
+.PHONY: screenshots
+screenshots: ## Regenerate docs/images from a live gateway
+	@scripts/screenshots.sh
+
+.PHONY: check-chart
+check-chart: ## Check the Helm templates against values.yaml (no cluster, no helm)
+	@scripts/check-chart.sh
+
 .PHONY: verify
-verify: check-branch test check-docs check-secrets ## Everything the definition of done requires
+verify: check-branch test check-docs check-chart check-version check-secrets ## Everything the definition of done requires
 	@echo "verify: all checks passed"
 
 .PHONY: hooks
@@ -115,11 +131,13 @@ e2e: ## Full end-to-end run: build, index a real repository, query, tear down
 
 .PHONY: helm-lint
 helm-lint: ## Lint the Helm chart
-	@helm lint deploy/helm/repo-mcp
+	@helm lint deploy/helm/repo-mcp --set database.url=x --set secretsKey=y
 
 .PHONY: helm-template
 helm-template: ## Render the chart to stdout
-	@helm template repo-mcp deploy/helm/repo-mcp
+	@helm template repo-mcp deploy/helm/repo-mcp \
+	  --set database.url=postgresql+asyncpg://u:p@db:5432/repomcp \
+	  --set secretsKey=render-only-not-a-real-key
 
 .PHONY: helm-package
 helm-package: ## Package the chart into dist/

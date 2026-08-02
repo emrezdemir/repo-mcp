@@ -8,6 +8,79 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **One authoritative version.** `VERSION` at the repository root, propagated
+  to the three Python packages and the Helm chart by `scripts/version.sh`.
+  `--check` runs in `make verify` and in the release workflow, and it fails
+  when any of them, or either README, or the changelog disagrees — so the
+  rule that a release updates the documentation is enforced rather than
+  remembered. `--bump patch|minor|major` does the whole set in one step.
+- **Screenshots, generated rather than drawn.** `make screenshots` boots a
+  development gateway, captures five real sequences — bootstrap, readiness, an
+  MCP round trip, both kinds of refusal, and an administrative change moving
+  the generation counter — and renders them as SVG terminal cards into
+  `docs/images/`. A README that shows invented output drifts from the code
+  without anyone noticing; this one cannot.
+- **Turkish is the primary README.** `README.md` is Turkish, written as
+  Turkish rather than translated from the English, and `README.en.md` carries
+  the English. Both are updated together, and `scripts/version.sh --check`
+  fails a release where either one still names an older version.
+
+- **Prompt compression, as a plugin.** Headroom runs as its own pinned
+  container in front of LiteLLM, enabled by `headroom.enabled` and disabled by
+  the same setting. Nothing is vendored: updating it is bumping an image tag,
+  and the chart refuses to deploy it unpinned. An unreachable proxy falls back
+  to LiteLLM rather than failing a tool call, embeddings never pass through it
+  — compressing the text would move the vector the answer cache keys on — and
+  raw engine output cannot reach it at all, because tool results never pass
+  through a model. [ADR-0010](docs/adr/0010-headroom-plugin.md).
+
+- **Answer cache.** `ask_codebase` answers are cached per squad and keyed on
+  the project's index epoch, so a repeated question costs one indexed row read
+  instead of thousands of tokens, and a reindex retires every answer computed
+  from the previous graph in one step. An exact-question tier runs first and
+  needs no embedding; a semantic tier over the same squad, project and epoch
+  runs only when an embedding model is configured, above a deliberately high
+  similarity threshold. Off by default, cleared from `/admin/answer-cache`,
+  and never crossing a squad boundary.
+  [ADR-0009](docs/adr/0009-answer-cache.md).
+- **No vector database.** The research behind that is in ADR-0009: after
+  filtering by squad, project, tool and epoch the candidate set is small
+  enough to score in the gateway, so pgvector buys nothing measurable yet and
+  Qdrant buys a second stateful service. The ADR names the number at which
+  pgvector becomes the right answer, and the metric that reports it.
+- **`project_index_state`** — a monotonic epoch per squad and project, written
+  by the indexer after every successful index. Also the first durable answer
+  to "when was this project last indexed, and at which commit".
+
+- **Environments are separated by artifact and database, not by branch.** CI
+  publishes `:dev-<sha>` and `:dev-latest` from `dev`; a `v*.*.*` tag
+  publishes `:vX.Y.Z`, `:sha-<commit>` and `:latest`, and packages the chart
+  alongside them. Production runs a tag that already ran in dev — nothing is
+  rebuilt on the way, and a rollback is redeploying the previous tag.
+  [ADR-0008](docs/adr/0008-environments-and-promotion.md),
+  [docs/environments.md](docs/environments.md).
+- **The chart refuses what it cannot support.** `environment: production` with
+  a mutable image tag (`latest`, `dev`, `dev-latest`, `main`, `edge`) or with
+  `migrations.auto` fails at template time, as does a release with no database
+  or no `SECRETS_KEY`. Each of those otherwise renders cleanly and fails much
+  later, somewhere less obvious.
+- **`MIGRATE_ON_START`** — whether a starting process may apply the schema. It
+  defaults to **false**, the safe answer for the environment nobody is
+  watching; the Compose stack and `scripts/dev.sh` set it true, because that is
+  where a migration problem should surface. `repo-mcp-admin init` now says so
+  by name instead of migrating silently.
+- **`ENVIRONMENT`** — a free-form label carried by both services and reported
+  by `/readyz`, so "which environment answered" has an answer.
+- **Per-environment Helm values** — `deploy/helm/values-dev.example.yaml` and
+  `values-production.example.yaml`. Real values files stay untracked, for the
+  same reason `deploy/.env` is.
+- **`make check-chart`** (`scripts/check-chart.sh`) — catches what `helm lint`
+  cannot: a template reading a `.Values` path that no longer exists, which
+  renders as an empty string rather than an error. It needs neither a cluster
+  nor Helm, and it is part of `make verify`.
+- **Release workflow** — a version tag is refused unless the commit is on
+  `main`, `Chart.yaml` agrees with the tag, and `CHANGELOG.md` has a section
+  for the version.
 - **Configuration in PostgreSQL.** Tenants, roles, project allowlists,
   connectors, OIDC and LiteLLM settings, tunables and provider tokens are rows
   in a database instead of YAML files, changed through an administrative API
@@ -96,6 +169,42 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The image build downloaded the engine from a URL that does not exist. The
+  release publishes `codebase-memory-mcp-linux-<arch>.tar.gz`, not a bare
+  executable, so every image build failed with `curl` exit 22 and no
+  explanation. It now fetches and unpacks the archive, and verifies it against
+  the release's own `checksums.txt` — which covers every architecture, so
+  `CBM_SHA256` is no longer something anyone has to copy by hand.
+- Eight shellcheck warnings, including a `cd` whose failure would have run the
+  next command against the wrong tree, and a `--keep` flag in `scripts/smoke.sh`
+  that set a variable nothing read. `make test` now runs shellcheck too, so
+  these fail locally instead of only on a push.
+- `deploy/docker-compose.yml` did not parse — `limits: { memory: ${VAR:-16g} }`
+  is not valid YAML unquoted, and a duplicate `ENVIRONMENT` key had crept in.
+  Nothing read the file, so nothing said so; `make test` now validates it with
+  `docker compose config` when Docker is present.
+- Migration `0001` created the schema by calling `Base.metadata.create_all`,
+  so it built whatever the models happened to contain — including tables added
+  by later revisions, which then failed on a table that already existed. It is
+  now transcribed explicitly, and a test compares the migrated schema to the
+  models in both directions.
+- The Helm chart still mounted `tenants.yaml` and `scan.yaml` and passed OIDC
+  and LiteLLM settings as environment variables, none of which the services
+  read any more, and it supplied no `DATABASE_URL` at all — so a chart install
+  could not have started. It now carries the database, the secret key and the
+  environment label, and it runs the schema as a hook Job when asked to.
+- The chart pointed both deployments at one image, although `gateway` and
+  `indexer` are separate images built from one Dockerfile. The repository is
+  now a base and the component is a suffix, matching what CI publishes.
+- `scripts/dev.sh` and the CI container smoke both started a service with no
+  database, which had become a hard startup failure. `dev.sh` now creates and
+  seeds a local SQLite database, and CI runs the image against PostgreSQL —
+  the same engine production uses.
+- `indexer.concurrency`, `indexer.rescan_interval_seconds` and the indexer
+  timeouts were administrator-editable settings that nothing read; the indexer
+  took those values from the environment instead. It now reads them from the
+  configuration store, and re-reads the rescan interval each pass so a change
+  lands without a restart.
 - A freshly bootstrapped database crashed the gateway at startup, because an
   empty tenant list was treated as a configuration error. That is the state
   every new deployment is in; an empty registry is now valid and `/readyz`

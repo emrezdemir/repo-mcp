@@ -61,8 +61,11 @@ reinventing the invocation.
 | `make generate-key` | Print a new `SECRETS_KEY` |
 | `make check-branch` | Check the branch name against the convention |
 | `make check-docs` | Enforce the documentation rules mechanically |
+| `make check-chart` | Check the Helm templates against `values.yaml`, without a cluster |
+| `make version` / `make check-version` | Print the version / check that every file agrees with it |
+| `make screenshots` | Regenerate `docs/images/` from a live gateway |
 | `make check-secrets` | Audit every tracked file for secrets |
-| `make verify` | Tests, documentation rules and secret scan — the definition of done |
+| `make verify` | Tests, documentation rules, chart consistency, version consistency and secret scan — the definition of done |
 | `make helm-lint` | Lint the Helm chart |
 
 Never invent a workflow that one of these already covers. If a workflow is
@@ -188,7 +191,10 @@ Rules:
 Documentation ships in the same change as the code. A feature that is not in
 `docs/` does not exist for whoever comes next.
 
-- Prose is English. `README.tr.md` is the only translated file.
+- Prose is English, with one exception: `README.md` is Turkish — it is the
+  project's front page and its first readers are Turkish-speaking. The
+  English version lives in `README.en.md`, and the two must say the same
+  things. Everything under `docs/` stays English.
 - Architectural decisions get an ADR in `docs/adr/`: context, decision,
   rationale, consequences **including the negative ones**, and alternatives
   considered. Copy the shape of an existing one.
@@ -201,7 +207,7 @@ Documentation ships in the same change as the code. A feature that is not in
 
 A change is done when all of these hold:
 
-- [ ] `make verify` is green (tests, documentation rules, secret scan)
+- [ ] `make verify` is green (tests, documentation rules, chart consistency, version consistency, secret scan)
 - [ ] New behaviour has a test, including the denial path where relevant
 - [ ] Documentation updated in the same commit
 - [ ] An ADR added or updated, if §8 requires one

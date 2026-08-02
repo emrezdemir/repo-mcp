@@ -1,22 +1,70 @@
 # Active context
 
 **Last updated:** 2026-08-02
-**Branch:** `feature/config-in-database`, off `dev`
+**Branch:** `chore/versioning-and-readme`, off `dev`
 
 ## Where things stand
 
-Configuration has moved out of YAML and into PostgreSQL, with an
-administrative API, a first-boot administrator and encrypted credentials. The
-gateway and the indexer both read it at runtime and pick up changes without a
-restart.
+Configuration lives in PostgreSQL, with an administrative API, a first-boot
+administrator and encrypted credentials. Both services read it at runtime and
+pick up changes without a restart.
+
+Deployment now has a shape: branches produce images, images are promoted to
+environments, and configuration is never promoted. CI publishes `:dev-<sha>`
+from `dev`; a version tag publishes `:vX.Y.Z` and packages the chart.
 
 `main` is still at the initial commit — the maintainer merges `dev` into it;
 nothing else pushes there.
 
-In flight: `feature/config-in-database` is complete and tested but has not
-been merged to `dev` yet.
-
 ## What the last sessions did
+
+**Session 9 — CI turned red, and it was telling the truth.** The image build
+had never worked: it fetched the engine from a URL that does not exist, and
+behind that it never copied the shared `common/` package, so pip went looking
+for `repo-mcp-common` on PyPI. Eight shellcheck warnings too. All fixed, and
+`make test` now runs shellcheck and validates the Compose file, so these fail
+locally rather than only on a push.
+
+Also: `VERSION` is now the single authoritative number, `make screenshots`
+generates `docs/images/` from a live gateway, and `README.md` is Turkish with
+`README.en.md` alongside it. `scripts/version.sh --check` — part of
+`make verify` — fails when a package, the chart, either README or the
+changelog disagrees, which is what makes "every release updates the
+documentation" a rule rather than a hope.
+
+**Session 8 — prompt compression as a plugin.** Headroom runs as its own
+pinned container in front of LiteLLM, enabled by a database setting and
+removed by the same one. Nothing vendored: updating it is a tag bump, and the
+chart refuses an unpinned tag. Embeddings deliberately bypass it, because
+compressing the text would move the vector the answer cache keys on.
+
+`deploy/docker-compose.yml` turned out not to parse at all — unquoted
+`${VAR:-default}` inside a flow mapping, plus a duplicate `ENVIRONMENT` key.
+Nothing read the file, so nothing said so. `make test` validates it now.
+
+**Session 7 — the answer cache.** A per-squad cache of `ask_codebase`
+answers, keyed on a new per-project index epoch that the indexer bumps after
+every successful run. Exact-question tier first, semantic tier only when an
+embedding model is set. ADR-0009 records the vector-store research: pgvector
+is the eventual answer, Qdrant is not, and neither is justified at the current
+candidate-set size — with the number and the metric that would change that.
+
+Adding the second migration exposed that revision one built the schema from
+the live models, so it created revision two's tables and revision two then
+failed. Revision one is now transcribed, and a test compares the migrated
+schema to the models in both directions.
+
+**Session 6 — environments and promotion.** ADR-0008, `docs/environments.md`,
+`MIGRATE_ON_START`, `ENVIRONMENT`, per-environment Helm values examples, image
+publishing from `dev`, a release workflow, and `scripts/check-chart.sh`.
+
+Bringing the chart up to date turned up four things that were broken rather
+than merely missing, all left behind by the move to database configuration:
+the chart supplied no `DATABASE_URL` at all, it pointed both deployments at
+one image although gateway and indexer are separate images, `scripts/dev.sh`
+and the CI smoke started services with no database, and four
+administrator-editable `indexer.*` settings were read by nothing. All four are
+fixed and covered.
 
 **Session 5 — configuration in the database.** Added `common/`: schema,
 Alembic migrations, Fernet-encrypted secrets, Argon2id administrator
@@ -62,6 +110,16 @@ replica without the graph stores does not fail loudly — it answers from an
 empty graph, which reads as a code bug. Failing at template time costs a
 minute; the alternative costs an afternoon.
 
+**Production refuses a mutable image tag, rather than warning.** Same
+reasoning as the HPA guard: `latest` in production makes "which commit is
+running" unanswerable at the moment it matters, and turns a rollback into a
+rebuild.
+
+**Migrations are automatic in dev and deliberate in production.**
+`MIGRATE_ON_START` defaults to false. Auto-migration is convenient until the
+first migration that takes a table lock, or the first older replica starting
+against a newer schema during a rollback.
+
 **`indexer.replicaCount` is pinned to 1.** The queue and its per-project locks
 are in-process. Horizontal indexing needs a shared queue first.
 
@@ -73,9 +131,17 @@ discusses engine internals — with source references, so claims are checkable.
 
 - **`main` is at the initial commit.** Do not assume it contains the code.
 - **The engine binary is usually not installed locally.** Everything except
-  tool execution works; the error message says so explicitly.
+  tool execution works; the error message says so explicitly. To get it:
+  `curl -fsSL <releases>/latest/download/codebase-memory-mcp-linux-amd64.tar.gz`,
+  unpack, put it on PATH. `make screenshots` needs it.
 - **`deploy/tenants.yaml` and `deploy/scan.yaml` are local and ignored.** Edit
-  the `.example` files to change the shipped defaults.
+  the `.example` files to change the shipped defaults. They are seed documents
+  for `repo-mcp-admin import`, not runtime configuration.
+- **`deploy/helm/values-*.yaml` is ignored too**; the `.example` files beside
+  them are the tracked reference.
+- **`helm` cannot be installed in every sandbox** (the download is sometimes
+  blocked). `make check-chart` covers the templates without it; CI still runs
+  the real `helm lint` and `helm template`.
 - **Two things are designed but not built:** the web UI and graph history.
   `progress.md` and `docs/roadmap.md` both say so — keep it that way.
 
@@ -83,18 +149,15 @@ discusses engine internals — with source references, so claims are checkable.
 
 Roughly in order of value per unit of effort:
 
-0. **Merge `feature/config-in-database` into `dev`.** It is complete, tested
-   and verified end to end against a live server, but has never run against
-   real PostgreSQL — only SQLite. Do that first.
-1. **Wire up the `org/public` shared layer.** The `cross-repo-intelligence`
+0. **Wire up the `org/public` shared layer.** The `cross-repo-intelligence`
    mode and the `structural_only` tenant flag both exist; the nightly job that
    builds the layer does not. Small job, unlocks cross-squad topology answers.
-2. **Durable job queue** (Redis or NATS) with per-project leases, so the
+3. **Durable job queue** (Redis or NATS) with per-project leases, so the
    indexer can run more than one replica.
-3. **Graph history**, per [ADR-0004](../docs/adr/0004-graph-history.md):
+4. **Graph history**, per [ADR-0004](../docs/adr/0004-graph-history.md):
    publish snapshots to object storage and add a diff service.
-4. **Web UI.** Largest chunk by far, and effectively its own product. Needs a
+5. **Web UI.** Largest chunk by far, and effectively its own product. Needs a
    read API and a rendering strategy that survives large graphs.
 
 Before starting any of these, read
-[systemPatterns.md](systemPatterns.md) — items 2 and 3 touch invariants.
+[systemPatterns.md](systemPatterns.md) — items 3 and 4 touch invariants.

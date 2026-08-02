@@ -31,6 +31,8 @@ from repo_mcp_common.admin import (
     upsert_connector,
     upsert_tenant,
 )
+from repo_mcp_common.answer_cache import purge as purge_answers
+from repo_mcp_common.answer_cache import stats as cache_stats
 from repo_mcp_common.db import Database
 from repo_mcp_common.models import AdminUser, AuditEntry, Connector, Secret, Setting, Tenant
 from repo_mcp_common.passwords import WeakPassword
@@ -377,6 +379,36 @@ def build_router(database: Database, provider: ConfigurationProvider) -> APIRout
         await provider.invalidate()
         audit(actor, "secret.delete", name)
         return {"status": "ok"}
+
+    # ── answer cache ─────────────────────────────────────────────────
+
+    @router.get("/answer-cache")
+    async def read_answer_cache(actor: str = Actor) -> dict:
+        async with database.read() as session:
+            summary = await cache_stats(session)
+        config = await provider.current()
+        return {
+            "enabled": config.settings.answer_cache_enabled,
+            "embedding_model": config.settings.answer_cache_embedding_model,
+            "similarity_threshold": config.settings.answer_cache_threshold,
+            "ttl_seconds": config.settings.answer_cache_ttl_s,
+            **summary,
+        }
+
+    @router.delete("/answer-cache")
+    async def clear_answer_cache(
+        tenant: str | None = None, project: str | None = None, actor: str = Actor
+    ) -> dict:
+        """Drop cached answers. The blunt instrument, for when an answer is wrong.
+
+        Reindexing already retires stale answers by epoch; this exists for the
+        other case — a prompt or model change that makes previous answers
+        undesirable rather than out of date.
+        """
+        async with database.session() as session:
+            removed = await purge_answers(session, tenant=tenant, project=project)
+        audit(actor, "answer_cache.purge", tenant or "*")
+        return {"status": "ok", "removed": removed}
 
     @router.put("/settings/{key}")
     async def put_setting(key: str, request: SettingRequest, actor: str = Actor) -> dict:

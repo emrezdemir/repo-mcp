@@ -65,6 +65,24 @@ def database_env() -> DatabaseEnv:
     )
 
 
+def migrate_on_start(default: bool = False) -> bool:
+    """Whether a starting process may apply database migrations.
+
+    Defaults to **false**: the safe answer for the environment nobody is
+    watching. The Compose stack sets it true, because that is where a
+    migration problem should surface.
+    """
+    raw = os.getenv("MIGRATE_ON_START")
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def environment_name() -> str:
+    """Free-form label used in logs and readiness output, e.g. dev, production."""
+    return os.getenv("ENVIRONMENT", "unspecified").strip() or "unspecified"
+
+
 def secrets_key() -> str:
     """The Fernet key protecting credentials at rest.
 

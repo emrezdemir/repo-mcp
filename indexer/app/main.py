@@ -11,6 +11,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Header, Request
 from fastapi.responses import JSONResponse, Response
+from repo_mcp_common.answer_cache import bump_epoch, purge, purge_superseded
 from repo_mcp_common.bootstrap import inspect_state
 from repo_mcp_common.db import Database, DatabaseUnavailable
 from repo_mcp_common.store import ConfigStore
@@ -113,31 +114,70 @@ def create_app(database: Database | None = None) -> FastAPI:
     # Start with an empty connector list; the first refresh loads it from the
     # database. A file is no longer read at runtime.
     cache = BindingCache(ScanConfig((), repo_root), store, repo_root)
+
+    async def record_epoch(tenant: str, project: str, commit: str | None) -> None:
+        """Retire every cached answer computed from the previous graph."""
+        async with database.session() as session:
+            epoch = await bump_epoch(session, tenant, project, commit=commit)
+        log.info("%s/%s is now at index epoch %d", tenant, project, epoch)
+
     indexer = Indexer(
         cbm_binary=os.getenv("CBM_BINARY", "codebase-memory-mcp"),
         cache_root=cache_root,
         repo_root=repo_root,
-        concurrency=int(os.getenv("INDEX_CONCURRENCY", "2")),
+        on_indexed=record_epoch,
     )
-    rescan_interval = float(os.getenv("RESCAN_INTERVAL_S", "86400"))
     ci_token = os.getenv("CI_TRIGGER_TOKEN", "")
     state = {"ready": False, "reason": "starting"}
 
+    async def rescan_interval() -> float:
+        """Read the interval afresh each pass, so a change lands without a restart."""
+        try:
+            snapshot = await store.snapshot()
+            return float(snapshot.setting("indexer.rescan_interval_seconds"))
+        except Exception:  # noqa: BLE001 - a database blip must not stop the loop
+            return 86400.0
+
+    async def sweep_answer_cache() -> None:
+        """Drop what the epoch key already made unreachable.
+
+        Bumping the epoch retires stale answers immediately — they simply stop
+        matching — so this is about disk, not correctness. It runs here rather
+        than on the indexing path because a delete of unknown size does not
+        belong in the middle of an index.
+        """
+        try:
+            snapshot = await store.snapshot()
+            if not bool(snapshot.setting("answer_cache.enabled")):
+                return
+            ttl = float(snapshot.setting("answer_cache.ttl_seconds"))
+            async with database.session() as session:
+                superseded = await purge_superseded(session)
+                expired = await purge(session, older_than_seconds=ttl) if ttl > 0 else 0
+            if superseded or expired:
+                log.info(
+                    "answer cache swept: %d superseded, %d expired", superseded, expired
+                )
+        except Exception:  # noqa: BLE001 - housekeeping must not stop the loop
+            log.exception("answer cache sweep failed")
+
     async def rescan_loop() -> None:
         while True:
+            interval = await rescan_interval()
             try:
                 if not state["ready"]:
-                    await asyncio.sleep(min(rescan_interval, 30))
+                    await asyncio.sleep(min(interval, 30))
                     continue
                 total = await cache.refresh()
                 log.info("scheduled rescan: %d repositories, queueing full pass", total)
                 for binding in cache.bindings.values():
                     indexer.enqueue(IndexJob(binding=binding, trigger="schedule"))
+                await sweep_answer_cache()
             except asyncio.CancelledError:
                 raise
             except Exception:  # noqa: BLE001 - the loop must survive
                 log.exception("scheduled rescan failed")
-            await asyncio.sleep(rescan_interval)
+            await asyncio.sleep(interval)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -148,6 +188,13 @@ def create_app(database: Database | None = None) -> FastAPI:
             state["reason"] = bootstrap_state.explain()
             if not bootstrap_state.ready:
                 log.error("not ready: %s", bootstrap_state.explain())
+            else:
+                snapshot = await store.snapshot()
+                indexer.apply_settings(
+                    concurrency=int(snapshot.setting("indexer.concurrency")),
+                    git_timeout_s=float(snapshot.setting("indexer.git_timeout_seconds")),
+                    index_timeout_s=float(snapshot.setting("indexer.index_timeout_seconds")),
+                )
         except DatabaseUnavailable as exc:
             state["ready"] = False
             state["reason"] = str(exc)

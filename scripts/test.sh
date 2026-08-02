@@ -41,7 +41,7 @@ done
 FAILURES=()
 
 for service in "${SERVICES[@]}"; do
-  cd "$REPO_ROOT/$service"
+  cd "$REPO_ROOT/$service" || die "cannot enter $service"
   python="$(py_for "$service")"
   venv_bin="$(dirname "$python")"
 
@@ -89,7 +89,7 @@ for service in "${SERVICES[@]}"; do
   fi
 done
 
-cd "$REPO_ROOT"
+cd "$REPO_ROOT" || die "cannot enter $REPO_ROOT"
 
 # Configuration files are part of the contract: a broken example would fail at
 # container start rather than here, which is a much worse place to find out.
@@ -115,6 +115,46 @@ from app.repos import ScanConfig
 ScanConfig.load(Path("deploy/scan.example.yaml"), Path("/tmp"))
 PY
 then ok "scan.example.yaml parses"; else FAILURES+=("scan.example.yaml"); fi
+
+# The Compose file was unparseable for a while and nobody noticed, because
+# nothing here read it. Interpolation needs values, so supply throwaway ones:
+# the question is whether the file is valid, not what is in it.
+if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+  if POSTGRES_PASSWORD=check SECRETS_KEY=check LITELLM_MASTER_KEY=check \
+     docker compose -f "$REPO_ROOT/deploy/docker-compose.yml" --profile headroom \
+     config --quiet >/dev/null 2>&1; then
+    ok "docker-compose.yml is valid"
+  else
+    POSTGRES_PASSWORD=check SECRETS_KEY=check LITELLM_MASTER_KEY=check \
+      docker compose -f "$REPO_ROOT/deploy/docker-compose.yml" --profile headroom \
+      config --quiet || true
+    FAILURES+=("docker-compose.yml")
+  fi
+else
+  dim "      docker compose not available, skipping the Compose check"
+fi
+
+# The shell scripts are part of the contract too, and CI lints them. Running
+# the same check here means a warning is a local failure rather than a
+# surprise on a push. Same severity as .github/workflows/ci.yml.
+if [[ -x "$REPO_ROOT/common/.venv/bin/shellcheck" ]]; then
+  shellcheck_bin="$REPO_ROOT/common/.venv/bin/shellcheck"
+elif command -v shellcheck >/dev/null 2>&1; then
+  shellcheck_bin="shellcheck"
+else
+  shellcheck_bin=""
+fi
+
+if [[ -n "$shellcheck_bin" ]]; then
+  log "shell scripts"
+  if "$shellcheck_bin" -S warning --format=gcc "$REPO_ROOT"/scripts/*.sh; then
+    ok "shellcheck clean"
+  else
+    FAILURES+=("shellcheck")
+  fi
+else
+  dim "      shellcheck not installed, skipping (scripts/setup.sh installs it)"
+fi
 
 # Documentation rules are checked here too, so a change that forgets a doc
 # fails in the same run as one that forgets a test.

@@ -191,6 +191,94 @@ deletions and pushes to other refs are acknowledged and ignored.
       -d "{\"repository\": \"$GITHUB_REPOSITORY\", \"sha\": \"$GITHUB_SHA\"}"
 ```
 
+## The answer cache
+
+Off by default. It stores `ask_codebase` answers per squad, so a repeated
+question costs one row read instead of thousands of tokens, and it is keyed on
+the project's index epoch — a reindex retires every answer computed from the
+previous graph.
+
+```bash
+repo-mcp-admin set answer_cache.enabled true
+# Optional. Without it, only exact repeats hit; with it, close questions do too.
+repo-mcp-admin set answer_cache.embedding_model text-embedding-3-small
+repo-mcp-admin set answer_cache.similarity_threshold 0.95
+repo-mcp-admin set answer_cache.ttl_seconds 604800
+```
+
+The threshold is high on purpose: a miss costs tokens and seconds, while a
+false hit is fluent, plausible, about a different question and very hard to
+notice. Lower it deliberately, watching
+`repo_mcp_answer_cache_lookups_total`.
+
+Two things to weigh before enabling it. Cached answers contain synthesised
+knowledge of a squad's source, so the database now holds more than
+configuration — the squad boundary applies to every lookup, but the blast
+radius of a database disclosure is larger. And the embedding model is called
+with the question text through the same LiteLLM proxy, with the squad's own
+key. `DELETE /admin/answer-cache` clears it; setting `answer_cache.enabled`
+to false stops it.
+
+Why there is no vector database here, and when there should be, is in
+[ADR-0009](adr/0009-answer-cache.md).
+
+## Prompt compression
+
+Optional, off by default. [Headroom](https://github.com/headroomlabs-ai/headroom)
+sits between the gateway and LiteLLM and compresses the evidence sent to the
+model — mostly JSON, which is what it is best at. It is upstream software run
+from its own pinned image: this repository deploys it and contains none of it,
+so updating it is bumping a tag.
+
+```bash
+# Compose: its own profile, so the default stack is unchanged.
+docker compose --profile headroom up -d
+
+# Kubernetes: headroom.enabled=true, with a pinned tag. The chart refuses an
+# unpinned one — a proxy that changes underneath you changes what the model is
+# told, silently.
+```
+
+Deploying it is not the same as using it. Point the platform at it and turn it
+on, which is also how it is turned off:
+
+```bash
+repo-mcp-admin set headroom.base_url http://headroom:8787/v1
+repo-mcp-admin set headroom.enabled true
+```
+
+Two properties are worth knowing before enabling it. If it is unreachable, the
+gateway answers through LiteLLM directly and logs it —
+`repo_mcp_compression_fallbacks_total` counts that, and
+`headroom.fallback_to_litellm` turns the behaviour off for an operator who
+wants compression or nothing. And embeddings never go through it: compressing
+the text would move the vector the answer cache keys on.
+
+Raw engine output — `get_code_snippet` included — never reaches it either, and
+not by policy: tool results are returned to the client without passing through
+a model at all, so there is no path from them to a compression proxy.
+
+The reasoning, and what compression can cost you, is in
+[ADR-0010](adr/0010-headroom-plugin.md).
+
+## Kubernetes and more than one environment
+
+The Helm chart deploys one environment. Configuration is not part of it —
+squads, connectors, secrets and administrators are rows in that environment's
+own database, entered once through the admin API.
+
+```bash
+cp deploy/helm/values-dev.example.yaml values-dev.yaml
+helm upgrade --install repo-mcp deploy/helm/repo-mcp \
+  -n repo-mcp-dev --create-namespace -f values-dev.yaml
+```
+
+Two things the chart refuses rather than warns about, because both fail
+silently and late: a mutable image tag when `environment: production`, and
+`migrations.auto` in production. The full list, the promotion flow from `dev`
+to a version tag, and how to roll back are in
+[environments.md](environments.md).
+
 ## Production notes
 
 **One pinned engine build.** The engine enforces an exact-build admission barrier
@@ -199,21 +287,32 @@ upgrade a tenant's processes together — `Recreate`, not `RollingUpdate`. A
 half-upgraded tenant fails with a version cohort conflict.
 
 **Build the engine in from your own infrastructure.** The image fetches the
-engine binary at build time. For an air-gapped or supply-chain-controlled
-build, mirror the release and point the build at it:
+engine at build time: a `.tar.gz` per OS and architecture, alongside a
+`checksums.txt` covering every asset. The build verifies against that file
+automatically, so nothing has to be copied by hand.
+
+For an air-gapped or supply-chain-controlled build, mirror the release —
+archives and `checksums.txt` — and point the build at it:
 
 ```bash
 docker build -f deploy/Dockerfile \
   --build-arg SERVICE=gateway \
   --build-arg CBM_RELEASE_BASE=https://artifacts.internal/repo-mcp/engine \
-  --build-arg CBM_VERSION=v1.2.3 \
-  --build-arg CBM_SHA256=<published checksum> \
+  --build-arg CBM_VERSION=v0.9.0 \
   .
 ```
 
-`CBM_DOWNLOAD_URL` bypasses the layout entirely if your mirror names files
-differently. Setting `CBM_SHA256` makes the build fail on any mismatch, which
-is what you want once a version is pinned.
+| Build argument | Use it for |
+| --- | --- |
+| `CBM_VERSION` | A pinned release tag. Pin it in production — every engine process sharing a cache root must be the same build |
+| `CBM_RELEASE_BASE` | An internal mirror laid out like the upstream releases |
+| `CBM_DOWNLOAD_URL` | A single archive URL, when your mirror names files differently |
+| `CBM_SHA256` | The archive's checksum, when your mirror publishes no `checksums.txt` |
+| `CBM_VARIANT` | `-portable` for the static build. The runtime image is Debian, so the default is right unless your mirror only carries the other |
+
+A mirror that publishes neither `checksums.txt` nor a `CBM_SHA256` still
+builds, and says so on the build log — an unverified download is a decision,
+not a silent default.
 
 **Never expose the engine.** The engine has no authentication. The gateway is the only
 ingress; `CBM_ALLOWED_ROOT` is the backstop, not the control.
@@ -230,6 +329,12 @@ what matters for sizing.
 expensive moment; steady-state incremental runs are far cheaper. Start one
 connector with `mode: fast`, measure, then widen.
 
-**Secrets.** Provider tokens, webhook secrets and LiteLLM keys all come from
-the environment. Nothing belongs in `tenants.yaml` or `scan.yaml` — both are
-meant to be readable in review and safe to commit.
+**Secrets.** Provider tokens and LiteLLM keys are stored encrypted in the
+database and entered through the admin API; only `DATABASE_URL`, `SECRETS_KEY`
+and the webhook and CI secrets come from the environment. `tenants.yaml` and
+`scan.yaml` are seed documents for `repo-mcp-admin import` — they are meant to
+be readable in review, and they carry no token values.
+
+**One environment, one key.** Each environment has its own database, its own
+`SECRETS_KEY` and its own administrators. Sharing a key between dev and
+production would let anyone with dev access decrypt production credentials.

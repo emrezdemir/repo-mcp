@@ -32,6 +32,10 @@ kubeconfig
 deploy/tenants.yaml
 deploy/scan.yaml
 deploy/keycloak/
+# Per-environment Helm values: hostnames, storage classes and a database URL.
+# The values-*.example.yaml files beside them are the tracked reference.
+deploy/helm/values-*.yaml
+!deploy/helm/values-*.example.yaml
 
 # ── Runtime data ──────────────────────────────────────────────────────
 .dev/

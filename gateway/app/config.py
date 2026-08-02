@@ -33,15 +33,23 @@ class Settings:
     cbm_idle_timeout_s: float
     cbm_call_timeout_s: float
 
-    # --- tenancy ---
-    tenants_file: Path
-
     # --- LLM (LiteLLM proxy) ---
     litellm_base_url: str
     litellm_api_key: str
     litellm_model: str
     litellm_timeout_s: float
     smart_tools_enabled: bool
+
+    # --- answer cache (docs/adr/0009-answer-cache.md) ---
+    answer_cache_enabled: bool
+    answer_cache_embedding_model: str
+    answer_cache_threshold: float
+    answer_cache_ttl_s: float
+
+    # --- prompt compression (docs/adr/0010-headroom-plugin.md) ---
+    headroom_enabled: bool
+    headroom_base_url: str
+    headroom_fallback: bool
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -58,10 +66,17 @@ class Settings:
             cbm_repo_root=Path(os.getenv("CBM_REPO_ROOT", "/var/lib/repo-mcp/repos")),
             cbm_idle_timeout_s=float(os.getenv("CBM_IDLE_TIMEOUT_S", "900")),
             cbm_call_timeout_s=float(os.getenv("CBM_CALL_TIMEOUT_S", "120")),
-            tenants_file=Path(os.getenv("TENANTS_FILE", "/etc/repo-mcp/tenants.yaml")),
             litellm_base_url=os.getenv("LITELLM_BASE_URL", ""),
             litellm_api_key=os.getenv("LITELLM_API_KEY", ""),
             litellm_model=os.getenv("LITELLM_MODEL", "gpt-4o-mini"),
             litellm_timeout_s=float(os.getenv("LITELLM_TIMEOUT_S", "90")),
             smart_tools_enabled=_bool("SMART_TOOLS_ENABLED", True),
+            # Defaults only; an administrator sets these in the database.
+            answer_cache_enabled=_bool("ANSWER_CACHE_ENABLED", False),
+            answer_cache_embedding_model=os.getenv("ANSWER_CACHE_EMBEDDING_MODEL", ""),
+            answer_cache_threshold=float(os.getenv("ANSWER_CACHE_THRESHOLD", "0.95")),
+            answer_cache_ttl_s=float(os.getenv("ANSWER_CACHE_TTL_S", "604800")),
+            headroom_enabled=_bool("HEADROOM_ENABLED", False),
+            headroom_base_url=os.getenv("HEADROOM_BASE_URL", ""),
+            headroom_fallback=_bool("HEADROOM_FALLBACK_TO_LITELLM", True),
         )

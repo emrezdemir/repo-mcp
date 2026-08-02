@@ -61,12 +61,18 @@ def make_settings(tmp_path: Path, binary: str, call_timeout: float = 10.0) -> Se
         cbm_repo_root=tmp_path / "repos",
         cbm_idle_timeout_s=900.0,
         cbm_call_timeout_s=call_timeout,
-        tenants_file=tmp_path / "tenants.yaml",
         litellm_base_url="",
         litellm_api_key="",
         litellm_model="test",
         litellm_timeout_s=30.0,
         smart_tools_enabled=False,
+        answer_cache_enabled=False,
+        answer_cache_embedding_model="",
+        answer_cache_threshold=0.95,
+        answer_cache_ttl_s=604800.0,
+        headroom_enabled=False,
+        headroom_base_url="",
+        headroom_fallback=True,
     )
 
 

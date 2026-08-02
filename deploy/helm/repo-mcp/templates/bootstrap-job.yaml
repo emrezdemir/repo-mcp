@@ -1,0 +1,61 @@
+{{- if .Values.migrations.auto }}
+{{- include "repo-mcp.validate" . -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "repo-mcp.fullname" . }}-bootstrap
+  labels:
+    {{- include "repo-mcp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: bootstrap
+  annotations:
+    # Before the pods, so they never start against a schema that is not there
+    # yet. hook-failed is kept deliberately: a failed migration is the one Job
+    # whose logs someone will want.
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: {{ .Values.migrations.backoffLimit }}
+  ttlSecondsAfterFinished: {{ .Values.migrations.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "repo-mcp.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: bootstrap
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "repo-mcp.serviceAccountName" . }}
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: bootstrap
+          image: {{ include "repo-mcp.gatewayImage" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          # The same image as the services, so the schema it applies is the
+          # schema they expect. `init` is idempotent: it upgrades the schema
+          # and creates the first administrator only if none exists.
+          command: ["repo-mcp-admin"]
+          args: [{{ if .Values.migrations.bootstrapAdmin }}"init"{{ else }}"init-db"{{ end }}]
+          env:
+            {{- include "repo-mcp.databaseEnv" . | nindent 12 }}
+            - name: MIGRATE_ON_START
+              value: "true"
+            - name: ENVIRONMENT
+              value: {{ default "unspecified" .Values.environment | quote }}
+            {{- if .Values.migrations.bootstrapAdmin }}
+            - name: ADMIN_USERNAME
+              value: {{ .Values.migrations.adminUsername | quote }}
+            {{- with .Values.migrations.adminPassword }}
+            - name: ADMIN_PASSWORD
+              value: {{ . | quote }}
+            {{- end }}
+            {{- end }}
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 512Mi }
+{{- end }}

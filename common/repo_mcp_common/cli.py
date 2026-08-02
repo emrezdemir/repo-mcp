@@ -18,7 +18,7 @@ from . import bootstrap as boot
 from .admin import AdminError, set_setting
 from .crypto import generate_key
 from .db import Database, DatabaseUnavailable
-from .env import EnvError
+from .env import EnvError, migrate_on_start
 from .passwords import WeakPassword, validate
 
 
@@ -46,7 +46,8 @@ async def cmd_init_db(_args) -> int:
 async def cmd_create_admin(args) -> int:
     database = Database()
     await database.wait_until_ready()
-    await boot.upgrade_schema(database)
+    if migrate_on_start():
+        await boot.upgrade_schema(database)
 
     if await boot.has_admin(database) and not args.force:
         await database.aclose()
@@ -130,7 +131,8 @@ async def cmd_set_password(args) -> int:
 async def cmd_import(args) -> int:
     database = Database()
     await database.wait_until_ready()
-    await boot.upgrade_schema(database)
+    if migrate_on_start():
+        await boot.upgrade_schema(database)
 
     tenants_doc = boot.read_yaml(Path(args.tenants)) if args.tenants else None
     scan_doc = boot.read_yaml(Path(args.scan)) if args.scan else None
@@ -206,11 +208,29 @@ def cmd_generate_key(_args) -> int:
 
 
 async def cmd_init(args) -> int:
-    """Everything a fresh deployment needs, in one command."""
+    """Everything a fresh deployment needs, in one command.
+
+    Migrations are applied only when MIGRATE_ON_START allows it. Automatic
+    migration is convenient in development and a liability in production: a
+    migration that takes a table lock, or an older replica starting against a
+    newer schema during a rollback, should not be discovered there. See
+    docs/adr/0008-environments-and-promotion.md.
+    """
     database = Database()
     await database.wait_until_ready()
-    await boot.upgrade_schema(database)
-    _print("schema is up to date")
+
+    if migrate_on_start():
+        await boot.upgrade_schema(database)
+        _print("schema is up to date")
+    else:
+        state = await boot.inspect_state(database)
+        if not state.schema_present:
+            await database.aclose()
+            return _fail(
+                "the database has no schema and MIGRATE_ON_START is false.\n"
+                "Run the migration deliberately:  repo-mcp-admin init-db"
+            )
+        _print("schema check skipped (MIGRATE_ON_START is false)")
 
     if not await boot.has_admin(database):
         await database.aclose()

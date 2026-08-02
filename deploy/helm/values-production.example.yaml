@@ -1,0 +1,110 @@
+# Example values for a production environment.
+#
+# Copy it, and keep your copy out of the repository — the committed file is
+# the .example one. See docs/environments.md.
+#
+#   helm upgrade --install repo-mcp deploy/helm/repo-mcp \
+#     -n repo-mcp --create-namespace -f values-production.yaml
+#
+# Production runs a tag that already ran in dev, and it is not rebuilt on the
+# way. Two things here are refused by the chart rather than warned about: a
+# mutable image tag, and migrations.auto.
+
+environment: production
+
+image:
+  # An immutable tag: a release (v0.1.0) or a commit (sha-1a2b3c4). "latest",
+  # "dev" and "main" fail at template time, because a mutable tag makes
+  # "which commit is running" unanswerable and turns a rollback into a
+  # rebuild.
+  tag: v0.1.0
+  pullPolicy: IfNotPresent
+  pullSecrets:
+    - name: ghcr
+
+# Everything sensitive comes from a Secret you manage — DATABASE_URL and
+# SECRETS_KEY included. It must carry both keys.
+secrets:
+  existingSecret: repo-mcp-production
+  create: false
+
+migrations:
+  # The chart refuses `true` when environment is production. Apply the schema
+  # as its own step, verify it, then deploy:
+  #
+  #   kubectl -n repo-mcp run repo-mcp-migrate --rm -i --restart=Never \
+  #     --image=ghcr.io/emrezdemir/repo-mcp:v0.1.0 \
+  #     --env=MIGRATE_ON_START=true \
+  #     --env=DATABASE_URL=... --env=SECRETS_KEY=... \
+  #     --command -- repo-mcp-admin init-db
+  auto: false
+
+database:
+  poolSize: 10
+  poolMaxOverflow: 10
+
+gateway:
+  replicaCount: 1
+  resources:
+    requests: { cpu: 500m, memory: 1Gi }
+    limits: { memory: 8Gi }
+  # Scaling out needs ReadWriteMany below, and every squad on a read-only
+  # tool profile. The chart refuses the combination otherwise — docs/scaling.md.
+  autoscaling:
+    enabled: false
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  config:
+    logLevel: info
+
+indexer:
+  # In-process queue and per-project locks: keep this at 1 (docs/scaling.md).
+  replicaCount: 1
+  resources:
+    requests: { cpu: 1, memory: 4Gi }
+    limits: { memory: 16Gi }
+  config:
+    logLevel: info
+
+persistence:
+  enabled: true
+  cache:
+    size: 200Gi
+    storageClass: fast-ssd
+    # Never NFS: the graph stores are SQLite in WAL mode and WAL locking is
+    # unreliable there.
+    accessMode: ReadWriteOnce
+  repos:
+    size: 400Gi
+    storageClass: fast-ssd
+    accessMode: ReadWriteOnce
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+  hosts:
+    - host: repo-mcp.example.com
+      paths:
+        - path: /mcp
+          pathType: Prefix
+          service: gateway
+        - path: /webhook
+          pathType: Prefix
+          service: indexer
+  tls:
+    - secretName: repo-mcp-tls
+      hosts: [repo-mcp.example.com]
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+
+networkPolicy:
+  enabled: true
+  allowedNamespaces: []
+  # Needed for git providers, the OIDC issuer and LiteLLM.
+  allowExternalEgress: true

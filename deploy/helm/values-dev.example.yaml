@@ -1,0 +1,73 @@
+# Example values for a dev environment.
+#
+# Copy it, fill in the two secrets, and keep your copy out of the repository —
+# the committed file is the .example one. See docs/environments.md.
+#
+#   helm upgrade --install repo-mcp deploy/helm/repo-mcp \
+#     -n repo-mcp-dev --create-namespace -f values-dev.yaml
+#
+# Dev is where a migration problem should surface, so it migrates itself and
+# runs whatever dev built last. Production does neither.
+
+environment: dev
+
+image:
+  # Every push to dev publishes one of these. Mutable on purpose: dev should
+  # be running the newest thing that passed CI.
+  tag: dev-latest
+  pullPolicy: Always
+
+database:
+  url: postgresql+asyncpg://repomcp:CHANGE_ME@postgres.repo-mcp-dev:5432/repomcp
+
+# repo-mcp-admin generate-key
+# Its own key, not production's: sharing one would let dev access decrypt
+# production credentials.
+secretsKey: ""
+
+migrations:
+  # Convenient here, refused in production by the chart.
+  auto: true
+  bootstrapAdmin: true
+  adminUsername: admin
+  # Left empty: the bootstrap job generates one and prints it once.
+  adminPassword: ""
+
+gateway:
+  replicaCount: 1
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 2Gi }
+  config:
+    logLevel: debug
+
+indexer:
+  replicaCount: 1
+  resources:
+    requests: { cpu: 250m, memory: 1Gi }
+    limits: { memory: 4Gi }
+  config:
+    logLevel: debug
+
+persistence:
+  enabled: true
+  cache:
+    size: 20Gi
+  repos:
+    size: 40Gi
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: repo-mcp.dev.example.com
+      paths:
+        - path: /mcp
+          pathType: Prefix
+          service: gateway
+        - path: /webhook
+          pathType: Prefix
+          service: indexer
+
+metrics:
+  enabled: true

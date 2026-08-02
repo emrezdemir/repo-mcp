@@ -64,6 +64,29 @@ LLM_DURATION = Histogram(
 )
 
 
+CACHE_LOOKUPS = Counter(
+    "repo_mcp_answer_cache_lookups_total",
+    "Answer cache lookups, by tool and outcome (exact, semantic, miss, error).",
+    ["tool", "outcome"],
+)
+
+CACHE_LOOKUP_SECONDS = Histogram(
+    "repo_mcp_answer_cache_lookup_seconds",
+    "Time spent deciding whether an answer was cached, including any embedding call.",
+    ["tool"],
+    # ADR-0009 names this histogram as the signal for moving to pgvector: if
+    # lookup becomes visible against LLM latency, the design has outgrown
+    # scoring in the gateway.
+    buckets=(0.001, 0.005, 0.02, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5),
+)
+
+
+COMPRESSION_FALLBACKS = Counter(
+    "repo_mcp_compression_fallbacks_total",
+    "Chat completions that bypassed an unreachable compression proxy.",
+)
+
+
 def render() -> tuple[bytes, str]:
     """Return the exposition payload and its content type."""
     return generate_latest(), CONTENT_TYPE_LATEST

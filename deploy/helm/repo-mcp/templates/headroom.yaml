@@ -1,0 +1,84 @@
+{{- if .Values.headroom.enabled }}
+{{- if not .Values.headroom.image.tag }}
+{{- fail "headroom.image.tag must be pinned: a compression proxy that changes underneath you changes what the model is told, silently. See docs/adr/0010-headroom-plugin.md" }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "repo-mcp.fullname" . }}-headroom
+  labels:
+    {{- include "repo-mcp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: headroom
+spec:
+  replicas: {{ .Values.headroom.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "repo-mcp.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: headroom
+  template:
+    metadata:
+      labels:
+        {{- include "repo-mcp.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: headroom
+        {{- with .Values.podLabels }}{{- toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "repo-mcp.serviceAccountName" . }}
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: headroom
+          # Upstream software, run from its own pinned image. Updating it is
+          # bumping this tag; nothing in this repository is a copy of it.
+          image: {{ .Values.headroom.image.repository }}:{{ .Values.headroom.image.tag }}
+          imagePullPolicy: {{ .Values.headroom.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          {{- with .Values.headroom.command }}
+          command: {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.headroom.port }}
+          env:
+            # Its own upstream routing is configured by its own environment,
+            # documented by it and not by us. These are passed through
+            # untouched, so a change there is configuration, not a code change.
+            {{- with .Values.headroom.extraEnv }}{{- toYaml . | nindent 12 }}{{- end }}
+          resources:
+            {{- toYaml .Values.headroom.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.headroom.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.headroom.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "repo-mcp.fullname" . }}-headroom
+  labels:
+    {{- include "repo-mcp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: headroom
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ .Values.headroom.port }}
+      targetPort: http
+  selector:
+    {{- include "repo-mcp.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: headroom
+{{- end }}

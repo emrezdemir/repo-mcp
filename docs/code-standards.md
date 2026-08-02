@@ -169,7 +169,10 @@ test_roles_2                                  useless
 5. **`CHANGELOG.md` has an `## [Unreleased]` section.** — [enforced]
 6. **Every ADR has the required sections.** — [enforced]
 7. **Every doc in the README index exists.** — [enforced]
-8. Prose is English. `README.tr.md` is the only translated file.
+8. Prose is English, with one exception: `README.md` is Turkish and
+   `README.en.md` carries the English. Both are updated together — a
+   change to one that skips the other is an incomplete change. Everything
+   under `docs/` stays English.
 9. Claims about engine behaviour cite the engine's source. Documentation is
    not evidence; source is.
 10. Status language is exact. "Works" means run and verified. Anything else
