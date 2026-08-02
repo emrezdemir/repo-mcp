@@ -44,6 +44,15 @@ cov: ## Run tests with a coverage report
 debug: ## Diagnose the current setup
 	@scripts/debug.sh
 
+.PHONY: generate-key
+generate-key: ## Print a new SECRETS_KEY
+	@common/.venv/bin/repo-mcp-admin generate-key 2>/dev/null || \
+	 python3 -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'
+
+.PHONY: check-branch
+check-branch: ## Check the current branch name against the convention
+	@scripts/check-branch.sh
+
 .PHONY: check-docs
 check-docs: ## Enforce the documentation rules (docs/code-standards.md §5)
 	@scripts/check-docs.sh
@@ -53,7 +62,7 @@ check-secrets: ## Scan every tracked file for secrets and forbidden paths
 	@scripts/check-secrets.sh --all
 
 .PHONY: verify
-verify: test check-docs check-secrets ## Everything the definition of done requires
+verify: check-branch test check-docs check-secrets ## Everything the definition of done requires
 	@echo "verify: all checks passed"
 
 .PHONY: hooks

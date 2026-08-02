@@ -34,15 +34,30 @@ class LlmClient:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
         self._client: httpx.AsyncClient | None = None
+        self._stale: httpx.AsyncClient | None = None
+
+    def update(self, settings: Settings) -> None:
+        """Adopt configuration an administrator changed.
+
+        The base URL is baked into the client, so a change to it has to
+        discard the old one rather than silently keep talking to the previous
+        endpoint.
+        """
+        if settings.litellm_base_url != self._settings.litellm_base_url:
+            self._stale = self._client
+            self._client = None
+        self._settings = settings
 
     @property
     def enabled(self) -> bool:
         return bool(self._settings.smart_tools_enabled and self._settings.litellm_base_url)
 
     async def aclose(self) -> None:
-        if self._client is not None:
-            await self._client.aclose()
-            self._client = None
+        for client in (self._client, self._stale):
+            if client is not None:
+                await client.aclose()
+        self._client = None
+        self._stale = None
 
     def _http(self) -> httpx.AsyncClient:
         if self._client is None:

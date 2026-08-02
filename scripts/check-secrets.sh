@@ -35,6 +35,7 @@ if [[ "$MODE" == "install" ]]; then
 #!/usr/bin/env bash
 # Installed by scripts/check-secrets.sh --install
 root="$(git rev-parse --show-toplevel)"
+"$root/scripts/check-branch.sh" >/dev/null || { "$root/scripts/check-branch.sh"; exit 1; }
 "$root/scripts/check-secrets.sh" || exit 1
 "$root/scripts/check-docs.sh" --quiet || exit 1
 HOOK

@@ -1,23 +1,102 @@
 # Deployment
 
+## Configuration lives in PostgreSQL
+
+Tenants, roles, connectors, OIDC and LiteLLM settings, tunables and provider
+tokens are all rows in a database, changed through the admin API while the
+platform runs. Only what is needed *before* the database can be read stays in
+the environment. See [ADR-0006](adr/0006-configuration-in-the-database.md).
+
+| Environment | Database |
+| --- | --- |
+| `DATABASE_URL`, `SECRETS_KEY` | tenants, roles, project allowlists |
+| `CBM_*` paths and the engine binary | connectors and provider tokens |
+| `PORT`, `WEB_CONCURRENCY`, log level | OIDC and LiteLLM settings, tunables |
+
 ## Local evaluation
 
 ```bash
-cd deploy
-cp tenants.example.yaml tenants.yaml
-cp scan.example.yaml scan.yaml
-export LITELLM_MASTER_KEY=$(openssl rand -hex 24)
-export GITHUB_TOKEN=ghp_...            # a read-only token for discovery
-export WEBHOOK_SECRET_GITHUB=$(openssl rand -hex 24)
-docker compose up --build
+make setup      # generates POSTGRES_PASSWORD, SECRETS_KEY and the rest
+make up         # PostgreSQL, migrations, the first administrator, both services
+```
+
+The `init` container applies migrations and creates the first administrator
+before either service starts. With `ADMIN_PASSWORD` empty in `deploy/.env` a
+password is generated and printed once:
+
+```bash
+docker compose logs init
 ```
 
 | Service | URL |
 | --- | --- |
 | Gateway (MCP) | http://localhost:8080/mcp |
+| Gateway (admin API) | http://localhost:8080/admin |
 | Indexer | http://localhost:8082 |
 | Keycloak | http://localhost:8081 |
 | LiteLLM | http://localhost:4000 |
+| PostgreSQL | localhost:5432 |
+
+A freshly bootstrapped platform has no squads, and `/readyz` says so rather
+than looking healthy:
+
+```json
+{"status": "ok", "tenants": [], "warning": "no squads are configured; ..."}
+```
+
+## Bringing your own PostgreSQL
+
+Set `DATABASE_URL` and skip the bundled container:
+
+```bash
+# deploy/.env
+DATABASE_URL=postgresql+asyncpg://repomcp:password@db.internal:5432/repomcp
+
+docker compose up -d --scale postgres=0
+```
+
+Nothing else changes: same schema, same migrations, same commands. A plain
+`postgresql://` URL is rewritten to the async driver automatically.
+
+Requirements: PostgreSQL 14 or newer and a role that may create tables in its
+own schema. At startup the services retry for
+`DATABASE_CONNECT_RETRY_SECONDS` (60 by default) rather than crash-looping
+while the database comes up.
+
+## Configuring the platform
+
+Through the admin API:
+
+```bash
+TOKEN=$(curl -s -X POST localhost:8080/admin/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"..."}' | jq -r .token)
+
+curl -X PUT localhost:8080/admin/tenants/payments \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"ldap_groups":["squad-payments"],"projects":["acme-payments-*"],"tool_profile":"analysis"}'
+
+curl -X PUT localhost:8080/admin/secrets/github.token \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"value":"ghp_...","description":"acme org"}'
+
+curl -X PUT localhost:8080/admin/connectors/acme-github \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"provider":"github","tenant":"payments","settings":{"org":"acme"},"token_secret":"github.token"}'
+```
+
+Or by importing YAML, which is the migration path from an older deployment:
+
+```bash
+docker compose run --rm init repo-mcp-admin import \
+  --tenants /etc/repo-mcp/tenants.yaml --scan /etc/repo-mcp/scan.yaml
+```
+
+The import copies token values out of the environment into encrypted storage,
+turning a `token_env` reference into a stored secret. It is idempotent.
+
+Changes reach every replica within `CONFIG_POLL_SECONDS` (15 by default), with
+no restart, and each one is recorded with an actor in `/admin/audit`.
 
 Trigger the first discovery pass:
 
@@ -25,6 +104,36 @@ Trigger the first discovery pass:
 curl -X POST http://localhost:8082/rescan -H "Authorization: Bearer $CI_TRIGGER_TOKEN"
 curl http://localhost:8082/repos
 ```
+
+## The administrator account
+
+A local account exists so the platform can be configured before the identity
+provider is — including configuring the identity provider itself. It reaches
+the admin API only: it cannot call MCP tools, query a graph or read source.
+See [ADR-0007](adr/0007-break-glass-administrator.md).
+
+```bash
+docker compose run --rm init repo-mcp-admin create-admin --username alice
+docker compose run --rm init repo-mcp-admin set-password admin
+docker compose run --rm init repo-mcp-admin status
+```
+
+**The generated bootstrap password is printed once**, to the `init`
+container's log. A log aggregator will have captured it; rotate it with
+`set-password` after the first login if that matters to you.
+
+## SECRETS_KEY
+
+Provider tokens are encrypted at rest with it. It must be stable across
+restarts and identical on every replica — losing it means re-entering every
+credential, and the failure names the key rather than looking like data
+corruption.
+
+```bash
+make generate-key
+```
+
+Back it up somewhere other than the database it protects.
 
 ## Keycloak and LDAP
 

@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [gateway, indexer]
+        service: [common, gateway, indexer]
         python-version: ["3.11", "3.12", "3.13"]
 
     defaults:
@@ -37,13 +37,25 @@ jobs:
           cache-dependency-path: ${{ matrix.service }}/pyproject.toml
 
       - name: Install
-        run: pip install -e '.[dev]'
+        run: |
+          # gateway and indexer depend on the shared package by path.
+          if [ "${{ matrix.service }}" != "common" ]; then pip install -e ../common; fi
+          pip install -e '.[dev]'
 
       - name: Lint
         run: ruff check --output-format=github .
 
       - name: Test
         run: pytest -q
+
+  branch:
+    name: branch name
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the branch name
+        run: scripts/check-branch.sh "${{ github.head_ref }}"
 
   docs:
     name: documentation rules
@@ -125,6 +137,7 @@ jobs:
 
       - name: Install
         run: |
+          pip install -e './common[dev]'
           pip install -e './gateway[dev]'
           pip install -e './indexer[dev]'
 

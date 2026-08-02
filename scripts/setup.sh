@@ -27,7 +27,7 @@ ok "python $PY_VERSION"
 
 # ── dependencies ──────────────────────────────────────────────────────
 
-for service in gateway indexer; do
+for service in common gateway indexer; do
   log "setting up $service"
   cd "$REPO_ROOT/$service"
   if (( CREATE_VENV )); then
@@ -57,6 +57,14 @@ done
 
 # ── secrets ───────────────────────────────────────────────────────────
 
+gen_fernet_key() {
+  # Fernet needs a url-safe base64 32-byte key, not an arbitrary hex string.
+  "$(py_for common)" -c \
+    'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())' \
+    2>/dev/null || python3 -c \
+    'import base64,os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())'
+}
+
 gen_secret() {
   if command -v openssl >/dev/null 2>&1; then
     openssl rand -hex 24
@@ -85,6 +93,16 @@ WEBHOOK_SECRET_GITHUB=$(gen_secret)
 WEBHOOK_SECRET_GITLAB=$(gen_secret)
 WEBHOOK_SECRET_BITBUCKET=$(gen_secret)
 KEYCLOAK_ADMIN_PASSWORD=$(gen_secret)
+POSTGRES_PASSWORD=$(gen_secret)
+
+# Encrypts provider tokens at rest. Must stay stable: losing it means
+# re-entering every credential.
+SECRETS_KEY=$(gen_fernet_key)
+
+# The first administrator. Leave the password empty and one is generated and
+# printed once when the stack first starts.
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=
 
 # --- provider tokens for repository discovery (fill these in) ---
 GITHUB_TOKEN=

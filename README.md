@@ -61,9 +61,12 @@ control an organisation actually needs.
  GitHub · GitLab · Bitbucket ──webhook/schedule──▶ Indexer ──▶ graph store
 ```
 
-Two services. The **gateway** authenticates, authorizes and serves the MCP
-surface. The **indexer** discovers repositories and keeps their graphs current.
-Both drive an embedded indexing engine; see [docs/architecture.md](docs/architecture.md).
+Two services and a database. The **gateway** authenticates, authorizes and
+serves the MCP surface. The **indexer** discovers repositories and keeps their
+graphs current. **PostgreSQL** holds the configuration — squads, roles,
+connectors, settings and encrypted provider tokens — which an administrator
+changes through an API while the platform runs. See
+[docs/architecture.md](docs/architecture.md).
 
 ## Quick start
 
@@ -96,7 +99,12 @@ problem.
 
 ## Configuration
 
-Two files, both safe to commit — every secret comes from the environment.
+Configuration lives in PostgreSQL and is changed through the admin API or
+`repo-mcp-admin`, not by editing files. Only what is needed before the
+database can be read stays in the environment (`DATABASE_URL`,
+`SECRETS_KEY`, engine paths).
+
+The shapes below are what the API and the importer accept.
 
 `tenants.yaml` — who may do what, to which data:
 

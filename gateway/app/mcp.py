@@ -136,10 +136,14 @@ class McpRouter:
     def __init__(
         self,
         settings: Settings,
-        registry: TenantRegistry,
+        registry: TenantRegistry | None,
         pool: CbmPool,
         llm: LlmClient,
     ) -> None:
+        #: Paths and process settings, from the environment. Tenancy arrives
+        #: per request inside the Session, because an administrator can change
+        #: it while the service runs; `registry` is kept only so tests can
+        #: build a router without a database.
         self._settings = settings
         self._registry = registry
         self._pool = pool

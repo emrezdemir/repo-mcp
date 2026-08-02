@@ -37,7 +37,11 @@ class Connector:
     kind: str
     tenant: str
     raw: dict
-    secret_env: str
+    #: Environment variable holding the token. Used when the connector came
+    #: from YAML; database-backed connectors carry the value in `token`.
+    secret_env: str = ""
+    #: Token resolved from the configuration database.
+    token: str | None = None
     include: tuple[str, ...] = ("*",)
     exclude: tuple[str, ...] = ()
     mode: str = "moderate"
@@ -61,10 +65,13 @@ class Connector:
         )
 
     def build(self) -> Provider:
-        secret = os.getenv(self.secret_env, "")
+        # A token stored in the configuration database wins; the environment
+        # variable remains supported so an existing YAML setup keeps working.
+        secret = self.token or (os.getenv(self.secret_env, "") if self.secret_env else "")
         if not secret:
+            where = f"${self.secret_env}" if self.secret_env else "the configuration database"
             raise ConfigError(
-                f"connector {self.name!r} expects {self.secret_env} to be set"
+                f"connector {self.name!r} has no access token; set it in {where}"
             )
         return build_provider({"type": self.kind, **self.raw}, secret)
 
@@ -94,7 +101,19 @@ class ScanConfig:
             raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         except OSError as exc:  # pragma: no cover - operational failure
             raise ConfigError(f"cannot read scan config {path}: {exc}") from exc
+        return cls.from_dict(raw, repo_root)
 
+    @classmethod
+    def from_dict(
+        cls, raw: dict, repo_root: Path, secrets: dict[str, str] | None = None
+    ) -> ScanConfig:
+        """Build from an already-parsed document.
+
+        The configuration database produces the same shape the YAML file had,
+        so both sources go through one code path. `secrets` maps a secret name
+        to its plaintext, resolved by the caller.
+        """
+        secrets = secrets or {}
         entries = raw.get("connectors")
         if not isinstance(entries, list) or not entries:
             raise ConfigError("scan.yaml must define at least one connector")
@@ -104,9 +123,13 @@ class ScanConfig:
         for entry in entries:
             if not isinstance(entry, dict):
                 raise ConfigError("each connector entry must be a mapping")
-            for key in ("name", "type", "tenant", "token_env"):
+            for key in ("name", "type", "tenant"):
                 if not entry.get(key):
                     raise ConfigError(f"connector is missing {key!r}: {entry}")
+            if not entry.get("token_env") and not entry.get("token_secret"):
+                raise ConfigError(
+                    f"connector {entry['name']!r} needs token_env or token_secret"
+                )
             name = str(entry["name"])
             if name in seen:
                 raise ConfigError(f"duplicate connector name: {name!r}")
@@ -119,15 +142,16 @@ class ScanConfig:
                     f"(expected one of {', '.join(sorted(VALID_MODES))})"
                 )
 
-            reserved = {"name", "type", "tenant", "token_env", "include", "exclude",
-                        "mode", "persistence", "schedule_cron"}
+            reserved = {"name", "type", "tenant", "token_env", "token_secret",
+                        "include", "exclude", "mode", "persistence", "schedule_cron"}
             connectors.append(
                 Connector(
                     name=name,
                     kind=str(entry["type"]).lower(),
                     tenant=str(entry["tenant"]),
                     raw={k: v for k, v in entry.items() if k not in reserved},
-                    secret_env=str(entry["token_env"]),
+                    secret_env=str(entry.get("token_env", "")),
+                    token=secrets.get(str(entry.get("token_secret", ""))) or None,
                     include=tuple(str(p) for p in entry.get("include", ["*"])),
                     exclude=tuple(str(p) for p in entry.get("exclude", [])),
                     mode=mode,

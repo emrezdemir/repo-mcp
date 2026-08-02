@@ -1,18 +1,35 @@
 # Active context
 
 **Last updated:** 2026-08-02
-**Branch:** `dev` (4 commits ahead of `main`)
+**Branch:** `feature/config-in-database`, off `dev`
 
 ## Where things stand
 
-The gateway and the indexer are built, tested and packaged. `main` is still at
-the initial commit — the maintainer merges `dev` into it; nothing else pushes
-there.
+Configuration has moved out of YAML and into PostgreSQL, with an
+administrative API, a first-boot administrator and encrypted credentials. The
+gateway and the indexer both read it at runtime and pick up changes without a
+restart.
 
-Nothing is in flight. The next piece of work is a fresh start against the
-list in [progress.md](progress.md).
+`main` is still at the initial commit — the maintainer merges `dev` into it;
+nothing else pushes there.
+
+In flight: `feature/config-in-database` is complete and tested but has not
+been merged to `dev` yet.
 
 ## What the last sessions did
+
+**Session 5 — configuration in the database.** Added `common/`: schema,
+Alembic migrations, Fernet-encrypted secrets, Argon2id administrator
+accounts, the configuration store and `repo-mcp-admin`. Both services now read
+configuration from PostgreSQL through a generation-cached store; the gateway
+gained an `/admin` API. Compose ships PostgreSQL plus an `init` container, and
+`DATABASE_URL` switches to an external instance. Also adopted the
+`feature/`/`bugfix/`/`hotfix/` branch convention, enforced by
+`scripts/check-branch.sh`.
+
+The store deliberately produces the same document shapes the YAML files had,
+so `TenantRegistry.from_dict` and the whole authorization path were untouched
+— which is why every existing test still applies.
 
 **Session 4 — agent working agreement.** Added `AGENTS.md` (the binding
 contract), `CLAUDE.md` (a thin Claude-specific layer that defers to it), this
@@ -66,6 +83,9 @@ discusses engine internals — with source references, so claims are checkable.
 
 Roughly in order of value per unit of effort:
 
+0. **Merge `feature/config-in-database` into `dev`.** It is complete, tested
+   and verified end to end against a live server, but has never run against
+   real PostgreSQL — only SQLite. Do that first.
 1. **Wire up the `org/public` shared layer.** The `cross-repo-intelligence`
    mode and the `structural_only` tenant flag both exist; the nightly job that
    builds the layer does not. Small job, unlocks cross-squad topology answers.

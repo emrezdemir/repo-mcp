@@ -41,6 +41,17 @@ away.
 - Scheduled rescan and a CI trigger endpoint.
 - Prometheus metrics.
 
+**Configuration database**
+- Schema, Alembic migrations, and a store that produces the same document
+  shapes the YAML files had, so no authorization code changed. 32 tests.
+- Bootstrap: schema upgrade, first administrator, idempotent YAML import that
+  moves token values out of the environment into encrypted storage.
+- Admin API verified live: login rejects a wrong password, requires a bearer
+  token, creates a squad that takes effect with no restart, refuses an unknown
+  tool profile and a clashing LDAP group, keeps secret values out of every
+  response, and records an actor for each change.
+- Argon2id passwords, Fernet-encrypted credentials.
+
 **Tooling**
 - `make setup` / `test` / `dev` / `debug` / `stack` / `check-secrets` — all run
   end to end in a clean checkout.
@@ -65,6 +76,8 @@ external system. Treat their behaviour as unproven.
 | Webhook endpoints | A real webhook delivery from any provider |
 | LiteLLM composite tools | A live LiteLLM proxy |
 | Container images | Never built here; CI builds them |
+| PostgreSQL | Everything was exercised against SQLite. The schema and migration are the same, but no PostgreSQL server has run here |
+| The `init` Compose container | Never started; the same commands were run directly |
 | Helm chart | Never rendered by `helm`; only structurally checked. CI runs `helm lint` and `helm template` |
 | End-to-end script | Never run; needs Docker |
 | Keycloak/LDAP federation | Documented, never stood up |
@@ -104,6 +117,8 @@ Not bugs — consequences of decisions, recorded so nobody rediscovers them.
 | Defect | Found by | Fix |
 | --- | --- | --- |
 | Missing engine binary surfaced as HTTP 500 | `make debug` | Named `CbmError`, with a regression test |
+| A freshly bootstrapped database crashed the gateway | Starting it against an empty database | An empty tenant registry is valid; `/readyz` warns instead |
+| A malformed dummy password hash raised instead of returning false | The authentication test | A real dummy hash, and `VerificationError` is caught |
 | `readme = "../README.md"` rejected by setuptools | `make setup` | Per-service READMEs |
 | `:ro` cache mount would break SQLite WAL readers | Review | Read-write mount; writes prevented by the tool profile instead |
 | `grep` treating `-----BEGIN` as an option | Testing the scanner | `grep -- "$pattern"` |

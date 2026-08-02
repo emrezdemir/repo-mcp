@@ -22,11 +22,54 @@ feature branches
 ```bash
 git checkout dev
 git pull origin dev
+git checkout -b feature/short-description
 # work
-git push origin dev
+git push -u origin feature/short-description
 ```
 
-CI runs on both branches and on every pull request targeting either.
+CI runs on both long-lived branches and on every pull request targeting
+either.
+
+## Branch names
+
+`<type>/<short-description>`, lowercase kebab-case, at most 60 characters.
+The type is not decoration — it says where the branch comes from, where it
+goes, and how urgent it is.
+
+| Type | Branch from | Merges into | Use for |
+| --- | --- | --- | --- |
+| `feature/` | `dev` | `dev` | New capability or a change in behaviour |
+| `bugfix/` | `dev` | `dev` | A defect found in `dev`, not yet released |
+| `hotfix/` | **`main`** | **`main` and `dev`** | A defect in released code that cannot wait for the next merge |
+| `chore/` | `dev` | `dev` | Tooling, dependencies, refactors with no behaviour change |
+| `docs/` | `dev` | `dev` | Documentation only |
+
+```
+feature/config-in-database      good
+bugfix/webhook-signature-utf8   good
+hotfix/token-leak-in-audit-log  good
+chore/bump-ruff                 good
+
+my-branch                       no type
+feature/Fix_Stuff               not kebab-case
+claude/whatever                 never name a branch after a tool or a person
+```
+
+**`hotfix/` is the one to get right.** It branches from `main`, because `dev`
+may contain unreleased work that must not ship with an urgent fix. It merges
+into **both** `main` and `dev` — a hotfix that only lands on `main` is
+reintroduced by the next `dev` merge.
+
+```bash
+# hotfix
+git checkout main && git pull origin main
+git checkout -b hotfix/short-description
+# fix, then merge into main (maintainer) and into dev (you)
+git checkout dev && git merge hotfix/short-description
+```
+
+Branch names are checked by `scripts/check-branch.sh`, which runs in the
+pre-commit hook and in CI on every pull request.
 
 ## Why main and dev never conflict
 

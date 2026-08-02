@@ -112,9 +112,15 @@ class TenantRegistry:
     @classmethod
     def from_dict(cls, raw: dict) -> TenantRegistry:
         entries = raw.get("tenants")
-        if not isinstance(entries, dict) or not entries:
-            raise ConfigError("tenants.yaml must define at least one tenant")
+        if entries is None:
+            entries = {}
+        if not isinstance(entries, dict):
+            raise ConfigError("'tenants' must be a mapping of squad name to definition")
 
+        # An empty registry is a legitimate state, not an error: a freshly
+        # bootstrapped database has no squads until an administrator adds the
+        # first one. The service starts, reports it, and denies every request
+        # with "none of your LDAP groups map to a squad" — which is true.
         tenants: list[Tenant] = []
         seen_groups: dict[str, str] = {}
         for name, cfg in entries.items():

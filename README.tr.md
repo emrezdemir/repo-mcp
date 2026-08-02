@@ -61,9 +61,11 @@ indekslenmiş, bir organizasyonun gerçekten ihtiyaç duyduğu erişim kontrolü
  GitHub · GitLab · Bitbucket ──webhook/zamanlama──▶ Indexer ──▶ graph deposu
 ```
 
-İki servis. **Gateway** kimlik doğrular, yetkilendirir ve MCP yüzeyini sunar.
-**Indexer** repoları keşfeder ve graph'larını güncel tutar. İkisi de gömülü bir
-indeksleme motorunu sürer; bkz. [docs/architecture.md](docs/architecture.md).
+İki servis ve bir veritabanı. **Gateway** kimlik doğrular, yetkilendirir ve MCP
+yüzeyini sunar. **Indexer** repoları keşfeder ve graph'larını güncel tutar.
+**PostgreSQL** yapılandırmayı tutar — squad'lar, roller, konnektörler, ayarlar
+ve şifreli provider token'ları — ve admin bunları sistem çalışırken bir API
+üzerinden değiştirir. Bkz. [docs/architecture.md](docs/architecture.md).
 
 ## Hızlı başlangıç
 
@@ -95,7 +97,12 @@ ilk sorunda durmaz, bulduğu her şeyi raporlar.
 
 ## Yapılandırma
 
-İki dosya; ikisi de commit'lenebilir — tüm sırlar ortamdan gelir.
+Yapılandırma PostgreSQL'de tutulur ve dosya düzenleyerek değil, admin API'si
+veya `repo-mcp-admin` ile değiştirilir. Ortamda yalnızca veritabanı
+okunmadan önce bilinmesi gerekenler kalır (`DATABASE_URL`, `SECRETS_KEY`,
+motor yolları).
+
+Aşağıdaki şekiller API'nin ve içe aktarıcının kabul ettiği biçimlerdir.
 
 `tenants.yaml` — kim, neyi, hangi veriye yapabilir:
 
