@@ -65,6 +65,12 @@ gen_secret() {
   fi
 }
 
+# The pre-commit hook is what actually stops a secret reaching the remote;
+# .gitignore does nothing for a file that is already tracked.
+if git -C "$REPO_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+  "$REPO_ROOT/scripts/check-secrets.sh" --install >/dev/null && ok "pre-commit secret hook installed"
+fi
+
 ENV_FILE="$REPO_ROOT/deploy/.env"
 if [[ -f "$ENV_FILE" ]]; then
   dim "      deploy/.env already exists, left untouched"
@@ -144,4 +150,6 @@ Then:
   ${C_DIM}scripts/dev.sh${C_RESET}           run both services locally, no Docker
   ${C_DIM}scripts/stack.sh up${C_RESET}      bring up the full Docker stack
   ${C_DIM}scripts/debug.sh${C_RESET}         diagnose a running or broken setup
+
+${C_DIM}Branching: develop on ${C_RESET}dev${C_DIM}. See docs/development.md.${C_RESET}
 EOF

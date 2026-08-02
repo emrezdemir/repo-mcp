@@ -136,6 +136,7 @@ connectors:
 | [Deployment](docs/deployment.md) | Keycloak/LDAP, webhooks, CI, production notes |
 | [Scaling](docs/scaling.md) | storage topologies, what to watch, capacity planning |
 | [Development](docs/development.md) | the scripts, the test layers, how to debug |
+| [Branching](docs/branching.md) | main/dev flow, and how secrets stay out of the repo |
 | [Indexing engine](docs/engine.md) | what the embedded engine does, and the limits it imposes |
 | [Roadmap](docs/roadmap.md) | done, next, and explicitly not planned |
 | [Decision records](docs/adr/) | why the design is what it is |

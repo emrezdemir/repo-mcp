@@ -6,9 +6,13 @@ add code.
 
 ## Getting set up
 
+Work happens on `dev`; `main` only moves when `dev` is merged into it. Branch
+from `dev` and open your pull request against `dev`.
+
 ```bash
 git clone https://github.com/emrezdemir/repo-mcp
 cd repo-mcp
+git checkout dev
 
 cd gateway && pip install -e '.[dev]' && pytest && cd ..
 cd indexer && pip install -e '.[dev]' && pytest && cd ..
@@ -27,6 +31,9 @@ For an end-to-end environment, see [docs/deployment.md](docs/deployment.md).
   path, not only the allow path.
 - Documentation is updated in the same change. A feature that is not in
   `docs/` does not exist for whoever comes next.
+- `make check-secrets` is clean. Run `make hooks` once and the pre-commit hook
+  does this for you — see [docs/branching.md](docs/branching.md).
+- The pull request targets `dev`.
 
 ## Things worth knowing before you change things
 

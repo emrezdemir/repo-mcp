@@ -1,5 +1,17 @@
 # Development
 
+## Branching
+
+Work happens on **`dev`**; `main` only moves when `dev` is merged into it.
+
+```bash
+git checkout dev
+git pull origin dev
+```
+
+Configuration never differs between the two branches, so those merges do not
+conflict over environment values. See [branching.md](branching.md).
+
 ## Setup
 
 ```bash
@@ -13,6 +25,10 @@ configuration is never overwritten.
 
 `scripts/setup.sh --no-venv` installs into the active environment instead, if
 you manage environments yourself.
+
+It also installs a pre-commit hook that refuses to commit secrets or
+environment-specific configuration. Install it on its own with `make hooks`,
+and audit what is already tracked with `make check-secrets`.
 
 ## Running locally
 
@@ -110,7 +126,10 @@ And `make e2e` if you touched the Dockerfile, the stdio bridge, or the
 indexing path — those are exactly what unit tests do not cover.
 
 CI additionally runs ShellCheck over `scripts/`, `helm lint` and `helm
-template` over the chart, and builds both images.
+template` over the chart, scans every tracked file for secrets, and builds
+both images.
+
+Open the pull request against **`dev`**, not `main`.
 
 ## House rules
 

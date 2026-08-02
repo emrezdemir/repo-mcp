@@ -13,6 +13,7 @@
 
 ## Checklist
 
+- [ ] This targets `dev` (not `main`)
 - [ ] `pytest` passes in the services I touched
 - [ ] `ruff check .` is clean
 - [ ] New behaviour is covered by a test (including the denial path, for
@@ -20,3 +21,5 @@
 - [ ] Documentation updated in this change
 - [ ] An ADR is added or updated, if this changes the tenancy model, the
       authorization model, the engine boundary or the data flow
+- [ ] No secrets or environment-specific configuration are committed
+      (`make check-secrets`)
