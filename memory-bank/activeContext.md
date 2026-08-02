@@ -1,7 +1,7 @@
 # Active context
 
 **Last updated:** 2026-08-02
-**Branch:** `feature/answer-cache`, off `dev`
+**Branch:** `feature/headroom-plugin`, off `dev`
 
 ## Where things stand
 
@@ -17,6 +17,16 @@ from `dev`; a version tag publishes `:vX.Y.Z` and packages the chart.
 nothing else pushes there.
 
 ## What the last sessions did
+
+**Session 8 — prompt compression as a plugin.** Headroom runs as its own
+pinned container in front of LiteLLM, enabled by a database setting and
+removed by the same one. Nothing vendored: updating it is a tag bump, and the
+chart refuses an unpinned tag. Embeddings deliberately bypass it, because
+compressing the text would move the vector the answer cache keys on.
+
+`deploy/docker-compose.yml` turned out not to parse at all — unquoted
+`${VAR:-default}` inside a flow mapping, plus a duplicate `ENVIRONMENT` key.
+Nothing read the file, so nothing said so. `make test` validates it now.
 
 **Session 7 — the answer cache.** A per-squad cache of `ask_codebase`
 answers, keyed on a new per-project index epoch that the indexer bumps after
@@ -123,9 +133,7 @@ discusses engine internals — with source references, so claims are checkable.
 
 Roughly in order of value per unit of effort:
 
-0. **Headroom as an updatable plugin** — pinned image tag, a DB setting to
-   enable it, structural tool outputs only. Never `get_code_snippet`.
-1. **Wire up the `org/public` shared layer.** The `cross-repo-intelligence`
+0. **Wire up the `org/public` shared layer.** The `cross-repo-intelligence`
    mode and the `structural_only` tenant flag both exist; the nightly job that
    builds the layer does not. Small job, unlocks cross-squad topology answers.
 3. **Durable job queue** (Redis or NATS) with per-project leases, so the

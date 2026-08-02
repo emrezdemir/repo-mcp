@@ -116,6 +116,24 @@ ScanConfig.load(Path("deploy/scan.example.yaml"), Path("/tmp"))
 PY
 then ok "scan.example.yaml parses"; else FAILURES+=("scan.example.yaml"); fi
 
+# The Compose file was unparseable for a while and nobody noticed, because
+# nothing here read it. Interpolation needs values, so supply throwaway ones:
+# the question is whether the file is valid, not what is in it.
+if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+  if POSTGRES_PASSWORD=check SECRETS_KEY=check LITELLM_MASTER_KEY=check \
+     docker compose -f "$REPO_ROOT/deploy/docker-compose.yml" --profile headroom \
+     config --quiet >/dev/null 2>&1; then
+    ok "docker-compose.yml is valid"
+  else
+    POSTGRES_PASSWORD=check SECRETS_KEY=check LITELLM_MASTER_KEY=check \
+      docker compose -f "$REPO_ROOT/deploy/docker-compose.yml" --profile headroom \
+      config --quiet || true
+    FAILURES+=("docker-compose.yml")
+  fi
+else
+  dim "      docker compose not available, skipping the Compose check"
+fi
+
 # Documentation rules are checked here too, so a change that forgets a doc
 # fails in the same run as one that forgets a test.
 log "documentation rules"

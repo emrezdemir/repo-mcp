@@ -99,6 +99,33 @@ services:
       retries: 10
       start_period: 30s
 
+  # Optional prompt compression, in front of LiteLLM. Upstream software, run
+  # from its own pinned image — updating it is bumping HEADROOM_VERSION, and
+  # nothing here is a copy of it. Start it with:
+  #
+  #   docker compose --profile headroom up -d
+  #
+  # then point the platform at it and turn it on:
+  #
+  #   repo-mcp-admin set headroom.base_url http://headroom:8787/v1
+  #   repo-mcp-admin set headroom.enabled true
+  #
+  # Its own upstream routing is configured by its own environment; put those
+  # variables in deploy/.env and they are passed through untouched.
+  # See docs/adr/0010-headroom-plugin.md.
+  headroom:
+    <<: *defaults
+    profiles: ["headroom"]
+    image: ghcr.io/chopratejas/headroom:${HEADROOM_VERSION:-latest}
+    command: ["headroom", "proxy", "--port", "8787"]
+    environment:
+      HEADROOM_OUTPUT_SHAPER: ${HEADROOM_OUTPUT_SHAPER:-1}
+      # An air-gapped or offline stack should not be phoning home on start.
+      HEADROOM_UPDATE_CHECK: "off"
+      OPENAI_BASE_URL: ${HEADROOM_UPSTREAM_URL:-http://litellm:4000/v1}
+      OPENAI_API_KEY: ${LITELLM_MASTER_KEY:?set LITELLM_MASTER_KEY}
+    ports: ["8787:8787"]
+
   # Optional local model backend. Remove it and point LiteLLM at your own
   # proxy if you already run one.
   ollama:
@@ -109,7 +136,7 @@ services:
       - ollama-models:/root/.ollama
     deploy:
       resources:
-        limits: { memory: ${OLLAMA_MEMORY_LIMIT:-16g} }
+        limits: { memory: "${OLLAMA_MEMORY_LIMIT:-16g}" }
 
   gateway:
     <<: *defaults
@@ -129,7 +156,6 @@ services:
       SECRETS_KEY: ${SECRETS_KEY:?set SECRETS_KEY — generate one with 'make generate-key'}
       CONFIG_POLL_SECONDS: ${CONFIG_POLL_SECONDS:-15}
       ENVIRONMENT: ${ENVIRONMENT:-local}
-      ENVIRONMENT: ${ENVIRONMENT:-local}
       # Local evaluation without Keycloak: set DEV_INSECURE_AUTH=true and a
       # DEV_STATIC_TOKEN in deploy/.env. Never do this in production.
       DEV_INSECURE_AUTH: ${DEV_INSECURE_AUTH:-false}
@@ -148,7 +174,7 @@ services:
       - repo-workdirs:/var/lib/repo-mcp/repos
     deploy:
       resources:
-        limits: { memory: ${GATEWAY_MEMORY_LIMIT:-4g} }
+        limits: { memory: "${GATEWAY_MEMORY_LIMIT:-4g}" }
 
   indexer:
     <<: *defaults
@@ -183,7 +209,7 @@ services:
       - repo-workdirs:/var/lib/repo-mcp/repos
     deploy:
       resources:
-        limits: { memory: ${INDEXER_MEMORY_LIMIT:-8g} }
+        limits: { memory: "${INDEXER_MEMORY_LIMIT:-8g}" }
 
 volumes:
   postgres-data:
