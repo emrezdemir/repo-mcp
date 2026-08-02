@@ -2,8 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
+    branches: [main, dev]
 
 permissions:
   contents: read
@@ -43,6 +44,38 @@ jobs:
 
       - name: Test
         run: pytest -q
+
+  secrets:
+    name: no secrets committed
+    runs-on: ubuntu-latest
+    steps:
+      # Full history: a secret removed in the tip commit is still in the
+      # repository, and a reviewer needs to know that before merging.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan every tracked file
+        run: scripts/check-secrets.sh --all
+
+      # Environment-specific configuration is what makes long-lived branches
+      # conflict on every merge, so it must not be tracked on any of them.
+      - name: No environment-specific configuration is tracked
+        run: |
+          tracked="$(git ls-files | grep -E '(^|/)\.env$|^deploy/(tenants|scan)\.yaml$' || true)"
+          if [ -n "$tracked" ]; then
+            echo "these must never be tracked:"
+            echo "$tracked"
+            exit 1
+          fi
+          echo "none tracked"
+
+      - name: The example configuration is present
+        run: |
+          for f in deploy/.env.example deploy/tenants.example.yaml deploy/scan.example.yaml; do
+            test -f "$f" || { echo "missing: $f"; exit 1; }
+          done
+          echo "all example files present"
 
   shell:
     name: shell scripts

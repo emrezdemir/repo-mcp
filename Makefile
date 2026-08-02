@@ -44,6 +44,14 @@ cov: ## Run tests with a coverage report
 debug: ## Diagnose the current setup
 	@scripts/debug.sh
 
+.PHONY: check-secrets
+check-secrets: ## Scan every tracked file for secrets and forbidden paths
+	@scripts/check-secrets.sh --all
+
+.PHONY: hooks
+hooks: ## Install the pre-commit hook that blocks secrets
+	@scripts/check-secrets.sh --install
+
 # ── docker ────────────────────────────────────────────────────────────
 
 .PHONY: build
