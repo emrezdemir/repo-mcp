@@ -71,8 +71,11 @@ services:
       KC_HEALTH_ENABLED: "true"
     ports: ["8081:8080"]
     volumes:
-      # Drop a realm export here with LDAP federation and the group mapper
-      # already configured. See docs/deployment.md.
+      # repo-mcp-realm.json ships here: the groups tenants.example.yaml refers
+      # to, a public browser client with PKCE, a service client, and the token
+      # mappers that put the audience and the group list where the gateway
+      # looks for them. It has no users — add LDAP federation, or run
+      # scripts/keycloak-user.sh. See docs/deployment.md.
       - ./keycloak:/opt/keycloak/data/import:ro
     healthcheck:
       test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '\"UP\"'"]

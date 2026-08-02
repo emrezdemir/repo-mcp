@@ -6,6 +6,27 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **A Keycloak realm that ships.** `deploy/keycloak/repo-mcp-realm.json` is
+  imported on first start: the groups the example squads refer to, a public
+  browser client with PKCE for `/ui`, a confidential service client for CI,
+  and the mappers that put the group list and the `repo-mcp` audience where
+  the gateway looks for them. The directory was mounted and empty before, so
+  the bundled identity provider started with nothing in it and the
+  documentation was a list of console steps.
+
+  It ships no users on purpose — the import runs with `OVERWRITE_EXISTING`, so
+  a user in it would come back after every restart, and a repository that
+  carries a working credential is a repository whose credential ends up in
+  production. `scripts/keycloak-user.sh` creates one and prints a generated
+  password once.
+
+  Verified against a real Keycloak 26: realm imported, user created by the
+  script, signed in through the browser, and the resulting token's `groups`
+  and `aud` claims mapped to the expected role and squad. A user in
+  `squad-checkout` correctly sees none of the payments squad's graph.
+
 ## [0.2.0] - 2026-08-02
 
 ### Added

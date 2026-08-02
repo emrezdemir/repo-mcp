@@ -48,6 +48,14 @@ away.
 - 21 tests over `/api/auth`, `/api/session` and static serving, including
   path traversal.
 
+**Identity**
+- The bundled Keycloak realm imports: nine groups, a public browser client
+  with PKCE, a service client, and the group and audience mappers. Verified
+  against a real Keycloak 26 — realm imported, user created by
+  `scripts/keycloak-user.sh`, signed in through the browser, and the token's
+  `groups` and `aud` claims mapped to the expected role and squad. A user in
+  `squad-checkout` sees none of the payments squad's graph.
+
 **Administration**
 - `repo-mcp-admin` and the console cover the same operations through the same
   functions: squads, roles, connectors, secrets, settings, audit,

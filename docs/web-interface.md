@@ -73,7 +73,18 @@ not expire under someone.
 
 ### Registering the client
 
-In Keycloak, a client for the interface needs:
+The bundled Keycloak already has one. `deploy/keycloak/repo-mcp-realm.json` is
+imported on first start and carries a `repo-mcp-web` public client with PKCE,
+the group and audience mappers, and the groups the example squads refer to.
+Create a user and point the platform at it:
+
+```bash
+scripts/keycloak-user.sh ada --name "Ada Lovelace" --group squad-payments
+repo-mcp-admin set oidc.issuer http://localhost:8081/realms/repo-mcp
+repo-mcp-admin set oidc.browser_client_id repo-mcp-web
+```
+
+For an existing Keycloak, a client for the interface needs:
 
 | Setting | Value |
 | --- | --- |
