@@ -1,5 +1,28 @@
 # Deployment
 
+## Which path
+
+| You want to… | Run |
+| --- | --- |
+| Try it on your machine — and maybe develop or run the tests | `make setup`, then `make up` |
+| Run it on a server, only the stack | `make setup ARGS=--config-only`, then `make up` |
+| Run it on Kubernetes | The Helm chart — see [Kubernetes](#kubernetes) |
+| Change which optional components run, later | `make wizard` |
+
+`make setup` and `make setup ARGS=--config-only` produce the **same running
+stack** — `make up` starts the same containers either way. The only difference is
+whether `make setup` also builds the three Python virtualenvs, which `make test`
+and `make dev` (running the services without Docker) need; a server that only
+runs `make up` does not, and `--config-only` installs no Python at all.
+`make wizard` is just the four-question component choice from setup, re-runnable
+on its own to change which optional containers run.
+
+The stack is **built from source** on the first `make up` — the web interface,
+the engine and both services — which needs a few GB of free disk for the build
+layers. On a small VM the build can fail with **`no space left on device`**;
+reclaim space with `podman system prune -af` (or `docker system prune -af`), or
+give the machine a larger disk. `df -h` shows what is left.
+
 ## Configuration lives in PostgreSQL
 
 Tenants, roles, connectors, OIDC and LiteLLM settings, tunables and provider
