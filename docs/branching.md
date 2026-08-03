@@ -97,46 +97,32 @@ CI enforces this: a job fails if `.env`, `deploy/tenants.yaml`,
 `deploy/scan.yaml` or a non-example `deploy/helm/values-*.yaml` is ever
 tracked on any branch.
 
-## dev never falls behind main
+## Keeping dev and main in step
 
-Merging `dev` into `main` through a pull request leaves one commit on `main`
-that `dev` never gets: the merge commit GitHub writes. The content is
-identical — a diff between the two branches shows nothing — but the history
-diverges by one commit per release, and from then on every comparison reports
-a difference that is not a difference.
-
-`.github/workflows/sync-dev.yml` closes it. On every push to `main` it
-fast-forwards `dev` to `main`, which is always possible at that moment because
-`dev` is an ancestor of `main`.
-
-Three things it deliberately does not do:
-
-- **It does not force.** If `dev` has moved on since the pull request merged,
-  the push is not a fast-forward, the server refuses it, and the job fails
-  with the offending commits printed. Nothing pushed to `dev` in the meantime
-  is discarded.
-- **It does not merge.** A merge would create yet another commit and put the
-  branches back where they started.
-- **It does nothing when there is nothing to do**, so a push to `main` that
-  `dev` already contains is a no-op rather than an empty commit.
-
-If `dev` is a protected branch, the workflow's push needs to be allowed
-through — otherwise the job fails on every release with a permissions error
-rather than silently doing nothing.
-
-### Doing it without a pull request
-
-If you would rather not have the merge commit at all, push `dev` straight to
-`main`:
+Release with a fast-forward. `dev` is always ahead of `main`, so
 
 ```bash
 git push origin dev:main
 ```
 
-That is a genuine fast-forward: no merge commit, nothing to sync back, and the
-workflow above finds nothing to do. The trade is that there is no pull request
-to review or to hang the checks on, so this suits a repository with one
-maintainer and not much else.
+moves `main` up to `dev` with no merge commit and nothing to reconcile — the two
+are then byte-for-byte identical. This suits a single-maintainer repository:
+there is no pull request to hang the checks on, but the checks already ran on
+`dev`.
+
+Merging through a pull request instead writes one merge commit on `main` that
+`dev` does not have. The content is identical — a diff shows nothing — but the
+history diverges by that one commit per release. It is cosmetic and causes no
+conflict, because nothing environment-specific is tracked (above), so it can be
+left as it is; or `dev` can be brought up to `main` by hand when it suits:
+
+```bash
+git fetch origin && git push origin origin/main:refs/heads/dev
+```
+
+There is deliberately **no workflow doing this automatically**. `dev` is the
+working branch and changes only when someone pushes to it; a release to `main`
+does not reach back into it.
 
 ## Branches are not environments
 
