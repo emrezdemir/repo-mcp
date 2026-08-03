@@ -195,17 +195,13 @@ if [[ -z "$COMPRESSION" ]]; then
   fi
 fi
 
-if [[ -z "$PROVIDER" ]]; then
-  if (( ASK )); then
-    PROVIDER="$(ask_choice "Repository provider" "github|gitlab|bitbucket|none" "github" \
-      "GitHub or GitHub Enterprise" \
-      "GitLab or a self-hosted GitLab" \
-      "Bitbucket Cloud or Server" \
-      "decide later")"
-  else
-    PROVIDER=none
-  fi
-fi
+# The repository provider is not asked here any more: a connector — its
+# provider, organisation and token — is created in the web interface after
+# 'make up', where the token is stored encrypted rather than left in a file.
+# --provider still works for a scripted install that prefers a token in
+# deploy/.env; interactively, all three token variables are written empty as an
+# optional fallback and the choice is made in the interface.
+PROVIDER="${PROVIDER:-none}"
 
 case "$DATABASE"    in bundled|external) ;;                *) die "--database: bundled or external" ;; esac
 case "$IDENTITY"    in keycloak|external|dev) ;;           *) die "--identity: keycloak, external or dev" ;; esac
@@ -429,6 +425,8 @@ if [[ "$DATABASE" == external ]]; then
 fi
 printf '  %d. %bmake up%b        start the stack\n' "$step" "$C_BLUE" "$C_RESET" >&2
 printf '  %d. %bmake smoke%b     check it end to end\n' "$((step + 1))" "$C_BLUE" "$C_RESET" >&2
+printf '\n  %sThen open the interface, create the administrator, and add a connector.%s\n' \
+  "$C_DIM" "$C_RESET" >&2
 [[ "$IDENTITY" == dev ]] && \
   warn "authentication is disabled — do not expose this beyond your own machine"
 echo >&2

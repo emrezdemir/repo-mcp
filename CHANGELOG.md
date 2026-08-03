@@ -122,6 +122,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   a header — a row of badges and quick links — then what it is, why it matters,
   four commands to install, the interface in pictures, and links. Everything cut
   is on the site or in `docs/`, which is where it was already duplicated from.
+- **`make setup` asks four questions, not five.** The fifth chose a repository
+  provider; a connector — provider, organisation and an encrypted token — is
+  created in the web interface now, so the wizard no longer asks and its intro
+  says the questions pick which containers run, nothing more. `--provider` still
+  writes a token variable for a scripted install that prefers one in
+  `deploy/.env`.
 
 ### Fixed
 
