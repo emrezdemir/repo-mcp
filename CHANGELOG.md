@@ -93,6 +93,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   update is available, which a cron entry or systemd timer can turn into a
   notification. It refuses to run over uncommitted changes, and configuration is
   untracked, so nothing you set is lost.
+- **An update notification in the interface.** The gateway reports its running
+  version at `GET /api/version` and, unless `UPDATE_CHECK` is off, checks the
+  GitHub releases API — cached, sending nothing about the deployment — for a
+  newer one. The interface shows a banner when one is out, pointing at the
+  release notes and `make upgrade`. An air-gapped install sets
+  `UPDATE_CHECK=false`.
 
 ### Changed
 

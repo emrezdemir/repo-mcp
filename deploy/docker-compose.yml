@@ -167,6 +167,9 @@ services:
       SECRETS_KEY: ${SECRETS_KEY:?set SECRETS_KEY — generate one with 'make generate-key'}
       CONFIG_POLL_SECONDS: ${CONFIG_POLL_SECONDS:-15}
       ENVIRONMENT: ${ENVIRONMENT:-local}
+      # The gateway checks GitHub for a newer release and the interface shows a
+      # banner when one is out. Set false for an air-gapped install.
+      UPDATE_CHECK: ${UPDATE_CHECK:-true}
       # Local evaluation without Keycloak: set DEV_INSECURE_AUTH=true and a
       # DEV_STATIC_TOKEN in deploy/.env. Never do this in production.
       DEV_INSECURE_AUTH: ${DEV_INSECURE_AUTH:-false}

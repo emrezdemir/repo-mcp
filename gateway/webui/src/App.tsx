@@ -5,6 +5,7 @@ import { AdminTab } from "./components/AdminTab";
 import { AskTab } from "./components/AskTab";
 import { SignIn } from "./components/SignIn";
 import { SquadPicker } from "./components/SquadPicker";
+import { UpdateBanner } from "./components/UpdateBanner";
 import * as auth from "./api/auth";
 import { chooseSquad, chosenSquad, loadSession, type Session } from "./api/session";
 import type { TabId } from "./lib/types";
@@ -139,6 +140,7 @@ export function App() {
 
   return (
     <div className="h-screen flex flex-col bg-background text-foreground">
+      <UpdateBanner />
       {/* Header */}
       <header className="flex items-center justify-between px-5 h-12 border-b border-border bg-[#0b1920]/80 backdrop-blur-md shrink-0">
         <div className="flex items-center gap-6">

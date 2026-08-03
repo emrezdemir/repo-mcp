@@ -150,9 +150,13 @@ any new migrations through the `init` container. Configuration in `deploy/.env`
 and the database is untracked, so nothing you set is touched, and it refuses to
 run with uncommitted changes in the checkout.
 
-A cron entry or a systemd timer running `make upgrade ARGS=--check` turns this
-into a notification; the upgrade itself stays a deliberate, confirmed step. On
-Kubernetes the upgrade is a chart or image-tag bump instead — see
+The interface shows a banner when a newer release is out: the gateway checks the
+GitHub releases API (cached, and sending nothing about the deployment), which
+`UPDATE_CHECK=false` turns off for an air-gapped install. A cron entry or a
+systemd timer running `make upgrade ARGS=--check` is the headless equivalent.
+The upgrade itself always stays a deliberate, confirmed step.
+
+On Kubernetes the upgrade is a chart or image-tag bump instead — see
 [environments.md](environments.md).
 
 ## Bringing your own PostgreSQL
@@ -417,22 +421,81 @@ a model at all, so there is no path from them to a compression proxy.
 The reasoning, and what compression can cost you, is in
 [ADR-0010](adr/0010-headroom-plugin.md).
 
-## Kubernetes and more than one environment
+## Kubernetes
 
-The Helm chart deploys one environment. Configuration is not part of it —
-squads, connectors, secrets and administrators are rows in that environment's
-own database, entered once through the admin API.
+The Helm chart in `deploy/helm/repo-mcp` deploys one environment: the gateway,
+the indexer, their storage, and — optionally — an ingress, an HPA, a
+PodDisruptionBudget, a NetworkPolicy and a ServiceMonitor. Configuration is not
+part of it: squads, connectors, secrets and settings are rows in that
+environment's database, entered once the platform is up.
+
+### Before you install
+
+- A **Secret** carrying `DATABASE_URL` and `SECRETS_KEY` — the chart reads both
+  from a Secret you manage rather than from values, so neither ends up in a file:
+
+  ```bash
+  kubectl create namespace repo-mcp
+  kubectl -n repo-mcp create secret generic repo-mcp-production \
+    --from-literal=DATABASE_URL='postgresql+asyncpg://repomcp:PW@db:5432/repomcp' \
+    --from-literal=SECRETS_KEY="$(make generate-key)"
+  ```
+
+- A **PostgreSQL** the pods can reach (the chart runs none — production data does
+  not belong in a pod's ephemeral storage). PostgreSQL 14 or newer.
+- A **storage class** that handles SQLite WAL locking: a block volume, never NFS
+  (see [scaling.md](scaling.md)).
+
+### Install
 
 ```bash
-cp deploy/helm/values-dev.example.yaml values-dev.yaml
+cp deploy/helm/values-production.example.yaml values-production.yaml
+# edit at least: image.tag (an immutable tag), the ingress host, storageClass
 helm upgrade --install repo-mcp deploy/helm/repo-mcp \
-  -n repo-mcp-dev --create-namespace -f values-dev.yaml
+  -n repo-mcp -f values-production.yaml
 ```
 
-Two things the chart refuses rather than warns about, because both fail
-silently and late: a mutable image tag when `environment: production`, and
-`migrations.auto` in production. The full list, the promotion flow from `dev`
-to a version tag, and how to roll back are in
+Production refuses two things at template time rather than warning, because both
+fail silently and late: a mutable image tag (`latest`, `dev`, `main`), and
+`migrations.auto: true`. Apply the schema as its own deliberate step first:
+
+```bash
+kubectl -n repo-mcp run repo-mcp-migrate --rm -i --restart=Never \
+  --image=ghcr.io/emrezdemir/repo-mcp-gateway:v0.4.0 \
+  --env=MIGRATE_ON_START=true --env=DATABASE_URL=... --env=SECRETS_KEY=... \
+  --command -- repo-mcp-admin init-db
+```
+
+### Reach the interface and create the administrator
+
+The example ingress routes `/mcp` to the gateway and `/webhook` to the indexer.
+**To use the web interface, add the gateway's UI paths** — `/ui`, `/setup`,
+`/api` and `/admin` — or route `/` to the gateway. Then open `https://<host>/ui`:
+with no administrator yet it shows the one-time first-run screen
+([ADR-0012](adr/0012-first-run-in-the-browser.md)). To create the administrator
+without a browser instead, put `ADMIN_PASSWORD` in the Secret and the bootstrap
+job creates it.
+
+Without an ingress, port-forward:
+
+```bash
+kubectl -n repo-mcp port-forward svc/repo-mcp-gateway 8080:8080
+# then open http://localhost:8080/ui
+```
+
+### Scaling, and upgrading
+
+The indexer stays at one replica — its queue and locks are in-process
+([scaling.md](scaling.md)). The gateway scales out only with `ReadWriteMany`
+storage and read-only tool profiles, a combination the chart enforces rather
+than lets you get half right. Upgrading is a new immutable tag:
+
+```bash
+helm upgrade repo-mcp deploy/helm/repo-mcp -n repo-mcp \
+  -f values-production.yaml --set image.tag=v0.5.0
+```
+
+The promotion flow from `dev` to a version tag, and how to roll back, are in
 [environments.md](environments.md).
 
 ## Production notes

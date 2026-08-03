@@ -11,7 +11,7 @@ from repo_mcp_common.bootstrap import NotBootstrapped, ensure_admin, inspect_sta
 from repo_mcp_common.db import Database, DatabaseUnavailable
 from repo_mcp_common.env import EnvError, secrets_key
 
-from . import firstrun, webui
+from . import firstrun, updates, webui
 from .admin_api import build_router
 from .answer_cache import AnswerCache
 from .audit import AuditEvent, emit
@@ -146,6 +146,12 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
     @app.get("/healthz")
     async def healthz() -> dict:
         return {"status": "ok"}
+
+    @app.get("/api/version", include_in_schema=False)
+    async def version_endpoint() -> JSONResponse:
+        # Public: the running version, and — unless UPDATE_CHECK is off — whether
+        # a newer release exists. The interface shows a banner from it.
+        return JSONResponse(await updates.version_info())
 
     @app.get("/readyz")
     async def readyz() -> Response:
