@@ -123,12 +123,16 @@ then ok "scan.example.yaml parses"; else FAILURES+=("scan.example.yaml"); fi
 # Checked with no profiles and with all of them. A service a profile excludes
 # is still interpolated, so a mistake inside an optional service breaks the
 # file even for someone who never starts it.
-if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+if have_compose; then
+  # compose() runs whichever engine is present (docker or podman); the throwaway
+  # values are exported in a subshell so they reach the compose child.
   compose_check() {
-    COMPOSE_PROFILES="$1" \
-    POSTGRES_PASSWORD=check SECRETS_KEY=check \
-    KEYCLOAK_ADMIN_PASSWORD=check LITELLM_MASTER_KEY=check \
-      docker compose -f "$REPO_ROOT/deploy/docker-compose.yml" config --quiet
+    (
+      export COMPOSE_PROFILES="$1" \
+        POSTGRES_PASSWORD=check SECRETS_KEY=check \
+        KEYCLOAK_ADMIN_PASSWORD=check LITELLM_MASTER_KEY=check
+      compose config --quiet
+    )
   }
   compose_ok=1
   for profiles in "" "keycloak,litellm,ollama,headroom"; do
@@ -143,7 +147,7 @@ if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; 
     FAILURES+=("docker-compose.yml")
   fi
 else
-  dim "      docker compose not available, skipping the Compose check"
+  dim "      no container compose available, skipping the Compose check"
 fi
 
 # The shell scripts are part of the contract too, and CI lints them. Running

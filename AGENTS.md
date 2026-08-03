@@ -56,6 +56,7 @@ reinventing the invocation.
 | `make lint` / `make fmt` | Lint only / apply autofixes |
 | `make dev` | Both services locally, auto-reload, no Docker, JWT verification off |
 | `make debug` | Diagnose a broken setup; reports every finding, not just the first |
+| `make upgrade` | Check for a newer release and upgrade this install (`ARGS=--check` to only check) |
 | `make up` / `make down` / `make logs` | Docker stack lifecycle |
 | `make smoke` | Assertions against a running stack |
 | `make e2e` | Build images, index a real repository, query it, tear down |

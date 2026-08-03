@@ -14,7 +14,7 @@
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-need docker "https://docs.docker.com/get-docker/" || exit 1
+need_container_engine || exit 1
 
 COMMAND="${1:-}"
 shift || true

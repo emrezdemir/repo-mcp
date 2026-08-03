@@ -7,11 +7,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Header, Request
 from fastapi.responses import JSONResponse, Response
-from repo_mcp_common.bootstrap import NotBootstrapped, inspect_state
+from repo_mcp_common.bootstrap import NotBootstrapped, ensure_admin, inspect_state
 from repo_mcp_common.db import Database, DatabaseUnavailable
 from repo_mcp_common.env import EnvError, secrets_key
 
-from . import webui
+from . import firstrun, updates, webui
 from .admin_api import build_router
 from .answer_cache import AnswerCache
 from .audit import AuditEvent, emit
@@ -40,7 +40,7 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
     #: service answers health probes and nothing else, with a message naming
     #: the missing step — an unbootstrapped gateway cannot be configured, so
     #: serving requests would only produce confusing failures downstream.
-    state = {"ready": False, "reason": "starting"}
+    state = {"ready": False, "needs_setup": False, "reason": "starting"}
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -58,8 +58,15 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
             await database.wait_until_ready()
             bootstrap_state = await inspect_state(database)
             state["ready"] = bootstrap_state.ready
+            state["needs_setup"] = (
+                bootstrap_state.schema_present and bootstrap_state.admin_count == 0
+            )
             state["reason"] = bootstrap_state.explain()
-            if not bootstrap_state.ready:
+            if state["needs_setup"]:
+                # Not an error any more: a fresh install creates its first
+                # administrator in the browser at /setup.
+                log.info("no administrator yet — first-run setup is at /setup")
+            elif not bootstrap_state.ready:
                 log.error("not ready: %s", bootstrap_state.explain())
             else:
                 await provider.current()
@@ -67,6 +74,7 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
             # Keep answering /healthz so an orchestrator reports "unhealthy"
             # with a readable reason rather than a crash loop with none.
             state["ready"] = False
+            state["needs_setup"] = False
             state["reason"] = str(exc)
             log.error("%s", exc)
 
@@ -102,18 +110,48 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
         await session.ensure_started()
         return session.ui_port
 
+    async def _create_first_admin(username: str, password: str) -> bool:
+        """Create the first administrator on first-run. Raises ValueError
+        (WeakPassword, AdminError are both ValueErrors) for a bad password or
+        username, which the caller turns into a 400; returns False if one
+        already exists."""
+        created = await ensure_admin(database, username, password)
+        return created is not None
+
+    async def _refresh_bootstrap() -> None:
+        """Re-read readiness so a just-created administrator makes the platform
+        usable without a restart."""
+        s = await inspect_state(database)
+        state["ready"] = s.ready
+        state["needs_setup"] = s.schema_present and s.admin_count == 0
+        state["reason"] = s.explain()
+
+    app.include_router(
+        firstrun.build_router(
+            lambda: bool(state["needs_setup"]),
+            _create_first_admin,
+            _refresh_bootstrap,
+        )
+    )
     app.include_router(
         webui.build_router(
             provider.current,
             lambda: bool(state["ready"]),
             engine_ui_port,
             _llm_enabled,
+            needs_setup=lambda: bool(state["needs_setup"]),
         )
     )
 
     @app.get("/healthz")
     async def healthz() -> dict:
         return {"status": "ok"}
+
+    @app.get("/api/version", include_in_schema=False)
+    async def version_endpoint() -> JSONResponse:
+        # Public: the running version, and — unless UPDATE_CHECK is off — whether
+        # a newer release exists. The interface shows a banner from it.
+        return JSONResponse(await updates.version_info())
 
     @app.get("/readyz")
     async def readyz() -> Response:

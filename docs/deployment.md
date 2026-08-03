@@ -57,7 +57,7 @@ writing them also means turning a profile on later needs no other edit.
 
 ```bash
 make setup      # generates POSTGRES_PASSWORD, SECRETS_KEY and the rest
-make up         # PostgreSQL, migrations, the first administrator, both services
+make up         # PostgreSQL, migrations, both services
 ```
 
 `make setup` only prepares: it writes `deploy/.env`, the two seed YAML files and
@@ -67,11 +67,31 @@ containers; `make down` stops them. Once it is up, the **web interface is at
 http://localhost:8080/ui** — from another machine, replace `localhost` with the
 server's address and open port 8080.
 
-Signing in to the interface goes through your identity provider, so it is usable
-once Keycloak or your own OIDC is configured — see
-[Keycloak and LDAP](#keycloak-and-ldap). Until then, the admin API and
-`repo-mcp-admin` configure the platform, and `make debug` reports what is up and
-what is not.
+On first open there is no administrator yet, so the interface shows a one-time
+setup screen: choose a username and password, and it creates the first
+administrator. From there you configure the platform — squads, connectors,
+secrets — and point it at your identity provider so everyone else signs in
+through it (see [Keycloak and LDAP](#keycloak-and-ldap)). `make debug` reports
+what is up and what is not.
+
+To create the administrator without a browser — in CI, or an unattended
+deployment — set `ADMIN_PASSWORD` in `deploy/.env` before `make up` and the
+`init` container creates it instead. See
+[ADR-0012](adr/0012-first-run-in-the-browser.md).
+
+### Docker or Podman
+
+Either works. The scripts detect which is installed — Docker is preferred,
+Podman is the fallback — so `make up`, `make down`, `make build` and the rest run
+on whichever is present. Force one with `CONTAINER_ENGINE`:
+
+```bash
+CONTAINER_ENGINE=podman make up
+```
+
+Podman needs a compose implementation: `podman compose` (Podman 4.1+) or
+`podman-compose`. Rootless Podman is fine here — every published port is above
+1024 (8080, 8081, 8082, 4000, 5432), so nothing needs privilege.
 
 ### On a server, where you only want the stack
 
@@ -91,13 +111,11 @@ services validate their own configuration at startup, so a mistake surfaces
 when `make up` fails rather than silently. Run plain `make setup` on a machine
 where you also intend to develop.
 
-The `init` container applies migrations and creates the first administrator
-before either service starts. With `ADMIN_PASSWORD` empty in `deploy/.env` a
-password is generated and printed once:
-
-```bash
-docker compose logs init
-```
+The `init` container applies migrations before either service starts, and — when
+`ADMIN_PASSWORD` is set — creates the first administrator. With it empty (the
+default) the administrator is created in the browser on first open instead
+(above). `init` runs once and exits; `docker compose logs init` shows what it
+did.
 
 | Service | URL |
 | --- | --- |
@@ -115,6 +133,31 @@ than looking healthy:
 ```json
 {"status": "ok", "tenants": [], "warning": "no squads are configured; ..."}
 ```
+
+## Upgrading
+
+`scripts/upgrade.sh` (or `make upgrade`) checks GitHub for a newer release and,
+if there is one, upgrades this install to it:
+
+```bash
+make upgrade                 # check, show what changed, ask, then rebuild
+make upgrade ARGS=--check    # only report whether an update is available
+```
+
+It compares the latest release to your `VERSION` and, once you confirm, fetches
+the tag, checks it out and runs `make up` — which rebuilds the images and applies
+any new migrations through the `init` container. Configuration in `deploy/.env`
+and the database is untracked, so nothing you set is touched, and it refuses to
+run with uncommitted changes in the checkout.
+
+The interface shows a banner when a newer release is out: the gateway checks the
+GitHub releases API (cached, and sending nothing about the deployment), which
+`UPDATE_CHECK=false` turns off for an air-gapped install. A cron entry or a
+systemd timer running `make upgrade ARGS=--check` is the headless equivalent.
+The upgrade itself always stays a deliberate, confirmed step.
+
+On Kubernetes the upgrade is a chart or image-tag bump instead — see
+[environments.md](environments.md).
 
 ## Bringing your own PostgreSQL
 
@@ -378,22 +421,81 @@ a model at all, so there is no path from them to a compression proxy.
 The reasoning, and what compression can cost you, is in
 [ADR-0010](adr/0010-headroom-plugin.md).
 
-## Kubernetes and more than one environment
+## Kubernetes
 
-The Helm chart deploys one environment. Configuration is not part of it —
-squads, connectors, secrets and administrators are rows in that environment's
-own database, entered once through the admin API.
+The Helm chart in `deploy/helm/repo-mcp` deploys one environment: the gateway,
+the indexer, their storage, and — optionally — an ingress, an HPA, a
+PodDisruptionBudget, a NetworkPolicy and a ServiceMonitor. Configuration is not
+part of it: squads, connectors, secrets and settings are rows in that
+environment's database, entered once the platform is up.
+
+### Before you install
+
+- A **Secret** carrying `DATABASE_URL` and `SECRETS_KEY` — the chart reads both
+  from a Secret you manage rather than from values, so neither ends up in a file:
+
+  ```bash
+  kubectl create namespace repo-mcp
+  kubectl -n repo-mcp create secret generic repo-mcp-production \
+    --from-literal=DATABASE_URL='postgresql+asyncpg://repomcp:PW@db:5432/repomcp' \
+    --from-literal=SECRETS_KEY="$(make generate-key)"
+  ```
+
+- A **PostgreSQL** the pods can reach (the chart runs none — production data does
+  not belong in a pod's ephemeral storage). PostgreSQL 14 or newer.
+- A **storage class** that handles SQLite WAL locking: a block volume, never NFS
+  (see [scaling.md](scaling.md)).
+
+### Install
 
 ```bash
-cp deploy/helm/values-dev.example.yaml values-dev.yaml
+cp deploy/helm/values-production.example.yaml values-production.yaml
+# edit at least: image.tag (an immutable tag), the ingress host, storageClass
 helm upgrade --install repo-mcp deploy/helm/repo-mcp \
-  -n repo-mcp-dev --create-namespace -f values-dev.yaml
+  -n repo-mcp -f values-production.yaml
 ```
 
-Two things the chart refuses rather than warns about, because both fail
-silently and late: a mutable image tag when `environment: production`, and
-`migrations.auto` in production. The full list, the promotion flow from `dev`
-to a version tag, and how to roll back are in
+Production refuses two things at template time rather than warning, because both
+fail silently and late: a mutable image tag (`latest`, `dev`, `main`), and
+`migrations.auto: true`. Apply the schema as its own deliberate step first:
+
+```bash
+kubectl -n repo-mcp run repo-mcp-migrate --rm -i --restart=Never \
+  --image=ghcr.io/emrezdemir/repo-mcp-gateway:v0.4.0 \
+  --env=MIGRATE_ON_START=true --env=DATABASE_URL=... --env=SECRETS_KEY=... \
+  --command -- repo-mcp-admin init-db
+```
+
+### Reach the interface and create the administrator
+
+The example ingress routes `/mcp` to the gateway and `/webhook` to the indexer.
+**To use the web interface, add the gateway's UI paths** — `/ui`, `/setup`,
+`/api` and `/admin` — or route `/` to the gateway. Then open `https://<host>/ui`:
+with no administrator yet it shows the one-time first-run screen
+([ADR-0012](adr/0012-first-run-in-the-browser.md)). To create the administrator
+without a browser instead, put `ADMIN_PASSWORD` in the Secret and the bootstrap
+job creates it.
+
+Without an ingress, port-forward:
+
+```bash
+kubectl -n repo-mcp port-forward svc/repo-mcp-gateway 8080:8080
+# then open http://localhost:8080/ui
+```
+
+### Scaling, and upgrading
+
+The indexer stays at one replica — its queue and locks are in-process
+([scaling.md](scaling.md)). The gateway scales out only with `ReadWriteMany`
+storage and read-only tool profiles, a combination the chart enforces rather
+than lets you get half right. Upgrading is a new immutable tag:
+
+```bash
+helm upgrade repo-mcp deploy/helm/repo-mcp -n repo-mcp \
+  -f values-production.yaml --set image.tag=v0.5.0
+```
+
+The promotion flow from `dev` to a version tag, and how to roll back, are in
 [environments.md](environments.md).
 
 ## Production notes

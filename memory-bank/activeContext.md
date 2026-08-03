@@ -77,6 +77,27 @@ And the landing was trimmed to a showcase — the per-role scenarios and the
 four-step install it duplicated from the now-real docs are gone; hero, the 3D
 graph, four reasons, the screenshots, a three-line quickstart, then `/docs`.
 
+Then two changes aimed at making the install simple, both driven by the
+maintainer standing up the Ubuntu server. **Docker or Podman** are both
+supported: `lib.sh` picks whichever is installed (docker preferred), and
+`CONTAINER_ENGINE` forces one; `compose()`, the `need` check, `test.sh`'s
+Compose check and `make build`/`push` all route through it. And the **first
+administrator is created in the browser** — a fresh install printed a generated
+password to the `init` log, which was the step new operators missed. Now, with
+no administrator, the gateway serves `/setup` (a page it renders itself, no
+React change): create the admin once, the platform becomes usable without a
+restart, and the door shuts — `/setup` and `POST /api/bootstrap/admin` refuse
+once one exists. `init` still creates it server-side when `ADMIN_PASSWORD` is
+set (CI, enterprise). ADR-0012 records the trade-off; 7 gateway tests cover it,
+denial path included.
+
+And `make upgrade` (`scripts/upgrade.sh`) closes the loop for a self-hosted
+install: it reads the latest GitHub release, and — because the stack builds from
+source — fetches that tag, checks it out and rebuilds, applying migrations
+through `init`. `ARGS=--check` only reports whether an update is available, which
+a cron entry or timer turns into a notification; the upgrade itself stays a
+confirmed step, and it refuses to run over uncommitted changes.
+
 **Session 13 — the site, the connector check, and four things that were
 quietly broken.** A long session; grouped by subject rather than by order.
 

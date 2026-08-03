@@ -34,9 +34,10 @@ services:
       retries: 20
       start_period: 10s
 
-  # Applies migrations and creates the first administrator, then exits. Both
-  # services wait for it, so a fresh deployment reaches a usable state without
-  # anyone reading a runbook.
+  # Applies migrations, then exits (both services wait for it). It also creates
+  # the first administrator when ADMIN_PASSWORD is set; with it empty — the
+  # default — that is done in the browser on first open. See
+  # docs/adr/0012-first-run-in-the-browser.md.
   init:
     <<: *defaults
     restart: "no"
@@ -166,6 +167,9 @@ services:
       SECRETS_KEY: ${SECRETS_KEY:?set SECRETS_KEY — generate one with 'make generate-key'}
       CONFIG_POLL_SECONDS: ${CONFIG_POLL_SECONDS:-15}
       ENVIRONMENT: ${ENVIRONMENT:-local}
+      # The gateway checks GitHub for a newer release and the interface shows a
+      # banner when one is out. Set false for an air-gapped install.
+      UPDATE_CHECK: ${UPDATE_CHECK:-true}
       # Local evaluation without Keycloak: set DEV_INSECURE_AUTH=true and a
       # DEV_STATIC_TOKEN in deploy/.env. Never do this in production.
       DEV_INSECURE_AUTH: ${DEV_INSECURE_AUTH:-false}

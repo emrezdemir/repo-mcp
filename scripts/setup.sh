@@ -218,6 +218,6 @@ else
 
 ${C_DIM}Nothing is running yet — 'make setup' only wrote the config and built the${C_RESET}
 ${C_DIM}virtualenvs. 'make up' starts Docker containers; there is no system service${C_RESET}
-${C_DIM}to install. Signing in to the interface needs OIDC — see docs/deployment.md.${C_RESET}
+${C_DIM}to install. On first open the interface creates the admin — see docs/deployment.md.${C_RESET}
 EOF
 fi

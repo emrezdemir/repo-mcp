@@ -44,8 +44,10 @@ documentation, not a copy.
 
 ## Start here
 
-- **[Architecture](./architecture.md)** — two services, one engine, a shared graph directory.
-- **[Deployment](./deployment.md)** — Compose, Kubernetes, Keycloak and LDAP.
+- **[Install and run](./deployment.md)** — five minutes with Compose or Podman,
+  or the Kubernetes walkthrough; then create the administrator in the browser.
+- **[Upgrade](./deployment.md)** — check for a newer release and apply it with one command.
+- **[Architecture](./architecture.md)** — two services, one engine, a shared graph.
 - **[Roles and permissions](./roles-and-permissions.md)** — what a role may do, what a squad may reach.
 - **[The engine](./engine.md)** — what the indexing engine does, and how it is driven.
 

@@ -265,8 +265,9 @@ ${DATABASE_URL_LINE}
 # re-entering every credential.
 SECRETS_KEY=$(gen_fernet_key)
 
-# The first administrator. Leave the password empty and one is generated and
-# printed once in the init container's log.
+# The first administrator. Left empty, it is created in the browser on first
+# open (http://localhost:8080/ui). Set a password here to create it at 'make up'
+# instead — for CI or an unattended deployment.
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=
 

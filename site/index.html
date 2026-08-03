@@ -124,13 +124,13 @@
     <p class="eyebrow">Başlayın</p>
     <h2>Beş dakikada ayağa kalkar</h2>
     <p>
-      Docker Engine 24+ ve Compose v2 yeterli. Ardından arayüz
+      Docker Engine 24+ ve Compose v2 (ya da Podman) yeterli. Ardından arayüz
       <code>http://localhost:8080/ui</code> adresinde. Kurulum, roller ve
       kararların gerekçesi belgelerde.
     </p>
 <pre><span class="p">git</span> clone https://github.com/emrezdemir/repo-mcp
 <span class="p">cd</span> repo-mcp && <span class="p">make</span> setup   <span class="c"># beş soru -> deploy/.env</span>
-<span class="p">make</span> up                     <span class="c"># şema, ilk yönetici, servisler</span></pre>
+<span class="p">make</span> up                     <span class="c"># şema ve servisler; admini /ui'da oluştur</span></pre>
     <div class="cta">
       <a class="button solid" href="docs/deployment/">Kurulum belgesi</a>
       <a class="button ghost" href="docs/">Tüm belgeler</a>

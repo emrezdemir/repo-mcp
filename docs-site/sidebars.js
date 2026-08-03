@@ -37,6 +37,7 @@ const sidebars = {
         'adr/0009-answer-cache',
         'adr/0010-headroom-plugin',
         'adr/0011-adopt-the-upstream-interface',
+        'adr/0012-first-run-in-the-browser',
       ],
     },
   ],

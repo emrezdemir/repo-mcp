@@ -124,13 +124,13 @@
     <p class="eyebrow">Get started</p>
     <h2>Up in five minutes</h2>
     <p>
-      Docker Engine 24+ and Compose v2 is all it needs. The interface is then at
+      Docker Engine 24+ and Compose v2 (or Podman) is all it needs. The interface is then at
       <code>http://localhost:8080/ui</code>. Installation, the roles, and the
       reasoning behind each decision are in the docs.
     </p>
 <pre><span class="p">git</span> clone https://github.com/emrezdemir/repo-mcp
 <span class="p">cd</span> repo-mcp && <span class="p">make</span> setup   <span class="c"># five questions -> deploy/.env</span>
-<span class="p">make</span> up                     <span class="c"># schema, first administrator, services</span></pre>
+<span class="p">make</span> up                     <span class="c"># schema and services; create the admin in /ui</span></pre>
     <div class="cta">
       <a class="button solid" href="docs/deployment/">Deployment guide</a>
       <a class="button ghost" href="docs/">All docs</a>

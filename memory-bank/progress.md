@@ -148,6 +148,8 @@ external system. Treat their behaviour as unproven.
 | LDAP federation | A real directory. Keycloak 26 itself *was* stood up here — the realm imported, groups and both clients created, a user made by `scripts/keycloak-user.sh` — but no LDAP server has ever been federated into it, so group mapping from a directory is unproven |
 | Headroom | Never started. The routing, the fallback and the embedding bypass are unit-tested against a mock transport; no Headroom container has run, and its own upstream configuration is its documentation, not ours |
 | The answer cache's semantic tier | A real embedding model. The storage, scoring, isolation and invalidation are unit-tested with synthetic vectors; no `/embeddings` call has been made |
+| First-run in the browser | A real browser against a running gateway. The router is unit-tested — 7 gateway tests, denial path included — but the `/setup` redirect, `init` deferring admin creation, and `ensure_admin` against a live database have not been run end to end. See ADR-0012 |
+| Podman | A real Podman host. The engine abstraction resolves and the Compose file validates through `compose()` on Docker here; the `podman compose` / `podman-compose` branch is the same code but has not run against Podman |
 
 **First real deployment should start here.** These are where surprises live.
 
