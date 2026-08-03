@@ -146,8 +146,10 @@ if (( ASK )); then
 
 ${C_BLUE}repo-mcp setup${C_RESET}
 
-Four components are optional. Answers can be changed later by editing
-deploy/.env, or by running this again with --force.
+These choose which containers your stack runs. Everything else — squads,
+connectors, tokens, and the identity and model settings — is configured in the
+web interface after 'make up'. Press Enter to take the default in brackets;
+answers can be changed later by editing deploy/.env or re-running with --force.
 EOF
 fi
 
