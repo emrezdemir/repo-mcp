@@ -36,6 +36,12 @@ include = ["app*"]
 testpaths = ["tests"]
 pythonpath = ["."]
 asyncio_mode = "auto"
+filterwarnings = [
+    # Starlette's TestClient warns that a future version will want httpx 2.x.
+    # That is starlette's own transitive dependency to manage, not ours, and it
+    # is noise in our output until they ship it — a real error still fails.
+    "ignore:Using .httpx. with .starlette.testclient. is deprecated",
+]
 
 [tool.ruff]
 line-length = 100
