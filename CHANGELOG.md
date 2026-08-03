@@ -71,6 +71,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Python packages at all — the stack is entirely containers, and the
   virtualenvs exist for developing and testing here. Without it a deployment
   had to install a Python toolchain to produce a `.env` file.
+- **Docker or Podman.** The scripts detect which engine is installed — Docker
+  preferred, Podman the fallback — so `make up`, `make build`, `make down` and
+  the rest run on either. `CONTAINER_ENGINE=docker|podman` forces one. Podman
+  needs a compose implementation (`podman compose` on 4.1+ or `podman-compose`);
+  every published port is above 1024, so rootless Podman works unprivileged.
 
 ### Changed
 

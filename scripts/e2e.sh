@@ -14,7 +14,7 @@
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-need docker || exit 1
+need_container_engine || exit 1
 need curl || exit 1
 need jq || exit 1
 

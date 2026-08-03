@@ -73,6 +73,20 @@ once Keycloak or your own OIDC is configured — see
 `repo-mcp-admin` configure the platform, and `make debug` reports what is up and
 what is not.
 
+### Docker or Podman
+
+Either works. The scripts detect which is installed — Docker is preferred,
+Podman is the fallback — so `make up`, `make down`, `make build` and the rest run
+on whichever is present. Force one with `CONTAINER_ENGINE`:
+
+```bash
+CONTAINER_ENGINE=podman make up
+```
+
+Podman needs a compose implementation: `podman compose` (Podman 4.1+) or
+`podman-compose`. Rootless Podman is fine here — every published port is above
+1024 (8080, 8081, 8082, 4000, 5432), so nothing needs privilege.
+
 ### On a server, where you only want the stack
 
 `make setup` also builds three virtualenvs, because that is what running the

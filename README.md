@@ -62,7 +62,7 @@ grupları bir role ve bir takıma çevrilir.
 
 ## Beş dakikada kurulum
 
-Docker Engine 24+ ve Compose v2 yeterli.
+Docker Engine 24+ ve Compose v2 — ya da Podman — yeterli.
 
 ```bash
 git clone https://github.com/emrezdemir/repo-mcp

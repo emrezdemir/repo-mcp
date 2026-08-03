@@ -61,7 +61,7 @@ groups are mapped to a role and a squad.
 
 ## Install in five minutes
 
-Docker Engine 24+ and Compose v2 is all it needs.
+Docker Engine 24+ and Compose v2 — or Podman — is all it needs.
 
 ```bash
 git clone https://github.com/emrezdemir/repo-mcp

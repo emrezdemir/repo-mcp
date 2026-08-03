@@ -8,6 +8,8 @@ IMAGE_REPO ?= ghcr.io/emrezdemir/repo-mcp
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 VCS_REF ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 CBM_VERSION ?= latest
+# The container engine for 'make build' and 'make push': docker or podman.
+CONTAINER_ENGINE ?= docker
 
 .PHONY: help
 help: ## Show this help
@@ -98,7 +100,7 @@ hooks: ## Install the pre-commit hook that blocks secrets
 build: ## Build both container images
 	@for service in $(SERVICES); do \
 	  echo "==> building $$service"; \
-	  docker build -f deploy/Dockerfile \
+	  $(CONTAINER_ENGINE) build -f deploy/Dockerfile \
 	    --build-arg SERVICE=$$service \
 	    --build-arg CBM_VERSION=$(CBM_VERSION) \
 	    --build-arg VERSION=$(VERSION) \
@@ -110,8 +112,8 @@ build: ## Build both container images
 .PHONY: push
 push: ## Push both images
 	@for service in $(SERVICES); do \
-	  docker push $(IMAGE_REPO)-$$service:$(VERSION) || exit 1; \
-	  docker push $(IMAGE_REPO)-$$service:latest || exit 1; \
+	  $(CONTAINER_ENGINE) push $(IMAGE_REPO)-$$service:$(VERSION) || exit 1; \
+	  $(CONTAINER_ENGINE) push $(IMAGE_REPO)-$$service:latest || exit 1; \
 	done
 
 .PHONY: up

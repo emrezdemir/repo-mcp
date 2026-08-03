@@ -79,12 +79,72 @@ wait_for_http() {
   return 1
 }
 
-compose() {
-  if docker compose version >/dev/null 2>&1; then
-    docker compose -f "$REPO_ROOT/deploy/docker-compose.yml" "$@"
-  elif command -v docker-compose >/dev/null 2>&1; then
-    docker-compose -f "$REPO_ROOT/deploy/docker-compose.yml" "$@"
+# ── container engine ──────────────────────────────────────────────────
+# Docker or Podman, whichever is installed — both speak the same CLI and the
+# same compose surface, so the scripts do not care which is underneath. Force
+# one with CONTAINER_ENGINE=docker|podman; otherwise docker is preferred and
+# podman is the fallback.
+container_engine() {
+  if [[ -n "${CONTAINER_ENGINE:-}" ]]; then
+    printf '%s' "$CONTAINER_ENGINE"
+  elif command -v docker >/dev/null 2>&1; then
+    printf 'docker'
+  elif command -v podman >/dev/null 2>&1; then
+    printf 'podman'
   else
-    die "docker compose is required (install Docker Desktop or the compose plugin)"
+    printf 'docker'  # so a missing-engine message names the common one
   fi
+}
+
+# The engine itself, for a direct build/push/exec that is not a compose command.
+container() { "$(container_engine)" "$@"; }
+
+# Fail with an actionable message if the chosen engine is not installed.
+need_container_engine() {
+  local engine
+  engine="$(container_engine)"
+  command -v "$engine" >/dev/null 2>&1 && return 0
+  fail "$engine is required but not installed."
+  dim "      install Docker (https://docs.docker.com/get-docker/) or Podman"
+  dim "      (https://podman.io/), or set CONTAINER_ENGINE to the one you have."
+  return 1
+}
+
+# True if a compose implementation is available for the chosen engine. Used to
+# decide whether a check can run, rather than failing when it cannot.
+have_compose() {
+  case "$(container_engine)" in
+    docker) docker compose version >/dev/null 2>&1 || command -v docker-compose >/dev/null 2>&1 ;;
+    podman) podman compose version >/dev/null 2>&1 || command -v podman-compose >/dev/null 2>&1 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Run a compose subcommand against the stack file, on whichever engine is
+# present: `docker compose`/`docker-compose`, or `podman compose`/`podman-compose`.
+compose() {
+  local file="$REPO_ROOT/deploy/docker-compose.yml"
+  case "$(container_engine)" in
+    docker)
+      if docker compose version >/dev/null 2>&1; then
+        docker compose -f "$file" "$@"
+      elif command -v docker-compose >/dev/null 2>&1; then
+        docker-compose -f "$file" "$@"
+      else
+        die "docker compose is required (install Docker Desktop or the compose plugin), or set CONTAINER_ENGINE=podman"
+      fi
+      ;;
+    podman)
+      if podman compose version >/dev/null 2>&1; then
+        podman compose -f "$file" "$@"
+      elif command -v podman-compose >/dev/null 2>&1; then
+        podman-compose -f "$file" "$@"
+      else
+        die "podman compose is required (install podman-compose, or podman 4.1+ with its compose plugin)"
+      fi
+      ;;
+    *)
+      die "unknown CONTAINER_ENGINE '$(container_engine)' — use docker or podman"
+      ;;
+  esac
 }
