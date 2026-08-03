@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from .audit import AuditEvent, emit
@@ -77,7 +77,7 @@ def build_router(needs_setup: NeedsSetup, create_admin: CreateAdmin, refresh: Re
         return JSONResponse({"ok": True, "username": username})
 
     @router.get("/setup", include_in_schema=False)
-    async def setup_page() -> HTMLResponse | RedirectResponse:
+    async def setup_page() -> Response:
         """The first-run page, or a redirect to the interface once set up."""
         if not needs_setup():
             return RedirectResponse("/ui", status_code=303)
