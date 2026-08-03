@@ -85,6 +85,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   endpoint refuse. Set `ADMIN_PASSWORD` to create it server-side instead, for CI
   or an unattended deployment. See
   [ADR-0012](docs/adr/0012-first-run-in-the-browser.md).
+- **`make upgrade`.** A self-hosted install is a checkout built from source, so
+  upgrading is: fetch the newer release tag, check it out, rebuild.
+  `scripts/upgrade.sh` checks GitHub for a newer release than your `VERSION`,
+  shows what would change, and — once you confirm — does it, applying any new
+  migrations through the `init` container. `ARGS=--check` only reports whether an
+  update is available, which a cron entry or systemd timer can turn into a
+  notification. It refuses to run over uncommitted changes, and configuration is
+  untracked, so nothing you set is lost.
 
 ### Changed
 

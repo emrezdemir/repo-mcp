@@ -46,6 +46,10 @@ cov: ## Run tests with a coverage report
 debug: ## Diagnose the current setup
 	@scripts/debug.sh
 
+.PHONY: upgrade
+upgrade: ## Check for a newer release and upgrade this install (ARGS=--check to only check)
+	@scripts/upgrade.sh $(ARGS)
+
 .PHONY: generate-key
 generate-key: ## Print a new SECRETS_KEY
 	@common/.venv/bin/repo-mcp-admin generate-key 2>/dev/null || \

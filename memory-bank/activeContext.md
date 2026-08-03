@@ -91,6 +91,13 @@ once one exists. `init` still creates it server-side when `ADMIN_PASSWORD` is
 set (CI, enterprise). ADR-0012 records the trade-off; 7 gateway tests cover it,
 denial path included.
 
+And `make upgrade` (`scripts/upgrade.sh`) closes the loop for a self-hosted
+install: it reads the latest GitHub release, and — because the stack builds from
+source — fetches that tag, checks it out and rebuilds, applying migrations
+through `init`. `ARGS=--check` only reports whether an update is available, which
+a cron entry or timer turns into a notification; the upgrade itself stays a
+confirmed step, and it refuses to run over uncommitted changes.
+
 **Session 13 — the site, the connector check, and four things that were
 quietly broken.** A long session; grouped by subject rather than by order.
 

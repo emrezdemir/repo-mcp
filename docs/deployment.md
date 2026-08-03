@@ -134,6 +134,27 @@ than looking healthy:
 {"status": "ok", "tenants": [], "warning": "no squads are configured; ..."}
 ```
 
+## Upgrading
+
+`scripts/upgrade.sh` (or `make upgrade`) checks GitHub for a newer release and,
+if there is one, upgrades this install to it:
+
+```bash
+make upgrade                 # check, show what changed, ask, then rebuild
+make upgrade ARGS=--check    # only report whether an update is available
+```
+
+It compares the latest release to your `VERSION` and, once you confirm, fetches
+the tag, checks it out and runs `make up` — which rebuilds the images and applies
+any new migrations through the `init` container. Configuration in `deploy/.env`
+and the database is untracked, so nothing you set is touched, and it refuses to
+run with uncommitted changes in the checkout.
+
+A cron entry or a systemd timer running `make upgrade ARGS=--check` turns this
+into a notification; the upgrade itself stays a deliberate, confirmed step. On
+Kubernetes the upgrade is a chart or image-tag bump instead — see
+[environments.md](environments.md).
+
 ## Bringing your own PostgreSQL
 
 Set `DATABASE_URL` and skip the bundled container:
