@@ -30,8 +30,10 @@ from `dev`; a version tag publishes `:vX.Y.Z` and packages the chart.
 - `main` is behind, at the merge of PR #9, and **its CI is red** — it predates
   the `NodeDetailPanel` test fix. The next `dev → main` merge turns it green;
   nothing else is needed.
-- The maintainer merges `dev` into `main` and deletes branches; `sync-dev.yml`
-  fast-forwards `dev` back afterwards so the two never drift.
+- The maintainer merges `dev` into `main` (a fast-forward, `git push origin
+  dev:main`, keeps the two identical) and deletes branches. There is **no
+  automatic main→dev sync** any more — `sync-dev.yml` was removed at the
+  maintainer's request; `dev` changes only when something is pushed to it.
 
 ### Open question for the maintainer
 
@@ -97,6 +99,15 @@ source — fetches that tag, checks it out and rebuilds, applying migrations
 through `init`. `ARGS=--check` only reports whether an update is available, which
 a cron entry or timer turns into a notification; the upgrade itself stays a
 confirmed step, and it refuses to run over uncommitted changes.
+
+Two housekeeping changes closed the session. **`sync-dev.yml` was removed** at
+the maintainer's request: there is no automatic main→dev sync any more, and a
+release is a fast-forward `git push origin dev:main` (branching.md rewritten to
+match). And the accumulated work was **cut as 0.4.0** — `VERSION`, the three
+`pyproject.toml`s, the chart and the README badges bumped, and the changelog's
+`[Unreleased]` finalized as `[0.4.0]`. The **standing rule going forward**:
+when a change lands, bump the version if it warrants a release, and update the
+docs in the same change.
 
 **Session 13 — the site, the connector check, and four things that were
 quietly broken.** A long session; grouped by subject rather than by order.

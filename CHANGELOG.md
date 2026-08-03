@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-03
+
 ### Added
 
 - **A project site**, at `site/`, published to GitHub Pages by
@@ -55,17 +57,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `common/repo_mcp_common/providers.py`: the gateway needs it to answer this,
   and duplicating three provider clients to avoid moving one file would be the
   worse trade.
-- **`dev` no longer falls behind `main`.** Merging through a pull request
-  leaves one commit on `main` that `dev` never gets — the merge commit GitHub
-  writes — so the content stayed identical while the history diverged by one
-  commit per release, and every comparison afterwards reported a difference
-  that was not one. `.github/workflows/sync-dev.yml` fast-forwards `dev` to
-  `main` on every push to `main`.
-
-  It does not force, so if `dev` moved on since the merge the push is refused
-  and the job fails with the offending commits printed rather than discarding
-  them. Rehearsed against a throwaway repository first: the normal flow, a
-  second run, and the case where `dev` has diverged.
 - **`make setup ARGS=--config-only`**, for a server that will only run
   `make up`. It writes `deploy/.env` and the two YAML files and installs no
   Python packages at all — the stack is entirely containers, and the
