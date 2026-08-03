@@ -99,6 +99,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   newer one. The interface shows a banner when one is out, pointing at the
   release notes and `make upgrade`. An air-gapped install sets
   `UPDATE_CHECK=false`.
+- **Pull the images instead of building.** `make up` still builds the gateway
+  and indexer from source; `make up ARGS=--pull` fetches the published images
+  from GHCR instead — the path for a server without the disk or toolchain to
+  build (a 25 GB VM ran out building from source). `REPO_MCP_TAG` chooses the tag
+  (`dev-latest`, or a release), and `REPO_MCP_IMAGE` an internal mirror. The
+  Compose services now carry both `image:` and `build:`.
 
 ### Changed
 

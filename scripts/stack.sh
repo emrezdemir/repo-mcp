@@ -4,6 +4,7 @@
 #
 # Usage:
 #   scripts/stack.sh up          build and start everything, wait until healthy
+#   scripts/stack.sh up --pull   pull the published images instead of building
 #   scripts/stack.sh down        stop, keeping volumes
 #   scripts/stack.sh reset       stop and delete volumes (destroys indexes)
 #   scripts/stack.sh logs [svc]  follow logs
@@ -25,8 +26,27 @@ case "$COMMAND" in
     [[ -f "$REPO_ROOT/deploy/tenants.yaml" ]] || die "deploy/tenants.yaml is missing — run scripts/setup.sh"
     [[ -f "$REPO_ROOT/deploy/scan.yaml" ]] || die "deploy/scan.yaml is missing — run scripts/setup.sh"
 
-    log "building and starting"
-    compose up -d --build "$@"
+    # --pull fetches the published images instead of building from source — the
+    # path for a server without the disk or the toolchain to build. Everything
+    # else after `up` is passed through (service names, extra flags).
+    pull=0
+    passthrough=()
+    for arg in "$@"; do
+      case "$arg" in
+        --pull) pull=1 ;;
+        *) passthrough+=("$arg") ;;
+      esac
+    done
+
+    if (( pull )); then
+      log "pulling published images and starting"
+      compose pull "${passthrough[@]}" \
+        || die "pull failed — check REPO_MCP_TAG, and log in if the images are private: podman login ghcr.io"
+      compose up -d "${passthrough[@]}"
+    else
+      log "building and starting"
+      compose up -d --build "${passthrough[@]}"
+    fi
 
     wait_for_http "http://127.0.0.1:8080/healthz" 120 "gateway" || true
     wait_for_http "http://127.0.0.1:8082/healthz" 120 "indexer" || true
