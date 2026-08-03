@@ -20,16 +20,17 @@ Compose profiles rather than a second compose file — separate files would
 duplicate the four services that are not optional, and the two copies would
 drift.
 
-`scripts/wizard.sh` asks five questions and writes the answer to
-`deploy/.env` as a `COMPOSE_PROFILES` line. Compose reads that variable
-itself, so `docker compose up` starts exactly those services afterwards.
-`make setup` runs it on first install; `make wizard` re-runs it.
+`scripts/wizard.sh` asks four questions — which of the optional components to
+run — and writes the answer to `deploy/.env` as a `COMPOSE_PROFILES` line.
+Compose reads that variable itself, so `docker compose up` starts exactly those
+services afterwards. `make setup` runs it on first install; `make wizard`
+re-runs it.
 
 ```bash
 make wizard                          # ask, then rewrite deploy/.env
 
 scripts/wizard.sh --force \
-  --identity external --models external --provider github   # or say it directly
+  --identity external --models external   # or say it directly
 
 scripts/wizard.sh --show             # what is currently selected
 ```
