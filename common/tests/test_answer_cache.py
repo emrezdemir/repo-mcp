@@ -10,8 +10,11 @@ Alembic migration PostgreSQL gets. See docs/adr/0009-answer-cache.md.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from cryptography.fernet import Fernet
+from sqlalchemy import select
 
 from repo_mcp_common import bootstrap as boot
 from repo_mcp_common.answer_cache import (
@@ -30,6 +33,7 @@ from repo_mcp_common.answer_cache import (
 )
 from repo_mcp_common.db import Database
 from repo_mcp_common.env import DatabaseEnv
+from repo_mcp_common.models import AnswerCacheEntry
 
 
 @pytest.fixture
@@ -190,9 +194,17 @@ async def test_the_sweep_drops_superseded_entries_only(database):
 
 async def test_a_ttl_expires_an_entry(database):
     await put(database, key_for(), "How does auth work?", "It uses OIDC.")
+
+    # Backdate the entry rather than race the wall clock. A just-written row can
+    # be younger than a small TTL on a fast machine, which made this flaky; an
+    # entry an hour old against a one-minute TTL is unambiguously expired.
     async with database.session() as session:
-        # Nothing can be younger than zero seconds, so everything is expired.
-        assert await lookup(session, key_for(), "How does auth work?", ttl_seconds=0.001) is None
+        entry = (await session.execute(select(AnswerCacheEntry))).scalar_one()
+        entry.created_at = datetime.now(UTC) - timedelta(hours=1)
+        await session.commit()
+
+    async with database.session() as session:
+        assert await lookup(session, key_for(), "How does auth work?", ttl_seconds=60) is None
 
 
 async def test_purge_can_be_scoped_to_one_squad(database):
