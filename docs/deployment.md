@@ -57,7 +57,7 @@ writing them also means turning a profile on later needs no other edit.
 
 ```bash
 make setup      # generates POSTGRES_PASSWORD, SECRETS_KEY and the rest
-make up         # PostgreSQL, migrations, the first administrator, both services
+make up         # PostgreSQL, migrations, both services
 ```
 
 `make setup` only prepares: it writes `deploy/.env`, the two seed YAML files and
@@ -67,11 +67,17 @@ containers; `make down` stops them. Once it is up, the **web interface is at
 http://localhost:8080/ui** — from another machine, replace `localhost` with the
 server's address and open port 8080.
 
-Signing in to the interface goes through your identity provider, so it is usable
-once Keycloak or your own OIDC is configured — see
-[Keycloak and LDAP](#keycloak-and-ldap). Until then, the admin API and
-`repo-mcp-admin` configure the platform, and `make debug` reports what is up and
-what is not.
+On first open there is no administrator yet, so the interface shows a one-time
+setup screen: choose a username and password, and it creates the first
+administrator. From there you configure the platform — squads, connectors,
+secrets — and point it at your identity provider so everyone else signs in
+through it (see [Keycloak and LDAP](#keycloak-and-ldap)). `make debug` reports
+what is up and what is not.
+
+To create the administrator without a browser — in CI, or an unattended
+deployment — set `ADMIN_PASSWORD` in `deploy/.env` before `make up` and the
+`init` container creates it instead. See
+[ADR-0012](adr/0012-first-run-in-the-browser.md).
 
 ### Docker or Podman
 
@@ -105,13 +111,11 @@ services validate their own configuration at startup, so a mistake surfaces
 when `make up` fails rather than silently. Run plain `make setup` on a machine
 where you also intend to develop.
 
-The `init` container applies migrations and creates the first administrator
-before either service starts. With `ADMIN_PASSWORD` empty in `deploy/.env` a
-password is generated and printed once:
-
-```bash
-docker compose logs init
-```
+The `init` container applies migrations before either service starts, and — when
+`ADMIN_PASSWORD` is set — creates the first administrator. With it empty (the
+default) the administrator is created in the browser on first open instead
+(above). `init` runs once and exits; `docker compose logs init` shows what it
+did.
 
 | Service | URL |
 | --- | --- |

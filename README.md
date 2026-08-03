@@ -67,7 +67,7 @@ Docker Engine 24+ ve Compose v2 — ya da Podman — yeterli.
 ```bash
 git clone https://github.com/emrezdemir/repo-mcp
 cd repo-mcp && make setup     # beş soru -> deploy/.env
-make up                       # şema, ilk yönetici, servisler
+make up                       # şema ve servisler; admini /ui'da oluşturursunuz
 ```
 
 Ardından bir connector tanımlayın — terminalden ya da

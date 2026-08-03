@@ -26,7 +26,7 @@ from pathlib import Path
 
 import httpx
 from fastapi import APIRouter, Header, Response
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 
 from .audit import AuditEvent, emit
 from .auth import Authenticator, AuthError
@@ -49,7 +49,9 @@ UI_DIR = Path(os.getenv("REPO_MCP_UI_DIR") or (Path(__file__).parent / "ui")).re
 SERVED_SUFFIXES = {".html", ".css", ".js", ".svg", ".map"}
 
 
-def build_router(current_config, ready, engine_ui_port=None, llm_enabled=None) -> APIRouter:
+def build_router(
+    current_config, ready, engine_ui_port=None, llm_enabled=None, needs_setup=None
+) -> APIRouter:
     """The UI's own routes.
 
     `current_config` returns the live `RuntimeConfig`; `ready` reports whether
@@ -71,6 +73,12 @@ def build_router(current_config, ready, engine_ui_port=None, llm_enabled=None) -
 
         def llm_enabled(_settings) -> bool:  # noqa: F811 — the no-model default
             return False
+
+    if needs_setup is None:
+
+        def needs_setup() -> bool:  # noqa: F811 — already-set-up default
+            return False
+
     router = APIRouter(tags=["ui"])
 
     @router.get("/api/auth")
@@ -308,6 +316,10 @@ def build_router(current_config, ready, engine_ui_port=None, llm_enabled=None) -
 
     @router.get("/ui", include_in_schema=False)
     async def ui_root() -> Response:
+        # A fresh install has no administrator yet; send the browser to the
+        # first-run page rather than the interface, which cannot sign anyone in.
+        if needs_setup():
+            return RedirectResponse("/setup", status_code=303)
         return FileResponse(UI_DIR / "index.html")
 
     return router

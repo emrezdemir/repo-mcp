@@ -76,6 +76,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the rest run on either. `CONTAINER_ENGINE=docker|podman` forces one. Podman
   needs a compose implementation (`podman compose` on 4.1+ or `podman-compose`);
   every published port is above 1024, so rootless Podman works unprivileged.
+- **The first administrator is created in the browser.** A fresh install used to
+  print a generated password to the `init` container's log, so the first thing a
+  new operator did was grep a log. Now the interface shows a one-time setup
+  screen on first open — choose a username and password, and it creates the
+  administrator, after which the platform is usable without a restart. It is a
+  one-time door: once an administrator exists, `/setup` and the bootstrap
+  endpoint refuse. Set `ADMIN_PASSWORD` to create it server-side instead, for CI
+  or an unattended deployment. See
+  [ADR-0012](docs/adr/0012-first-run-in-the-browser.md).
 
 ### Changed
 

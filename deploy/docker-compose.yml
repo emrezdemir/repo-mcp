@@ -34,9 +34,10 @@ services:
       retries: 20
       start_period: 10s
 
-  # Applies migrations and creates the first administrator, then exits. Both
-  # services wait for it, so a fresh deployment reaches a usable state without
-  # anyone reading a runbook.
+  # Applies migrations, then exits (both services wait for it). It also creates
+  # the first administrator when ADMIN_PASSWORD is set; with it empty — the
+  # default — that is done in the browser on first open. See
+  # docs/adr/0012-first-run-in-the-browser.md.
   init:
     <<: *defaults
     restart: "no"

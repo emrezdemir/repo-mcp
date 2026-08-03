@@ -242,8 +242,21 @@ async def cmd_init(args) -> int:
         _print("schema check skipped (MIGRATE_ON_START is false)")
 
     if not await boot.has_admin(database):
+        password = args.password or os.getenv("ADMIN_PASSWORD") or ""
+        if password or sys.stdin.isatty():
+            # An explicit password (automation, enterprise) or an interactive
+            # run: create the administrator here, as before.
+            await database.aclose()
+            return await cmd_create_admin(args)
+        # No password and no terminal — the bundled 'make up' path. Leave the
+        # first administrator for the web interface to create on first open, so
+        # a fresh install is a browser away rather than a log to grep. Set
+        # ADMIN_PASSWORD in deploy/.env to create it here instead.
+        _print("no administrator yet")
+        _print("create one in the browser at http://localhost:8080/ui on first open,")
+        _print("or set ADMIN_PASSWORD in deploy/.env to create it here.")
         await database.aclose()
-        return await cmd_create_admin(args)
+        return 0
 
     _print("an administrator already exists")
     await database.aclose()
