@@ -135,6 +135,22 @@ services validate their own configuration at startup, so a mistake surfaces
 when `make up` fails rather than silently. Run plain `make setup` on a machine
 where you also intend to develop.
 
+### Build from source, or pull the images
+
+`make up` builds the gateway and indexer images from this checkout, which needs
+build tools and a few GB of free disk — a small VM can run out. A server that
+would rather not build can pull the published images instead:
+
+```bash
+make up ARGS=--pull    # pull ghcr.io/emrezdemir/repo-mcp-*, then start
+```
+
+Choose the tag with `REPO_MCP_TAG` in `deploy/.env` — `dev-latest` for the latest
+dev build, `v0.4.0` for a release — and set `REPO_MCP_IMAGE` to an internal
+mirror if you keep one. A private GHCR package needs a login first:
+`podman login ghcr.io` (or `docker login`). CI publishes `:dev-latest` and
+`:dev-<sha>` from `dev`; a release publishes `:vX.Y.Z` and `:latest`.
+
 The `init` container applies migrations before either service starts, and — when
 `ADMIN_PASSWORD` is set — creates the first administrator. With it empty (the
 default) the administrator is created in the browser on first open instead

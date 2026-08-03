@@ -41,6 +41,10 @@ services:
   init:
     <<: *defaults
     restart: "no"
+    # Both image: and build: — `make up` builds from source; `make up ARGS=--pull`
+    # (or `docker compose pull`) fetches the published image instead, which a
+    # small server without the disk to build wants. init runs the gateway image.
+    image: ${REPO_MCP_IMAGE:-ghcr.io/emrezdemir/repo-mcp}-gateway:${REPO_MCP_TAG:-dev-latest}
     build:
       <<: *build-args
       args:
@@ -149,6 +153,7 @@ services:
 
   gateway:
     <<: *defaults
+    image: ${REPO_MCP_IMAGE:-ghcr.io/emrezdemir/repo-mcp}-gateway:${REPO_MCP_TAG:-dev-latest}
     build:
       <<: *build-args
       args:
@@ -192,6 +197,7 @@ services:
 
   indexer:
     <<: *defaults
+    image: ${REPO_MCP_IMAGE:-ghcr.io/emrezdemir/repo-mcp}-indexer:${REPO_MCP_TAG:-dev-latest}
     build:
       <<: *build-args
       args:
