@@ -121,16 +121,16 @@ push: ## Push both images
 	done
 
 .PHONY: up
-up: ## Start the Docker stack
-	@scripts/stack.sh up
+up: ## Start the Docker stack (ARGS=--pull to fetch images instead of building)
+	@scripts/stack.sh up $(ARGS)
 
 .PHONY: down
 down: ## Stop the Docker stack
-	@scripts/stack.sh down
+	@scripts/stack.sh down $(ARGS)
 
 .PHONY: logs
 logs: ## Follow stack logs
-	@scripts/stack.sh logs
+	@scripts/stack.sh logs $(ARGS)
 
 .PHONY: smoke
 smoke: ## Smoke test a running stack

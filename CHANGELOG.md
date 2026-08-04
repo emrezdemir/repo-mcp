@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- `make up ARGS=--pull` now works: the `up` target dropped `$(ARGS)`, so the
+  `--pull` flag never reached `stack.sh` and the stack built anyway. `make down`
+  and `make logs` pass `ARGS` through too.
+
 ## [0.4.0] - 2026-08-03
 
 ### Added
