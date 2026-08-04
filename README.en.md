@@ -30,9 +30,10 @@ CI. It is self-hosted and enforces squad-level isolation.
 
 ## What it is
 
-Code intelligence tooling is built for one developer on one laptop: everyone
-indexes the same repository locally, no graph is ever shared, and the result is
-reachable from neither CI nor a chatbot. repo-mcp inverts that.
+Most code intelligence tooling is built for a single developer: everyone indexes
+the same repository locally, the resulting graph is rarely shared, and reaching
+it from CI or a chatbot is not straightforward. repo-mcp aims to centralise that
+for a team.
 
 You define a GitHub organisation, GitLab group or Bitbucket workspace as a
 **connector**; the repositories in scope are discovered, cloned and indexed
