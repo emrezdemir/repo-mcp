@@ -42,7 +42,9 @@ case "$COMMAND" in
       log "pulling published images and starting"
       compose pull "${passthrough[@]}" \
         || die "pull failed — check REPO_MCP_TAG, and log in if the images are private: podman login ghcr.io"
-      compose up -d "${passthrough[@]}"
+      # --no-build is explicit: some podman-compose versions build a service that
+      # has a build: section even on a plain `up`, which would defeat --pull.
+      compose up -d --no-build "${passthrough[@]}"
     else
       log "building and starting"
       compose up -d --build "${passthrough[@]}"
