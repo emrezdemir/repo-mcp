@@ -10,7 +10,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - `make up ARGS=--pull` now works: the `up` target dropped `$(ARGS)`, so the
   `--pull` flag never reached `stack.sh` and the stack built anyway. `make down`
-  and `make logs` pass `ARGS` through too.
+  and `make logs` pass `ARGS` through too. `--pull` also passes `--no-build`, so
+  a podman-compose that would build a service with a `build:` section on plain
+  `up` does not.
+- The Compose images are fully qualified (`docker.io/library/postgres`,
+  `docker.io/ollama/ollama`), so Podman resolves them — it does not assume
+  `docker.io` for a short name the way Docker does, and failed with "short-name
+  did not resolve ... no unqualified-search registries" without it.
 
 ### Changed
 
