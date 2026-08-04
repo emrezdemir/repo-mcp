@@ -12,6 +12,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `--pull` flag never reached `stack.sh` and the stack built anyway. `make down`
   and `make logs` pass `ARGS` through too.
 
+### Changed
+
+- The deployment docs gained a **Requirements** table — CPU, RAM and free disk
+  for pulling versus building, and for the bundled models — after a 25 GB VM
+  kept running out of space building from source. The "what it is" opening in
+  both READMEs was softened from a sweeping claim to a plainer one.
+
 ## [0.4.0] - 2026-08-03
 
 ### Added

@@ -31,9 +31,10 @@ sağlar.
 
 ## Nedir
 
-Kod indeksleme araçları tek kişilik çalışmaya göre tasarlanmış: herkes aynı
-repo'yu kendi makinesinde indeksler, çıkan graph kimseyle paylaşılmaz ve sonuca
-ne CI'dan ne de bir chatbot'tan erişilebilir. repo-mcp bunu tersine çevirir.
+Çoğu kod indeksleme aracı tek geliştiriciye göre tasarlanmış: herkes aynı
+repo'yu kendi makinesinde indeksler, çıkan graph genelde paylaşılmaz, sonuca CI
+ya da bir chatbot üzerinden erişmek de pek kolay değildir. repo-mcp bunu bir
+ekip için merkezîleştirmeyi amaçlar.
 
 Bir GitHub organizasyonunu, GitLab grubunu veya Bitbucket workspace'ini
 **connector** olarak tanımlarsınız; kapsamdaki repo'lar bulunur, klonlanır ve

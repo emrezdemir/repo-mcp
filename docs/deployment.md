@@ -1,5 +1,30 @@
 # Deployment
 
+## Requirements
+
+Linux, with Docker 24+ or Podman 4.1+. Everything else depends on whether you
+**build** the images or **pull** them, and whether you run the bundled model
+backend (LiteLLM + Ollama).
+
+| Setup | CPU | RAM | Free disk |
+| --- | --- | --- | --- |
+| Evaluate — pull images, external or no model backend | 2 cores | 4 GB | ~15 GB |
+| Real indexing — pull images, external models | 4 cores | 8–16 GB | ~20 GB + your repos |
+| Build the images from source | — | — | **+15 GB during the build** |
+| Bundled models (LiteLLM + Ollama) | +2 cores | **+16 GB** | + the model size (several GB) |
+
+**Building from source is the disk-heavy part.** The web interface's npm build,
+the engine and both services produce several GB of layers, and a small VM runs
+out with **`no space left on device`** — which is what a 25 GB VirtualBox disk
+does. Either give the machine a larger disk, or **pull the images**
+(`make up ARGS=--pull`) so nothing is built on the server at all; the images are
+a fraction of the build's footprint.
+
+Indexing is RAM-first: the indexer loads a repository's graph into memory and
+releases it afterwards, so peak RAM tracks the largest repository, not the total.
+The graph stores on disk grow with everything you index — budget for that beyond
+the numbers above.
+
 ## Which path
 
 | You want to… | Run |
