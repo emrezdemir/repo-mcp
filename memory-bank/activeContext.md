@@ -470,12 +470,12 @@ discusses engine internals — with source references, so claims are checkable.
    Makefile passes, but no container has been started here — so the images
    under emulation, the healthchecks and `make smoke` are all unproven on this
    host. That is the next thing to actually run.
-2. **Verify the arm64 image on this Mac.** 0.4.3 publishes
-   `linux/amd64,linux/arm64` from both workflows, and the release asserts both
-   are in the manifest — but the assertion is about the manifest, not about the
-   engine actually running. Pull the arm64 image here and run
-   `codebase-memory-mcp --version` in it: that is the test the amd64 image
-   failed, and it is the only thing that proves the fix.
+2. **Nothing on the architecture front** — it is verified. 0.4.3 publishes
+   `linux/amd64,linux/arm64` from both workflows, the release asserts both are
+   in the manifest, and the arm64 image was pulled here and run: the same
+   `codebase-memory-mcp --version` that hung forever on the amd64 image exits 0
+   with `codebase-memory-mcp 0.10.5`, and `repo-mcp-admin` and the Python app
+   import alongside it. Manifest checked on `dev-latest` too.
 
    The **supported platforms are now stated**: Linux and macOS, amd64 and
    arm64. Windows is not supported and there is no plan for it — nothing in the
