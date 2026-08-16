@@ -33,6 +33,18 @@ esac
 [[ -f "$REPO_ROOT/deploy/tenants.yaml" ]] || die "deploy/tenants.yaml is missing — run scripts/setup.sh"
 [[ -f "$REPO_ROOT/deploy/scan.yaml" ]] || die "deploy/scan.yaml is missing — run scripts/setup.sh"
 
+# Captured before deploy/.env is sourced, and only what the *shell* set counts.
+# That file describes the Docker stack, where identity is normally Keycloak, so
+# `make setup` writes DEV_INSECURE_AUTH=false into it by default. Sourcing it
+# with `set -a` turns that into an environment variable, and the ${VAR:-true}
+# below then never applies — so `make dev` announced "JWT verification
+# disabled", printed a token, and answered 401 to that very token. The .env
+# value is about the containers; this script is the no-Docker path and picks
+# its own default, while an explicit
+#   DEV_INSECURE_AUTH=false scripts/dev.sh gateway
+# still wins, which is the override the header documents.
+DEV_AUTH_FROM_SHELL="${DEV_INSECURE_AUTH:-}"
+
 # shellcheck disable=SC1091
 [[ -f "$REPO_ROOT/deploy/.env" ]] && set -a && source "$REPO_ROOT/deploy/.env" && set +a
 
@@ -42,7 +54,7 @@ mkdir -p "$DEV_ROOT/cache" "$DEV_ROOT/repos"
 # Overridable, so a real identity provider can be pointed at locally:
 #   DEV_INSECURE_AUTH=false scripts/dev.sh gateway
 # with oidc.issuer and oidc.browser_client_id set in the database.
-export DEV_INSECURE_AUTH="${DEV_INSECURE_AUTH:-true}"
+export DEV_INSECURE_AUTH="${DEV_AUTH_FROM_SHELL:-true}"
 export DEV_STATIC_TOKEN="${DEV_STATIC_TOKEN:-devtoken}"
 export SCAN_CONFIG="$REPO_ROOT/deploy/scan.yaml"
 export CBM_CACHE_ROOT="$DEV_ROOT/cache"
@@ -119,7 +131,12 @@ if ! command -v "$CBM_BINARY" >/dev/null 2>&1; then
   dim "      Everything except tool execution works without it."
 fi
 
-cat <<EOF
+# The banner says what is actually true. It used to announce "JWT verification
+# disabled" and print a token unconditionally, which was a lie whenever
+# something had switched verification back on — and the token it offered
+# answered 401.
+if [[ "$DEV_INSECURE_AUTH" == "true" ]]; then
+  cat <<EOF
 
 ${C_BLUE}Development mode${C_RESET} ${C_DIM}(JWT verification disabled)${C_RESET}
   gateway   http://127.0.0.1:8080/mcp
@@ -137,6 +154,22 @@ Try it:
     -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | jq
 
 EOF
+else
+  cat <<EOF
+
+${C_BLUE}Development mode${C_RESET} ${C_YELLOW}(JWT verification is ON)${C_RESET}
+  gateway   http://127.0.0.1:8080/mcp
+  indexer   http://127.0.0.1:8082
+  data      ${DEV_ROOT}
+  database  ${DATABASE_URL}
+  admin     ${ADMIN_USERNAME:-admin} / ${ADMIN_PASSWORD:-devadmin-password}  ${C_DIM}(POST /admin/login)${C_RESET}
+
+${C_DIM}No static token: every MCP call needs a real OIDC token, and the gateway
+refuses with "OIDC_ISSUER is not configured" until oidc.issuer is set. Drop
+DEV_INSECURE_AUTH=false to get the static-token mode back.${C_RESET}
+
+EOF
+fi
 
 PIDS=()
 cleanup() {
