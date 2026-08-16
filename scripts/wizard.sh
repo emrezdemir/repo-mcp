@@ -49,7 +49,7 @@ while [[ $# -gt 0 ]]; do
     --compression) COMPRESSION="$2"; shift ;;
     --database)    DATABASE="$2"; shift ;;
     --provider)    PROVIDER="$2"; shift ;;
-    -h|--help)     sed -n '2,28p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    -h|--help)     sed -n '2,28p' "$0" | sed -E 's/^# ?//'; exit 0 ;;
     *)             die "unknown argument: $1 (try --help)" ;;
   esac
   shift

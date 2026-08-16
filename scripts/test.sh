@@ -30,7 +30,7 @@ while [[ $# -gt 0 ]]; do
     --fix)      FIX=1 ;;
     --cov)      COVERAGE=1 ;;
     --)         shift; PYTEST_ARGS=("$@"); break ;;
-    -h|--help)  sed -n '2,16p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    -h|--help)  sed -n '2,16p' "$0" | sed -E 's/^# ?//'; exit 0 ;;
     *)          die "unknown argument: $1 (try --help)" ;;
   esac
   shift

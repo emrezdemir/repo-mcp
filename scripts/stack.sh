@@ -101,6 +101,6 @@ EOF
     compose ps
     ;;
 
-  -h|--help|"") sed -n '2,14p' "$0" | sed 's/^# \?//' ;;
+  -h|--help|"") sed -n '2,14p' "$0" | sed -E 's/^# ?//' ;;
   *) die "unknown command: $COMMAND (try --help)" ;;
 esac

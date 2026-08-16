@@ -23,7 +23,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 RENDER_ONLY=0
 case "${1:-}" in
   --render) RENDER_ONLY=1 ;;
-  -h|--help) sed -n '2,20p' "$0" | sed 's/^# \?//'; exit 0 ;;
+  -h|--help) sed -n '2,20p' "$0" | sed -E 's/^# ?//'; exit 0 ;;
   "") ;;
   *) die "unknown argument: $1 (try --help)" ;;
 esac

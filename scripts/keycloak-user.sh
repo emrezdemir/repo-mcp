@@ -43,7 +43,7 @@ while [[ $# -gt 0 ]]; do
     --url)      KC_URL="$2"; shift 2 ;;
     --realm)    REALM="$2"; shift 2 ;;
     --admin)    ADMIN="$2"; shift 2 ;;
-    -h|--help)  sed -n '2,25p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    -h|--help)  sed -n '2,25p' "$0" | sed -E 's/^# ?//'; exit 0 ;;
     -*)         die "unknown option: $1 (try --help)" ;;
     *)          [[ -n "$USERNAME" ]] && die "one username at a time"; USERNAME="$1"; shift ;;
   esac

@@ -26,7 +26,7 @@ while [[ $# -gt 0 ]]; do
     --indexer) INDEXER_URL="$2"; shift ;;
     --token)   TOKEN="$2"; shift ;;
     --tenant)  TENANT="$2"; shift ;;
-    -h|--help) sed -n '2,13p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    -h|--help) sed -n '2,13p' "$0" | sed -E 's/^# ?//'; exit 0 ;;
     *) die "unknown argument: $1 (try --help)" ;;
   esac
   shift
