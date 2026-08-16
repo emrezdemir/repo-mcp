@@ -6,8 +6,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-08-16
+
+A fix release. Three of the commands the documentation opens with did not run
+on macOS at all, and one did nothing on every platform.
+
 ### Fixed
 
+- **`make test`, `make up` and `make setup` ran on macOS at all.** All three
+  died before doing any work, with `unbound variable`, and all three were the
+  same bug: macOS ships bash 3.2, where expanding an *empty* array under
+  `set -u` — `"${arr[@]}"` — is fatal rather than expanding to nothing. bash
+  4.4 fixed it, so no Linux host and no CI runner had ever shown it.
+  `scripts/test.sh` (no pytest arguments), `scripts/stack.sh` (no extra
+  compose arguments) and `scripts/wizard.sh` (an answer set selecting no
+  optional profile) are guarded now, and the rule is written down in
+  `docs/code-standards.md` §3 so the next script does not repeat it.
+- **`make site` built nothing** — on every platform, not just macOS. The target
+  was never declared `.PHONY` and a `site/` directory exists, so make decided
+  it was satisfied and answered `'site' is up to date`. The stray
+  `.PHONY: screenshots` line sat above it and covered the wrong target.
 - `make up ARGS=--pull` now works: the `up` target dropped `$(ARGS)`, so the
   `--pull` flag never reached `stack.sh` and the stack built anyway. `make down`
   and `make logs` pass `ARGS` through too. `--pull` also passes `--no-build`, so
@@ -20,6 +38,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **`make test` runs the web interface's 34 tests.** They existed and only CI
+  ran them, which is exactly how a capability gate added in one session left
+  CI's `web interface` job red through the whole of the next one with nobody
+  looking. They are skipped — loudly, saying what to run — when Node or
+  `gateway/webui/node_modules` is absent, so a Python-only checkout is not
+  forced to install a second toolchain.
+- **macOS is documented as a development host.** `make setup`, the full test
+  suite and every check script run there; `docs/development.md` says what
+  differs (bash 3.2, and `linux/amd64` images running emulated on Apple
+  Silicon), and `docs/deployment.md` says plainly that it is not what a
+  deployment should sit on.
 - The deployment docs gained a **Requirements** table — CPU, RAM and free disk
   for pulling versus building, and for the bundled models — after a 25 GB VM
   kept running out of space building from source. The "what it is" opening in

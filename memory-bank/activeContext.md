@@ -1,6 +1,6 @@
 # Active context
 
-**Last updated:** 2026-08-03
+**Last updated:** 2026-08-15
 **Branch:** `dev`
 
 ## Where things stand
@@ -22,14 +22,23 @@ by **Docusaurus** (`docs-site/`) from the same `docs/` markdown.
 
 Deployment has a shape: branches produce images, images are promoted to
 environments, and configuration is never promoted. CI publishes `:dev-<sha>`
-from `dev`; a version tag publishes `:vX.Y.Z` and packages the chart.
+from `dev`; a version tag publishes `:vX.Y.Z` and packages the chart. The
+publish half is **no longer theoretical**: `ghcr.io/emrezdemir/repo-mcp-gateway`
+and `-indexer` carry `dev-latest` plus a dozen `dev-<sha>` tags, and both pull
+anonymously — verified against the registry API. No release tag has been cut,
+so there is no `:latest` and no `:vX.Y.Z`; nothing defaults to either.
+
+The repository is **public** on GitHub (`emrezdemir/repo-mcp`, MIT, default
+branch `dev`). Every push is world-readable the moment it lands — the secret
+scan is the gate, and a full history scan for credential shapes and
+forbidden paths came back clean.
 
 ### Branch state, as of this writing
 
-- `dev` is the **default branch** and carries everything. Head: `b8e26c3`.
-- `main` is behind, at the merge of PR #9, and **its CI is red** — it predates
-  the `NodeDetailPanel` test fix. The next `dev → main` merge turns it green;
-  nothing else is needed.
+- `dev` is the **default branch** and carries everything. Head: `58f25bf`.
+- `main`, `dev` and `origin/dev` are all at that same commit — zero ahead, zero
+  behind. The earlier note here ("main is behind and its CI is red") stopped
+  being true and stayed; it is fixed now.
 - The maintainer merges `dev` into `main` (a fast-forward, `git push origin
   dev:main`, keeps the two identical) and deletes branches. There is **no
   automatic main→dev sync** any more — `sync-dev.yml` was removed at the
@@ -45,6 +54,64 @@ Do not start translating without that answer: two hand-maintained copies drift,
 which `AGENTS.md` forbids.
 
 ## What the last sessions did
+
+**Session 15 — the first run on macOS, and four commits nobody had recorded.**
+Two halves.
+
+*The unrecorded commits.* `dev` had moved four commits past what this file
+described, all from the maintainer's server run: `make up` learned to pull the
+published images rather than build (`ARGS=--pull`, passed through from the
+Makefile), `--no-build` was made explicit because some podman-compose versions
+build a service that has a `build:` section even on a plain `up`, the Compose
+images were fully qualified (`docker.io/library/postgres:16-alpine` — Podman
+does not assume Docker Hub for short names), and `docs/deployment.md` gained a
+Requirements table after a 25 GB VirtualBox disk ran out mid-build.
+
+*macOS, for the first time.* The whole toolchain was driven on macOS 26 /
+Apple Silicon. `make setup` works end to end — three virtualenvs, configuration,
+the wizard's defaults — and all **175 Python tests pass** (91 common, 63
+gateway, 21 indexer; the 10 gateway skips are the interface not being built).
+`check-branch`, `check-secrets --all`, `check-docs`, `check-chart` and
+`version --check` all pass.
+
+What did not work was **bash**. macOS ships bash **3.2**, where expanding an
+empty array under `set -u` — `"${arr[@]}"` — is an *unbound variable* error
+rather than nothing. bash 4.4 fixed it, so Ubuntu never sees this. Three
+scripts did exactly that on their ordinary path, and each died before doing any
+work: `test.sh:76` (`make test`, `make verify`), `stack.sh:43/47/50`
+(`make up`), and `wizard.sh:221` (`make setup` whenever the answers select no
+optional profile — external identity with no model backend). All three
+reproduced, not inferred, then fixed with `${arr[@]+"${arr[@]}"}` and verified
+against every argument shape the callers actually pass.
+
+Separately and on **every** platform: `make site` did nothing. `site` is a
+target with no prerequisites and a `site/` directory exists, and the target was
+never declared `.PHONY` — `.PHONY: screenshots` sat immediately above it and
+covered the wrong name — so make answered `'site' is up to date` and never ran
+the build. Nothing caught it because `check-docs.sh` checks that make targets
+exist and are documented, not that they run. Both targets are `.PHONY` now.
+
+Two gaps of the same family. `make test` **never ran the 34 web interface
+tests** — only CI did, and that is precisely the shape of the defect session 13
+found when a capability gate left CI's `web interface` job red for a session
+with nobody looking. It runs them now, skipping with a message when Node or
+`node_modules` is absent so a Python-only checkout is unaffected. And the
+published images are **`linux/amd64` only** (no `platforms:` in either
+workflow), so on Apple Silicon `make up ARGS=--pull` runs the whole stack under
+emulation — left as it is and documented, because adding arm64 to the matrix
+roughly doubles every image build in CI and that is the maintainer's call.
+
+Afterwards `make verify` passes on macOS in full, and the bash-3.2 rule and the
+`.PHONY` rule are both written into `docs/code-standards.md` §3 — the point
+being that neither CI nor a Linux server can ever catch either one. The test
+tables in `AGENTS.md` §7 and `docs/development.md` gained a fifth **Interface**
+layer, because `make test` now covers something they did not list.
+
+The work was **cut as 0.4.1** — a fix release, by the standing rule that a
+change bumps the version if it warrants one. `scripts/version.sh --set` did
+`VERSION`, the three `pyproject.toml`s and the chart; the README badges and the
+changelog were done by hand, as always. The tag itself is the maintainer's to
+push from `main`.
 
 **Session 14 — the READMEs, the docs site on Docusaurus, and setup on a real
 server.** The READMEs were reshaped to what a reader expects of a landing page:
@@ -341,13 +408,24 @@ discusses engine internals — with source references, so claims are checkable.
 
 ## Watch out for
 
-- **`main` carries releases now** — it was at the initial commit for a long
-  time and this note said so, which stopped being true and stayed here anyway.
-  It currently trails `dev` and its CI is red for that reason alone.
+- **The repository is public.** Anything pushed to `dev` is world-readable
+  immediately, and `dev` is the default branch, so it is what a visitor lands
+  on. Run `make verify` before pushing — the secret scan is in it.
+- **On macOS the shell is bash 3.2**, and `"${empty_array[@]}"` under `set -u`
+  is a fatal *unbound variable* there. Never expand a possibly-empty array
+  without guarding it: `${#arr[@]}` is safe, `"${arr[@]}"` and `"${arr[*]}"`
+  are not. Ubuntu's bash 5 hides this completely, so CI will not catch it.
+- **`main` and `dev` are identical** (both `58f25bf`). The old note here said
+  main trailed with a red CI; that has been true and then untrue more than
+  once — check with `git rev-list --left-right --count origin/main...HEAD`
+  rather than trusting this line.
 - **The engine binary is usually not installed locally.** Everything except
-  tool execution works; the error message says so explicitly. To get it:
-  `curl -fsSL <releases>/latest/download/codebase-memory-mcp-linux-amd64.tar.gz`,
-  unpack, put it on PATH. `make screenshots` needs it.
+  tool execution works; the error message says so explicitly. To get it, fetch
+  the archive for **this** machine from the engine's releases —
+  `codebase-memory-mcp-linux-amd64.tar.gz` on an Ubuntu server,
+  `codebase-memory-mcp-darwin-arm64.tar.gz` on an Apple Silicon Mac (upstream
+  publishes darwin and linux, amd64 and arm64) — unpack, put it on PATH.
+  `make screenshots` needs it.
 - **`deploy/tenants.yaml` and `deploy/scan.yaml` are local and ignored.** Edit
   the `.example` files to change the shipped defaults. They are seed documents
   for `repo-mcp-admin import`, not runtime configuration.
@@ -364,10 +442,18 @@ discusses engine internals — with source references, so claims are checkable.
 
 ## Suggested next steps
 
-The maintainer is **deploying to an Ubuntu server** right now, so the first
-item is whatever that run turns up. `make setup ARGS=--config-only` then
-`make up` is the path for a machine that only runs the stack; `make debug`
-diagnoses a broken one and is worth reaching for before guessing.
+**First, two things the fixes left open.**
+
+1. **`make up` has still never been run on macOS.** The shell bug that stopped
+   it is fixed and the argument handling is verified against every shape the
+   Makefile passes, but no container has been started here — so the images
+   under emulation, the healthchecks and `make smoke` are all unproven on this
+   host. That is the next thing to actually run.
+2. **Multi-arch images, or leave them.** `platforms: linux/amd64,linux/arm64`
+   in both workflows is the real fix and the Dockerfile already selects by
+   architecture; the cost is roughly doubling every image build in CI, which is
+   why session 15 documented the limitation instead of deciding it. The
+   maintainer's call.
 
 After that, roughly in order of value per unit of effort:
 
