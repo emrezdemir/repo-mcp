@@ -6,6 +6,30 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-08-16
+
+Both of these were found by cutting 0.4.1 for real — the first version tag this
+project has ever pushed. The release itself went perfectly and the upgrade path
+it is supposed to feed was dead at both ends.
+
+### Fixed
+
+- **A release now creates a GitHub Release.** `release.yml` published the
+  images and pushed the chart, and stopped. But a pushed tag is not a release
+  to anything that asks GitHub: `/releases/latest` answers **404** until a
+  Release object exists — and two things we ship read exactly that endpoint,
+  the interface's update banner (`gateway/app/updates.py`) and `make upgrade`
+  (`scripts/upgrade.sh`). So a perfect release left both dead. The workflow has
+  a `release` job now, taking the notes from the changelog's own section for
+  that version rather than a second copy that would drift.
+- **`make upgrade` said nothing when the check failed.** With no release
+  published the response body has no `tag_name`, `grep` exits 1, and under
+  `set -e` with `pipefail` the assignment itself ended the script — silently,
+  exit 1, never reaching the line written to explain precisely that. The
+  message it was supposed to print ("offline, rate-limited, or none is
+  published yet") is reachable now. Both paths verified: against the real
+  release, and against an empty response.
+
 ## [0.4.1] - 2026-08-16
 
 A fix release. Three of the commands the documentation opens with did not run

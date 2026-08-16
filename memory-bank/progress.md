@@ -125,13 +125,21 @@ away.
   end to end too — three virtualenvs, `deploy/*.yaml`, the wizard's `.env`, and
   the configuration verified through the real loaders.
 
-**Image publishing from `dev`**
+**Image publishing and releases**
 - CI publishes `dev-<sha>` and `dev-latest` for both services to GHCR on every
   push to `dev`, after the image it just built proved it starts. Verified
   against the registry API: both packages resolve anonymously, `dev-latest` is
   present alongside a dozen `dev-<sha>` tags, so `make up ARGS=--pull` has real
   images to fetch. Single-architecture — `linux/amd64` — because neither
   workflow sets `platforms:`.
+- **`v0.4.1` was the first version tag this project ever pushed**, and the
+  release path is exercised end to end now: the guard (semver, the tag is on
+  `main`, `VERSION` agrees, the changelog has a section), `:vX.Y.Z` and
+  `:latest` for both services, and the chart packaged to
+  `oci://ghcr.io/emrezdemir/charts`. All four jobs green.
+- The release also **creates a GitHub Release** from the changelog's own
+  section. It did not until 0.4.2 — see Fixed along the way; that gap is why
+  `make upgrade` and the update banner could never have worked.
 
 **Documentation**
 - Architecture, engine constraints (with source references), roles and
@@ -157,7 +165,7 @@ external system. Treat their behaviour as unproven.
 | PostgreSQL | Everything was exercised against SQLite. The schema and migration are the same, but no PostgreSQL server has run here |
 | The `init` Compose container | Never started; the same commands were run directly |
 | Helm chart | Never rendered by `helm`; `make check-chart` checks templates against `values.yaml`, and CI runs `helm lint` and `helm template` |
-| The release workflow | No version tag has been cut, so the tag guard, the packaged chart, `:vX.Y.Z` and `:latest` are all unexercised. The `dev` publish half *is* exercised — see Works |
+| Helm chart install from the registry | The chart is packaged and pushed to `oci://ghcr.io/emrezdemir/charts` by a real release now, but no `helm install` has ever pulled it from there |
 | The bootstrap hook Job | Never run in a cluster; the same `repo-mcp-admin init` command was run directly |
 | End-to-end script | Never run; needs Docker |
 | LDAP federation | A real directory. Keycloak 26 itself *was* stood up here — the realm imported, groups and both clients created, a user made by `scripts/keycloak-user.sh` — but no LDAP server has ever been federated into it, so group mapping from a directory is unproven |
@@ -256,6 +264,8 @@ Not bugs — consequences of decisions, recorded so nobody rediscovers them.
 | A capability gate added in session 12 hid the button `NodeDetailPanel`'s test clicks, so CI's `web interface` job had been red ever since and nobody looked | Running `npm test` while adding a test beside it | The test mocks a caller whose role may read source; it asserts source is escaped rather than injected, which is worth keeping |
 | Nothing confirmed a connector worked: provider, container name, token scope and patterns all fail the same way — silently, hours later | Asked to make adding a connector from the interface good | `connector check` on both surfaces, running real discovery and naming which of the four is wrong |
 | The Pages site 404'd while the build job was green: the `github-pages` environment admits the default branch only, and the workflow published from `main` while the default is `dev` | The maintainer reporting the URL, twice | Publish from whichever branch is the default; other branches skip visibly instead of failing with no steps and no message |
+| `release.yml` published images and a chart and stopped, so `/releases/latest` stayed 404 — and both the interface's update banner and `make upgrade` read exactly that endpoint. A flawless release left the whole upgrade path dead | Cutting v0.4.1 for real, then running `make upgrade --check` against it | A `release` job that creates the GitHub Release from the changelog's own section for that version |
+| `make upgrade` exited 1 with no message at all when the release check failed: `grep` finds no `tag_name`, and under `set -e` with `pipefail` the assignment ends the script before the line written to explain it | The same run — the error message its author wrote was unreachable | `\|\| true` on the pipeline, not just the `curl`; both paths verified |
 
 ## Never verified in this environment
 
