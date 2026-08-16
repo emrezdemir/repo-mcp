@@ -36,6 +36,29 @@ On Debian and Ubuntu, `venv` is a separate package. Without it `python3 -m venv`
 creates the directory and then fails, so setup checks first and tells you to
 `apt install python3-venv` rather than reporting a missing `pip`.
 
+### Linux and macOS
+
+Both work for development: `make setup`, `make test`, `make dev` and every
+check script run on either. The Docker stack itself is happiest on Linux — see
+[deployment.md](deployment.md).
+
+Two things differ on macOS and neither needs anything installed:
+
+- **The shell is bash 3.2.** Apple has not shipped a newer one since 2007.
+  Anything you add to `scripts/` has to work there, and the rule that actually
+  matters is in [code-standards.md](code-standards.md) §3: under `set -u`,
+  bash 3.2 treats `"${arr[@]}"` on an *empty* array as a fatal unbound
+  variable. Neither CI nor a Linux server will catch it, so this is one of the
+  few places where reading the standard beats running the tests.
+- **The published images are `linux/amd64`.** On Apple Silicon,
+  `make up ARGS=--pull` runs them emulated — correct, and slower. Building
+  locally (`make up`) produces native arm64 images instead; the engine
+  publishes an arm64 build and the Dockerfile selects by architecture.
+
+The engine binary is published for macOS too, so `make dev` can run real tool
+calls here: take `codebase-memory-mcp-darwin-arm64.tar.gz` (or `-amd64` on an
+Intel Mac) from the engine's releases, unpack it and put it on `PATH`.
+
 It also installs a pre-commit hook that refuses to commit secrets or
 environment-specific configuration. Install it on its own with `make hooks`,
 and audit what is already tracked with `make check-secrets`.
@@ -60,18 +83,26 @@ everything except tool execution works — and a tool call returns a clear
 
 ## The test layers
 
-Four layers, deliberately separated by what they need:
+Five layers, deliberately separated by what they need:
 
 | Layer | Command | Needs | Covers |
 | --- | --- | --- | --- |
 | Unit | `make test` | nothing | authorization, configuration parsing, discovery, queue behaviour, the stdio bridge (against a fake engine) |
-| Config | `make test` | nothing | the shipped example files still parse |
+| Config | `make test` | nothing | the shipped example files still parse, the Compose file is valid with and without every profile |
+| Interface | `make test` | Node and `gateway/webui/node_modules` | the web interface's own suite, run with vitest |
 | Smoke | `make smoke` | a running stack | protocol handshake, auth rejections, live queries, metrics |
 | End to end | `make e2e` | Docker | the container images, the real engine binary, git cloning, a real repository indexed and queried |
 
 Unit tests need neither the engine nor network access, which is what keeps
 them fast enough to run on every save. Anything that does need them belongs in
 the smoke or end-to-end layer.
+
+The interface layer is the one with a soft dependency. `make setup` installs no
+Node, so `make test` **skips** those tests when Node or the dependencies are
+missing and says what to run — `npm --prefix gateway/webui ci`, once. They used
+to run in CI only, which is how a capability gate added in one session left
+that job red through the whole of the next one with nobody looking: a check
+that runs somewhere you do not watch is a check you do not have.
 
 ```bash
 make test                              # everything

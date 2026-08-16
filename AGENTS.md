@@ -52,7 +52,7 @@ reinventing the invocation.
 | --- | --- |
 | `make setup` | Virtualenvs, dependencies, config from examples, generated secrets, pre-commit hook |
 | `make wizard` | Re-choose which optional components the Docker stack runs |
-| `make test` | Lint and unit tests for both services, plus example-config validation |
+| `make test` | Lint and unit tests for both services, the web interface's tests, and example-config validation |
 | `make lint` / `make fmt` | Lint only / apply autofixes |
 | `make dev` | Both services locally, auto-reload, no Docker, JWT verification off |
 | `make debug` | Diagnose a broken setup; reports every finding, not just the first |
@@ -167,12 +167,13 @@ what review is for.
 
 ## 7. Testing
 
-Four layers, separated by what they need:
+Five layers, separated by what they need:
 
 | Layer | Command | Needs | Covers |
 | --- | --- | --- | --- |
 | Unit | `make test` | nothing | authorization, config parsing, discovery, queue behaviour, the stdio bridge against a fake engine |
-| Config | `make test` | nothing | the shipped example files still parse |
+| Config | `make test` | nothing | the shipped example files still parse, the Compose file is valid |
+| Interface | `make test` | Node and `gateway/webui/node_modules` | the web interface's own vitest suite |
 | Smoke | `make smoke` | a running stack | handshake, auth rejections, live queries, metrics |
 | End to end | `make e2e` | Docker | container images, the real engine, git cloning, a real repository indexed and queried |
 
@@ -180,6 +181,9 @@ Rules:
 
 - Unit tests must not need the network or the engine binary. That is what
   keeps them fast enough to run on every save.
+- The interface layer is **skipped, not failed**, when Node or
+  `gateway/webui/node_modules` is absent — `make setup` installs no Node. Run
+  `npm --prefix gateway/webui ci` once and `make test` covers them too.
 - **Authorization changes need a test for the denial path**, not only the
   allow path. A test that only proves access works proves nothing about
   access control.

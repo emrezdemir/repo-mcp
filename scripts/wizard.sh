@@ -218,7 +218,16 @@ PROFILES=()
 [[ "$IDENTITY" == keycloak ]] && PROFILES+=(keycloak)
 [[ "$MODELS" == bundled ]] && PROFILES+=(litellm ollama)
 [[ "$COMPRESSION" == on ]] && PROFILES+=(headroom)
-PROFILE_LIST="$(IFS=,; echo "${PROFILES[*]}")"
+# An answer set with no optional component at all — an external identity
+# provider and no model backend — leaves this empty, which is a valid choice:
+# the core stack is postgres, init, gateway and indexer. Guarded because macOS
+# ships bash 3.2, where expanding an empty array under `set -u` is a fatal
+# "unbound variable" instead of the empty string. bash 4.4 fixed it, so no
+# Linux host shows this.
+PROFILE_LIST=""
+if (( ${#PROFILES[@]} )); then
+  PROFILE_LIST="$(IFS=,; echo "${PROFILES[*]}")"
+fi
 
 DATABASE_URL_LINE="# DATABASE_URL is unset: the bundled PostgreSQL is used."
 if [[ "$DATABASE" == external ]]; then

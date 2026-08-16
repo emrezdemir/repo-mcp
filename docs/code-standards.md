@@ -148,6 +148,19 @@ test_roles_2                                  useless
 - Executable bit set, except `lib.sh` — [enforced]
 - Diagnostic scripts report **every** finding, not just the first.
 - A script that overwrites user files stashes and restores them.
+- **Target bash 3.2, not just the bash on this machine.** macOS ships 3.2 and
+  is a supported development host; Linux servers ship 5.x. The difference that
+  actually bites is empty arrays: under `set -u`, bash 3.2 treats
+  `"${arr[@]}"` and `"${arr[*]}"` on an empty array as a fatal *unbound
+  variable*, where bash 4.4 and newer expand to nothing. `${#arr[@]}` is safe.
+  Write `${arr[@]+"${arr[@]}"}` when passing a possibly-empty array to a
+  command, or guard the whole statement with `[[ ${#arr[@]} -gt 0 ]] &&`.
+  Neither CI nor an Ubuntu server will ever catch a mistake here — three
+  commands (`make test`, `make up`, `make setup`) shipped broken on macOS for
+  exactly this reason.
+- **A `make` target that is not a file must be `.PHONY`.** `site` was not, a
+  `site/` directory exists, and `make site` therefore answered "up to date" and
+  built nothing — on every platform, for as long as the target existed.
 
 ## 4. Commits
 

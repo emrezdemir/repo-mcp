@@ -1,6 +1,6 @@
 # Progress
 
-**Last updated:** 2026-08-03
+**Last updated:** 2026-08-15
 
 Status vocabulary, used strictly:
 
@@ -115,8 +115,23 @@ away.
 - Secret scanning: verified in both directions — zero false positives across
   the tracked tree, every planted secret caught, and a live commit blocked by
   the hook.
-- 176 Python tests (92 common, 63 gateway, 21 indexer) and 34 interface tests,
-  `ruff` clean.
+- 175 Python tests (91 common, 63 gateway, 21 indexer) and 34 interface tests,
+  `ruff` clean. `make test` runs all of them now — the interface suite used to
+  run in CI only.
+- **`make verify` passes on macOS 26 / Apple Silicon**, whole: three test
+  suites, the interface's 34, the example configuration, `docker compose
+  config` with and without every profile, shellcheck, the documentation rules,
+  the chart, the version check and the secret scan. `make setup` works there
+  end to end too — three virtualenvs, `deploy/*.yaml`, the wizard's `.env`, and
+  the configuration verified through the real loaders.
+
+**Image publishing from `dev`**
+- CI publishes `dev-<sha>` and `dev-latest` for both services to GHCR on every
+  push to `dev`, after the image it just built proved it starts. Verified
+  against the registry API: both packages resolve anonymously, `dev-latest` is
+  present alongside a dozen `dev-<sha>` tags, so `make up ARGS=--pull` has real
+  images to fetch. Single-architecture — `linux/amd64` — because neither
+  workflow sets `platforms:`.
 
 **Documentation**
 - Architecture, engine constraints (with source references), roles and
@@ -142,7 +157,7 @@ external system. Treat their behaviour as unproven.
 | PostgreSQL | Everything was exercised against SQLite. The schema and migration are the same, but no PostgreSQL server has run here |
 | The `init` Compose container | Never started; the same commands were run directly |
 | Helm chart | Never rendered by `helm`; `make check-chart` checks templates against `values.yaml`, and CI runs `helm lint` and `helm template` |
-| Image publishing and the release workflow | No push to a registry has happened; the tag guard, the packaged chart and the `dev-<sha>` publish are all unexercised |
+| The release workflow | No version tag has been cut, so the tag guard, the packaged chart, `:vX.Y.Z` and `:latest` are all unexercised. The `dev` publish half *is* exercised — see Works |
 | The bootstrap hook Job | Never run in a cluster; the same `repo-mcp-admin init` command was run directly |
 | End-to-end script | Never run; needs Docker |
 | LDAP federation | A real directory. Keycloak 26 itself *was* stood up here — the realm imported, groups and both clients created, a user made by `scripts/keycloak-user.sh` — but no LDAP server has ever been federated into it, so group mapping from a directory is unproven |
@@ -152,6 +167,40 @@ external system. Treat their behaviour as unproven.
 | Podman | A real Podman host. The engine abstraction resolves and the Compose file validates through `compose()` on Docker here; the `podman compose` / `podman-compose` branch is the same code but has not run against Podman |
 
 **First real deployment should start here.** These are where surprises live.
+
+## Broken
+
+Nothing outstanding. Session 15 found four and fixed all four — kept here
+because the *reason* they existed is the reusable part.
+
+Three were one bug wearing three hats. macOS ships **bash 3.2**, where
+expanding an empty array under `set -u` is a fatal *unbound variable* rather
+than nothing; bash 4.4 fixed it, so no Linux host and no CI runner would ever
+have shown it. `make test`, `make up` and `make setup` each died before doing
+any work — `test.sh` with no pytest arguments, `stack.sh` with no extra compose
+arguments, `wizard.sh` with an answer set selecting no optional profile. All
+three now use `${arr[@]+"${arr[@]}"}`; `${#arr[@]}` was always safe, and
+`dev.sh:143` had guarded its `kill` correctly all along. The rule is in
+[code-standards.md](../docs/code-standards.md) §3 now.
+
+The fourth was universal and older: **`make site` built nothing** on any
+platform, because the target was never `.PHONY` and a `site/` directory
+satisfies it. `check-docs.sh` did not catch it — it checks that a make target
+exists and is documented, not that it does anything. Both are `.PHONY` now.
+
+One gap of the same family closed with them: `make test` now runs the **34 web
+interface tests**, which only CI had ever run. That is precisely how session
+13's `NodeDetailPanel` regression sat red for a whole session. They skip with a
+message when Node or `node_modules` is absent, so a Python-only checkout is
+unaffected.
+
+Still open, deliberately: the published images are **`linux/amd64` only**
+(neither workflow sets `platforms:`), so on Apple Silicon `make up ARGS=--pull`
+runs the stack emulated. Building locally produces native arm64 images — the
+engine publishes an arm64 build and the Dockerfile selects by architecture — so
+this is a workflow decision, not a defect. It is documented in
+[deployment.md](../docs/deployment.md) rather than silently fixed, because
+adding arm64 to the matrix roughly doubles every image build in CI.
 
 ## Designed, not built
 
@@ -229,3 +278,9 @@ Stated plainly so nobody assumes otherwise:
   defect this sandbox could never have shown (`make setup` and Debian's
   separate `venv` package). Expect more of that class, and prefer their report
   over anything asserted here.
+- **macOS is now a second real environment** (macOS 26, Apple Silicon), and it
+  immediately produced four defects — see Broken. The pattern holds: every new
+  host finds something no amount of reading here would have. Neither Docker
+  nor Podman has been used to start the stack on it, so `make up`, the images
+  under emulation and `make smoke` are unproven on macOS even once the shell
+  bug is fixed.

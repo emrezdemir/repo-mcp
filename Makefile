@@ -79,10 +79,14 @@ version: ## Print the project version (scripts/version.sh --set X.Y.Z to change 
 check-version: ## Check that every file agrees with VERSION
 	@scripts/version.sh --check
 
-.PHONY: screenshots
-site: ## assemble the project site and the rendered docs into _site/ (--serve to preview)
-	scripts/build-site.sh $(ARGS)
+# Both of these must be .PHONY, and `site` in particular: there is a site/
+# directory in the tree, so without this make finds it, decides the target is
+# satisfied and answers "'site' is up to date" without ever running the build.
+.PHONY: site
+site: ## Assemble the project site and the rendered docs into _site/ (ARGS=--serve to preview)
+	@scripts/build-site.sh $(ARGS)
 
+.PHONY: screenshots
 screenshots: ## Regenerate docs/images from a live gateway
 	@scripts/screenshots.sh
 

@@ -6,6 +6,12 @@ Linux, with Docker 24+ or Podman 4.1+. Everything else depends on whether you
 **build** the images or **pull** them, and whether you run the bundled model
 backend (LiteLLM + Ollama).
 
+macOS runs the stack too — Docker Desktop or Podman Desktop — and is a
+supported *development* host (see [development.md](development.md)). It is not
+what a deployment should sit on: the published images are `linux/amd64`, so on
+Apple Silicon `--pull` runs everything under emulation. Build locally instead
+(`make up`, no `--pull`) and the images come out native.
+
 | Setup | CPU | RAM | Free disk |
 | --- | --- | --- | --- |
 | Evaluate — pull images, external or no model backend | 2 cores | 4 GB | ~15 GB |

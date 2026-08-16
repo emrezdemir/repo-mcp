@@ -38,16 +38,21 @@ case "$COMMAND" in
       esac
     done
 
+    # ${passthrough[@]+"${passthrough[@]}"} rather than "${passthrough[@]}":
+    # macOS ships bash 3.2, where expanding an empty array under `set -u` is a
+    # fatal "unbound variable" instead of nothing. bash 4.4 fixed it, so no
+    # Linux host and no CI runner shows this — and a plain `make up` passes no
+    # extra arguments, so it died here before starting anything.
     if (( pull )); then
       log "pulling published images and starting"
-      compose pull "${passthrough[@]}" \
+      compose pull ${passthrough[@]+"${passthrough[@]}"} \
         || die "pull failed — check REPO_MCP_TAG, and log in if the images are private: podman login ghcr.io"
       # --no-build is explicit: some podman-compose versions build a service that
       # has a build: section even on a plain `up`, which would defeat --pull.
-      compose up -d --no-build "${passthrough[@]}"
+      compose up -d --no-build ${passthrough[@]+"${passthrough[@]}"}
     else
       log "building and starting"
-      compose up -d --build "${passthrough[@]}"
+      compose up -d --build ${passthrough[@]+"${passthrough[@]}"}
     fi
 
     wait_for_http "http://127.0.0.1:8080/healthz" 120 "gateway" || true
