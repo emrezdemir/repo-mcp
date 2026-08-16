@@ -54,7 +54,8 @@ reinventing the invocation.
 | `make wizard` | Re-choose which optional components the Docker stack runs |
 | `make test` | Lint and unit tests for both services, the web interface's tests, and example-config validation |
 | `make lint` / `make fmt` | Lint only / apply autofixes |
-| `make dev` | Both services locally, auto-reload, no Docker, JWT verification off |
+| `make dev` | Both services locally, auto-reload, no Docker, JWT verification off — foreground, Ctrl-C stops |
+| `make dev-start` / `make dev-stop` / `make dev-logs` | The same services in the background, for bring-up-poke-tear-down without giving up a terminal (`make dev ARGS=--status` to check) |
 | `make debug` | Diagnose a broken setup; reports every finding, not just the first |
 | `make upgrade` | Check for a newer release and upgrade this install (`ARGS=--check` to only check) |
 | `make up` / `make down` / `make logs` | Docker stack lifecycle |
