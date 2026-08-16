@@ -132,7 +132,12 @@ away.
   present alongside a dozen `dev-<sha>` tags, so `make up ARGS=--pull` has real
   images to fetch. **Multi-architecture** since 0.4.3 — `linux/amd64` and
   `linux/arm64` — and the release asserts both are in the published manifest
-  rather than trusting the build to have honoured the list.
+  rather than trusting the build to have honoured the list. Verified beyond the
+  manifest: the arm64 image was pulled on an Apple Silicon Mac and run, and
+  `codebase-memory-mcp --version` — the command that hung forever on the amd64
+  image — exits 0 with `codebase-memory-mcp 0.10.5`. `repo-mcp-admin` and the
+  Python application import in the same image. The arm64 leg costs about ten
+  minutes of CI per push to `dev`.
 - **`v0.4.1` was the first version tag this project ever pushed**, and the
   release path is exercised end to end now: the guard (semver, the tag is on
   `main`, `VERSION` agrees, the changelog has a section), `:vX.Y.Z` and
