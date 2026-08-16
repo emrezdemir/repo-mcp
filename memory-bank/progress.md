@@ -282,6 +282,9 @@ Not bugs — consequences of decisions, recorded so nobody rediscovers them.
 | The Pages site 404'd while the build job was green: the `github-pages` environment admits the default branch only, and the workflow published from `main` while the default is `dev` | The maintainer reporting the URL, twice | Publish from whichever branch is the default; other branches skip visibly instead of failing with no steps and no message |
 | `release.yml` published images and a chart and stopped, so `/releases/latest` stayed 404 — and both the interface's update banner and `make upgrade` read exactly that endpoint. A flawless release left the whole upgrade path dead | Cutting v0.4.1 for real, then running `make upgrade --check` against it | A `release` job that creates the GitHub Release from the changelog's own section for that version |
 | `make upgrade` exited 1 with no message at all when the release check failed: `grep` finds no `tag_name`, and under `set -e` with `pipefail` the assignment ends the script before the line written to explain it | The same run — the error message its author wrote was unreachable | `\|\| true` on the pipeline, not just the `curl`; both paths verified |
+| A fresh install could not make **one** tool call: the gateway creates the tenant's cache directory but not its repository root, and the engine refuses to start when `CBM_ALLOWED_ROOT` is not there. The directory is made by the indexer on its first clone, so every squad nothing had indexed yet was dead. The image has the same gap — it creates `/var/lib/repo-mcp/repos`, not the per-tenant directory under it | Installing the real engine and running `make dev` | `os.makedirs(repo_root)` beside the cache one, with a test asserting both exist before the process starts |
+| The engine's own reason was read and discarded: stderr went to `log.debug` and nowhere else, so `daemon session context was rejected` became `engine process exited unexpectedly` | The same run — bisecting the environment by hand to recover a message the gateway already had | A bounded tail of the last stderr lines, carried in the error |
+| `make dev` printed "JWT verification disabled" and a token, then answered **401** to that token: it sources `deploy/.env` with `set -a`, and `make setup` writes `DEV_INSECURE_AUTH=false` there by default (the stack's identity is Keycloak), which stopped `dev.sh`'s own `${VAR:-true}` default from applying | Running the documented path — `make setup`, `make dev`, curl — on a machine that had done neither before | The shell's value is captured before `.env` is sourced and still wins; the file's does not. The banner now says what is true |
 
 ## Never verified in this environment
 
@@ -293,8 +296,15 @@ Stated plainly so nobody assumes otherwise:
   and `template`.
 - No image has been pushed to a registry from here, and no release tag has
   been cut. The release workflow's guards are unexercised.
-- The engine binary was never available here; the bridge is tested against a
-  fake engine that speaks the same protocol.
+- ~~The engine binary was never available here~~ — **no longer true.** The
+  native `darwin-arm64` build was installed on the Mac and driven through the
+  gateway end to end: 11 tools listed, a real repository indexed (514 nodes,
+  2,232 edges), `search_graph` returning real symbols by BM25, and the project
+  allowlist refusing an outside project with `-32001` against the real engine
+  rather than a fake. It found three defects in one sitting — see Fixed along
+  the way. The unit tests still use the fake engine, and should: it makes the
+  awkward paths (timeout mid-stream, unexpected exit, ten concurrent callers)
+  testable without the binary.
 - No provider was ever contacted for real. Every connector and discovery test,
   including `connector check`, ran against a stand-in GitHub API on loopback.
   The request shapes come from the provider documentation, not from a live

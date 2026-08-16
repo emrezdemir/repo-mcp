@@ -6,6 +6,38 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-08-16
+
+All three were found the first time the **real engine** ran behind the gateway.
+Until now the stdio bridge had only ever been exercised against a fake engine —
+`memory-bank/progress.md` said so plainly — and every one of these is invisible
+to a fake that does not care about its environment.
+
+### Fixed
+
+- **A fresh install could not make a single tool call.** The gateway creates
+  the tenant's cache directory before starting the engine, and not its
+  repository root — which it passes as `CBM_ALLOWED_ROOT`. The engine refuses
+  to start when that directory does not exist, and the directory is created by
+  the indexer when it first clones for that tenant. So on any squad nothing had
+  indexed yet, every tool call failed. This affects the containers too: the
+  image creates `/var/lib/repo-mcp/repos`, not the per-tenant directory beneath
+  it.
+- **The engine's own explanation was read and thrown away.** Its stderr was
+  logged at `debug` and kept nowhere, so at the default level the operator saw
+  `engine process exited unexpectedly` while the engine had said
+  `daemon session context was rejected`. The last few lines are kept now and
+  carried in the error, bounded so a chatty engine cannot turn a failure into a
+  wall of text.
+- **`make dev` announced "JWT verification disabled" and then answered 401 to
+  the token it printed.** `deploy/.env` describes the Docker stack, where
+  identity is normally Keycloak, so `make setup` writes `DEV_INSECURE_AUTH=false`
+  into it by default; `dev.sh` sources that file with `set -a`, which turned the
+  value into an environment variable and stopped its own `${VAR:-true}` default
+  from ever applying. The shell's value still wins — that override is
+  documented — but the file's no longer does, and the banner says what is
+  actually true instead of printing a token that cannot work.
+
 ## [0.4.3] - 2026-08-16
 
 ### Fixed

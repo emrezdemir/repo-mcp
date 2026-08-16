@@ -463,7 +463,38 @@ discusses engine internals — with source references, so claims are checkable.
 
 ## Suggested next steps
 
-**First, two things the fixes left open.**
+**The real engine ran, for the first time.** Worth its own note, because it is
+the single highest-yield thing done this session. `progress.md` had said for
+fifteen sessions that the engine binary was never available and the bridge was
+tested against a fake one. Upstream publishes a `darwin-arm64` build; installing
+it and running `make dev` took ten minutes and **found three defects
+immediately**, all invisible to a fake engine that does not care about its
+environment:
+
+- the gateway never created the tenant's repository root, so the engine refused
+  to start and **no fresh install could make a single tool call** — containers
+  included;
+- the engine's explanation of that refusal was logged at `debug` and kept
+  nowhere, so the operator got `engine process exited unexpectedly` and nothing
+  else;
+- `make dev` announced "JWT verification disabled", printed a token, and
+  answered 401 to it, because `deploy/.env` — which `make setup` writes with
+  `DEV_INSECURE_AUTH=false` by default — is sourced with `set -a` and beat the
+  script's own default.
+
+All three fixed in 0.4.4, then proved: 11 tools listed through the gateway, a
+real repository indexed (514 nodes, 2,232 edges), `search_graph` returning real
+symbols, and the project allowlist refusing an outside project with `-32001`
+against the real engine.
+
+**The lesson, stated plainly for whoever is next:** the fake engine is good and
+should stay, but *nothing* about the environment the gateway builds for the
+engine was covered by it. If a component can be run for real, run it once —
+this session's entire yield after the macOS scripts came from doing exactly
+that three times: cutting a release, pulling an image, and installing the
+engine.
+
+**Then, two things the fixes left open.**
 
 1. **`make up` has still never been run on macOS.** The shell bug that stopped
    it is fixed and the argument handling is verified against every shape the
