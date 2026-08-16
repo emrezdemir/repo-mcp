@@ -6,6 +6,34 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-08-17
+
+### Added
+
+- **`make dev-start`, `make dev-stop`, `make dev-logs`.** The Docker stack has
+  had `up` / `down` / `logs` since the beginning; the local no-Docker path had
+  only `make dev`, which blocks the terminal with no way to stop it but Ctrl-C.
+  So "bring it up, poke it, tear it down" was a background redirect and a
+  `pkill` by hand — a workflow `AGENTS.md` §3 explicitly says should be a
+  script and a target instead. It is now, and the loop takes about two seconds:
+  `make dev-start`, then `make smoke` or a curl, then `make dev-stop`.
+
+  `--stop` signals the supervisor and lets its existing exit trap take the
+  services down, so there is one process to signal and nothing is orphaned. It
+  verifies the command line behind the recorded PID before signalling: a PID
+  file outlives its process and numbers get reused, and a convenience script
+  must not kill a stranger that inherited one. Starting twice is refused rather
+  than silently doubling.
+
+### Fixed
+
+- **Every script's `--help` printed raw `#` prefixes on macOS.** All 17 used
+  `sed 's/^# \?//'` to strip the comment marker, and `\?` is a GNU extension —
+  BSD sed reads it as a literal `?`, matches nothing, and strips nothing. So
+  the help worked on Linux and was mangled on macOS, in every script, for as
+  long as they have existed. `sed -E 's/^# ?//'` behaves identically on both;
+  checked against GNU sed and BSD sed rather than assumed.
+
 ## [0.4.4] - 2026-08-16
 
 All three were found the first time the **real engine** ran behind the gateway.
