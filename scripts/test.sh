@@ -73,7 +73,12 @@ for service in "${SERVICES[@]}"; do
 
   if (( RUN_TESTS )); then
     log "$service: tests"
-    args=(-q "${PYTEST_ARGS[@]}")
+    # ${a[@]+"${a[@]}"} rather than "${a[@]}": macOS ships bash 3.2, where
+    # expanding an empty array under `set -u` is a fatal "unbound variable"
+    # instead of nothing. bash 4.4 fixed it, so no Linux host and no CI runner
+    # shows this — and PYTEST_ARGS is empty on every ordinary run, so `make
+    # test` died here before running a single test.
+    args=(-q ${PYTEST_ARGS[@]+"${PYTEST_ARGS[@]}"})
     if (( COVERAGE )); then
       if "$python" -c 'import pytest_cov' 2>/dev/null; then
         args=(--cov=app --cov-report=term-missing "${args[@]}")
@@ -170,6 +175,31 @@ if [[ -n "$shellcheck_bin" ]]; then
   fi
 else
   dim "      shellcheck not installed, skipping (scripts/setup.sh installs it)"
+fi
+
+# The web interface has its own test suite, and until now only CI ran it. That
+# is exactly how a capability gate added in one session left CI's `web
+# interface` job red for the whole of the next one with nobody looking: a check
+# that runs somewhere you do not watch is a check you do not have.
+#
+# It is skipped rather than failed when Node or the dependencies are absent —
+# `make setup` installs no Node, and a Python-only checkout should not be forced
+# to. The skip says what to run, so it is a choice rather than an accident.
+if (( RUN_TESTS )); then
+  WEBUI="$REPO_ROOT/gateway/webui"
+  if ! command -v npm >/dev/null 2>&1; then
+    dim "      npm not installed, skipping the web interface tests"
+  elif [[ ! -d "$WEBUI/node_modules" ]]; then
+    dim "      web interface dependencies not installed, skipping its tests"
+    dim "      install them once:  npm --prefix gateway/webui ci"
+  else
+    log "web interface: tests"
+    if npm --prefix "$WEBUI" test; then
+      ok "web interface tests passed"
+    else
+      FAILURES+=("web interface tests")
+    fi
+  fi
 fi
 
 # Documentation rules are checked here too, so a change that forgets a doc
