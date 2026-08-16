@@ -150,3 +150,38 @@ jobs:
           helm package deploy/helm/repo-mcp --destination /tmp/chart
           helm push "/tmp/chart/repo-mcp-${{ needs.guard.outputs.version }}.tgz" \
             "oci://ghcr.io/${{ github.repository_owner }}/charts"
+
+  # A pushed tag is not a release as far as anything that asks GitHub is
+  # concerned: /releases/latest answers 404 until a Release object exists. Two
+  # things we ship read exactly that endpoint — the interface's update banner
+  # (gateway/app/updates.py) and `make upgrade` (scripts/upgrade.sh) — so
+  # without this job both stay dead through a release that otherwise went
+  # perfectly. v0.4.1 published its images and its chart and neither noticed.
+  release:
+    name: publish the GitHub release
+    runs-on: ubuntu-latest
+    needs: [guard, publish, chart]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # The notes are the changelog's own section for this version. Writing
+      # them again in the release body would be a second copy to drift, and
+      # the guard above has already refused a tag whose section is missing.
+      - name: Create the release from the changelog
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.guard.outputs.version }}
+        run: |
+          awk -v v="$VERSION" '
+            $0 ~ "^## \\[?" v "\\]?" { inside = 1; next }
+            inside && /^## / { exit }
+            inside { print }
+          ' CHANGELOG.md > /tmp/notes.md
+          if [ ! -s /tmp/notes.md ]; then
+            echo "CHANGELOG.md has no section for $VERSION to use as release notes"
+            exit 1
+          fi
+          gh release create "v$VERSION" --title "$VERSION" --notes-file /tmp/notes.md
+          echo "published https://github.com/${{ github.repository }}/releases/tag/v$VERSION"

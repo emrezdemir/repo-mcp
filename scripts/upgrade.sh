@@ -47,7 +47,13 @@ CURRENT="$(tr -d '[:space:]' < "$REPO_ROOT/VERSION")"
 # the one thing needed, and grep + sed reads it. A repository with no releases
 # yet returns a "Not Found" body with no tag_name, which is reported as such.
 release_json="$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null || true)"
-LATEST="$(grep -m1 '"tag_name"' <<<"$release_json" | sed -E 's/.*"tag_name":[[:space:]]*"v?([^"]+)".*/\1/')"
+# `|| true` on the pipeline, not just the curl: with no releases published the
+# body has no tag_name, grep exits 1, and under `set -e` with `pipefail` the
+# assignment itself ends the script — silently, exit 1, before reaching the
+# check below that exists to explain precisely this. Which is what happened
+# the first time a tag was pushed and no Release object had been created.
+LATEST="$(grep -m1 '"tag_name"' <<<"$release_json" \
+  | sed -E 's/.*"tag_name":[[:space:]]*"v?([^"]+)".*/\1/' || true)"
 
 if [[ -z "$LATEST" ]]; then
   die "could not read the latest release from GitHub — offline, rate-limited, or none is published yet."
