@@ -180,3 +180,55 @@ async def test_environment_isolates_tenants(tmp_path, tenant, fake_engine):
     env = session._env()
     assert env["CBM_CACHE_DIR"].endswith("/cache/tenant/acme")
     assert env["CBM_ALLOWED_ROOT"].endswith("/repos/acme")
+
+
+@pytest.mark.asyncio
+async def test_both_roots_exist_before_the_engine_starts(tmp_path, tenant, fake_engine):
+    """The real engine refuses to start when CBM_ALLOWED_ROOT is not there.
+
+    Only the cache directory was created, and the repository root is made by
+    the indexer when it first clones for a tenant — so on a fresh install every
+    tool call for a squad nothing had indexed yet died with "daemon session
+    context was rejected", reported as an unexplained exit.
+    """
+    session = CbmSession(make_settings(tmp_path, fake_engine), tenant)
+    assert not Path(session.repo_root).exists()
+    try:
+        await session.ensure_started()
+        assert Path(session.cache_dir).is_dir()
+        assert Path(session.repo_root).is_dir()
+    finally:
+        await session.close()
+
+
+DYING_ENGINE = r'''
+import sys
+
+sys.stderr.write("daemon session context was rejected\n")
+sys.stderr.flush()
+sys.exit(1)
+'''
+
+
+@pytest.mark.asyncio
+async def test_an_exit_carries_what_the_engine_said(tmp_path, tenant):
+    """A process that dies explaining itself must not be reported as a mystery.
+
+    The stderr drain logged at debug and kept nothing, so the operator saw
+    "engine process exited unexpectedly" while the answer had already been read
+    and discarded.
+    """
+    script = tmp_path / "dying_engine.py"
+    script.write_text(DYING_ENGINE, encoding="utf-8")
+    launcher = tmp_path / "dying-engine"
+    launcher.write_text(f'#!/bin/sh\nexec "{sys.executable}" "{script}" "$@"\n', encoding="utf-8")
+    launcher.chmod(0o755)
+
+    session = CbmSession(make_settings(tmp_path, str(launcher)), tenant)
+    try:
+        with pytest.raises(CbmError) as caught:
+            await session.list_tools()
+        assert "exited unexpectedly" in str(caught.value)
+        assert "daemon session context was rejected" in str(caught.value)
+    finally:
+        await session.close()

@@ -22,6 +22,7 @@ import logging
 import os
 import socket
 import time
+from collections import deque
 from dataclasses import dataclass
 
 from .config import Settings
@@ -50,6 +51,11 @@ def _free_loopback_port() -> int:
 #: them into unparseable fragments.
 _MAX_LINE_BYTES = 64 * 1024 * 1024
 
+#: How many of the engine's last stderr lines to keep for the failure message.
+#: Enough to carry the reason it refused to start, few enough that a chatty
+#: engine cannot turn an error into a wall of text.
+_STDERR_TAIL_LINES = 5
+
 
 class CbmError(RuntimeError):
     """An engine call failed."""
@@ -76,6 +82,8 @@ class CbmSession:
         self._lock = asyncio.Lock()
         self._next_id = 0
         self._stderr_task: asyncio.Task | None = None
+        # Bounded, so a chatty engine cannot grow this without limit.
+        self._stderr_tail: deque[str] = deque(maxlen=_STDERR_TAIL_LINES)
         self._started_before = False
         self._ui_port: int | None = None
         self.last_used = time.monotonic()
@@ -129,6 +137,18 @@ class CbmSession:
         except OSError as exc:
             raise CbmError(f"cannot create cache directory {self.cache_dir}: {exc}") from exc
 
+        # The repository root has to exist too, and only the cache root did.
+        # The engine refuses to start at all when CBM_ALLOWED_ROOT names a
+        # directory that is not there — "daemon session context was rejected",
+        # which the gateway then reported as "engine process exited
+        # unexpectedly". This directory is created by the indexer when it first
+        # clones something for the tenant, so on a fresh install every tool
+        # call for a not-yet-indexed squad failed, with nothing saying why.
+        try:
+            os.makedirs(self.repo_root, exist_ok=True)
+        except OSError as exc:
+            raise CbmError(f"cannot create repository root {self.repo_root}: {exc}") from exc
+
         argv = [self._settings.cbm_binary, *self._tenant.cbm_profile_flag()]
 
         # The engine can also serve the 3D layout its own interface uses, over
@@ -168,6 +188,7 @@ class CbmSession:
         self._proc = proc
         self._next_id = 0
         self._started_before = True
+        self._stderr_tail.clear()  # this process's own reason, not the last one's
         self._stderr_task = asyncio.create_task(self._drain_stderr(proc))
         CBM_RESTARTS.labels(self._tenant.name, reason).inc()
         CBM_SESSIONS.inc()
@@ -175,17 +196,29 @@ class CbmSession:
         return proc
 
     async def _drain_stderr(self, proc: asyncio.subprocess.Process) -> None:
-        """An unread stderr pipe fills up and blocks the child process."""
+        """An unread stderr pipe fills up and blocks the child process.
+
+        The last few lines are also kept, because they are usually the only
+        explanation of why the process died. They used to be logged at debug
+        and nowhere else, so at the default level the engine said "daemon
+        session context was rejected" and the operator saw "engine process
+        exited unexpectedly" — the answer was read and thrown away.
+        """
         assert proc.stderr is not None
         try:
             while line := await proc.stderr.readline():
-                log.debug(
-                    "cbm[%s] %s",
-                    self._tenant.name,
-                    line.decode(errors="replace").rstrip(),
-                )
+                text = line.decode(errors="replace").rstrip()
+                self._stderr_tail.append(text)
+                log.debug("cbm[%s] %s", self._tenant.name, text)
         except (asyncio.CancelledError, ValueError):
             pass
+
+    def _exit_reason(self) -> str:
+        """What the engine said on its way out, if it said anything."""
+        said = [line for line in self._stderr_tail if line]
+        if not said:
+            return ""
+        return f": {' | '.join(said[-_STDERR_TAIL_LINES:])}"
 
     async def _handshake(self) -> None:
         await self._request(
@@ -244,8 +277,11 @@ class CbmSession:
                 await self.close()
                 raise CbmError(f"engine call timed out after {timeout}s: {method}") from exc
             if not line:
+                # Read the reason before close() cancels the drain task that
+                # collected it.
+                reason = self._exit_reason()
                 await self.close()
-                raise CbmError("engine process exited unexpectedly")
+                raise CbmError(f"engine process exited unexpectedly{reason}")
             try:
                 message = json.loads(line)
             except json.JSONDecodeError:
