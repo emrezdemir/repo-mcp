@@ -341,6 +341,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The publish step below builds linux/arm64 as well, which an amd64
+      # runner can only do through QEMU.
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
       - uses: docker/setup-buildx-action@v3
 
       - name: Build
@@ -454,6 +460,14 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}-${{ matrix.service }}:dev-${{ github.sha }}
             ghcr.io/${{ github.repository }}-${{ matrix.service }}:dev-latest
+          # Both architectures, because macOS on Apple Silicon is a supported
+          # host and an amd64-only image is not merely slow there — it does not
+          # work. The container starts and a shell runs, so it looks fine; the
+          # engine binary then hangs forever under emulation, which is the one
+          # thing the image exists to carry. Only this publish step is
+          # multi-platform: the build above uses load:true to run the image in
+          # this job, and load cannot take a manifest list.
+          platforms: linux/amd64,linux/arm64
           push: true
           provenance: false
           cache-from: type=gha,scope=${{ matrix.service }}
