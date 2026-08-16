@@ -130,8 +130,9 @@ away.
   push to `dev`, after the image it just built proved it starts. Verified
   against the registry API: both packages resolve anonymously, `dev-latest` is
   present alongside a dozen `dev-<sha>` tags, so `make up ARGS=--pull` has real
-  images to fetch. Single-architecture — `linux/amd64` — because neither
-  workflow sets `platforms:`.
+  images to fetch. **Multi-architecture** since 0.4.3 — `linux/amd64` and
+  `linux/arm64` — and the release asserts both are in the published manifest
+  rather than trusting the build to have honoured the list.
 - **`v0.4.1` was the first version tag this project ever pushed**, and the
   release path is exercised end to end now: the guard (semver, the tag is on
   `main`, `VERSION` agrees, the changelog has a section), `:vX.Y.Z` and
@@ -202,13 +203,23 @@ interface tests**, which only CI had ever run. That is precisely how session
 message when Node or `node_modules` is absent, so a Python-only checkout is
 unaffected.
 
-Still open, deliberately: the published images are **`linux/amd64` only**
-(neither workflow sets `platforms:`), so on Apple Silicon `make up ARGS=--pull`
-runs the stack emulated. Building locally produces native arm64 images — the
-engine publishes an arm64 build and the Dockerfile selects by architecture — so
-this is a workflow decision, not a defect. It is documented in
-[deployment.md](../docs/deployment.md) rather than silently fixed, because
-adding arm64 to the matrix roughly doubles every image build in CI.
+The fifth defect was one this file had already written off as a cost decision,
+and the write-off was wrong. The published images were `linux/amd64` only, and
+that was recorded as "Apple Silicon runs the stack emulated" — slower, not
+broken, so not worth doubling CI build time over. **Running it disproved that.**
+In the same amd64 image on Apple Silicon, `sh -c 'echo hello'` exits 0, and
+`codebase-memory-mcp --version` blocks forever — five minutes, twice, and still
+`running`. Emulation works; the engine binary does not. So `make up
+ARGS=--pull` on a Mac produced a stack that comes up healthy and times out on
+every tool call, which is about the worst failure shape available. Both
+workflows publish `linux/amd64,linux/arm64` from 0.4.3, and the release asserts
+both are in the manifest — the runner is amd64, so running the image only ever
+proved amd64.
+
+Worth keeping as a lesson rather than a line item: the claim "it works,
+emulated" was written down without ever being run, and it survived a review
+because it was plausible. It cost nothing to check and the check reversed the
+decision.
 
 ## Designed, not built
 

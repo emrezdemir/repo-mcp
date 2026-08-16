@@ -88,6 +88,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # linux/arm64 on an amd64 runner needs QEMU.
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
       - uses: docker/setup-buildx-action@v3
 
       - uses: docker/login-action@v3
@@ -113,6 +118,10 @@ jobs:
             ghcr.io/${{ github.repository }}-${{ matrix.service }}:${{ github.ref_name }}
             ghcr.io/${{ github.repository }}-${{ matrix.service }}:sha-${{ github.sha }}
             ghcr.io/${{ github.repository }}-${{ matrix.service }}:latest
+          # macOS on Apple Silicon is a supported host, and an amd64-only image
+          # does not work there — the container starts, a shell runs, and the
+          # engine binary then hangs forever under emulation. See ci.yml.
+          platforms: linux/amd64,linux/arm64
           push: true
           provenance: false
           cache-from: type=gha,scope=${{ matrix.service }}
@@ -123,6 +132,24 @@ jobs:
           docker run --rm --entrypoint codebase-memory-mcp "$image" --version
           docker run --rm --entrypoint repo-mcp-admin "$image" generate-key > /dev/null
           echo "$image is runnable"
+
+      # This runner is amd64, so the step above only ever proves amd64. An
+      # arm64 variant silently missing from the manifest is precisely the
+      # regression nobody would notice until a Mac pulled it and the engine
+      # hung, so assert both are there rather than assume the build honoured
+      # the platforms list.
+      - name: The manifest carries both architectures
+        run: |
+          image="ghcr.io/${{ github.repository }}-${{ matrix.service }}:${{ github.ref_name }}"
+          platforms="$(docker buildx imagetools inspect "$image" --format \
+            '{{range .Manifest.Manifests}}{{.Platform.OS}}/{{.Platform.Architecture}} {{end}}')"
+          echo "manifest: $platforms"
+          for want in linux/amd64 linux/arm64; do
+            case "$platforms" in
+              *"$want"*) ;;
+              *) echo "$image has no $want — a Mac or an ARM server cannot run it"; exit 1 ;;
+            esac
+          done
 
   chart:
     name: package the chart

@@ -38,22 +38,25 @@ creates the directory and then fails, so setup checks first and tells you to
 
 ### Linux and macOS
 
-Both work for development: `make setup`, `make test`, `make dev` and every
-check script run on either. The Docker stack itself is happiest on Linux — see
-[deployment.md](deployment.md).
+Both are supported, on amd64 and arm64 alike: `make setup`, `make test`,
+`make dev` and every check script run on either. Windows is not supported.
+A deployment still belongs on Linux — see [deployment.md](deployment.md).
 
-Two things differ on macOS and neither needs anything installed:
+One thing genuinely differs on macOS, and it needs nothing installed:
 
-- **The shell is bash 3.2.** Apple has not shipped a newer one since 2007.
-  Anything you add to `scripts/` has to work there, and the rule that actually
-  matters is in [code-standards.md](code-standards.md) §3: under `set -u`,
-  bash 3.2 treats `"${arr[@]}"` on an *empty* array as a fatal unbound
-  variable. Neither CI nor a Linux server will catch it, so this is one of the
-  few places where reading the standard beats running the tests.
-- **The published images are `linux/amd64`.** On Apple Silicon,
-  `make up ARGS=--pull` runs them emulated — correct, and slower. Building
-  locally (`make up`) produces native arm64 images instead; the engine
-  publishes an arm64 build and the Dockerfile selects by architecture.
+**The shell is bash 3.2.** Apple has not shipped a newer one since 2007.
+Anything you add to `scripts/` has to work there, and the rule that actually
+matters is in [code-standards.md](code-standards.md) §3: under `set -u`,
+bash 3.2 treats `"${arr[@]}"` on an *empty* array as a fatal unbound variable.
+Neither CI nor a Linux server will catch it, so this is one of the few places
+where reading the standard beats running the tests.
+
+The published images carry **both architectures**, so `make up ARGS=--pull`
+gets a native one on Apple Silicon. This matters more than it sounds: an image
+of the wrong architecture does not merely run slowly here, it hangs — the
+container starts and a shell in it works, and the engine binary then blocks
+forever under emulation. If you ever see `make up` come up healthy while every
+tool call times out, check the architecture first.
 
 The engine binary is published for macOS too, so `make dev` can run real tool
 calls here: take `codebase-memory-mcp-darwin-arm64.tar.gz` (or `-amd64` on an

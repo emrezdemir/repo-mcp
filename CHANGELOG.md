@@ -6,6 +6,34 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-08-16
+
+### Fixed
+
+- **The published images now carry `linux/arm64` as well as `linux/amd64`.**
+  Neither workflow set `platforms:`, so both were built on an amd64 runner and
+  published amd64-only — which made `make up ARGS=--pull` produce a **broken
+  stack on Apple Silicon**, not a slow one. The failure is worth describing
+  because it does not look like an architecture problem: the container starts,
+  a shell inside it runs fine, and `codebase-memory-mcp --version` then blocks
+  forever under emulation. The one thing the image exists to carry is the one
+  thing that does not run. Measured here, not assumed — `sh -c 'echo hello'`
+  exited 0 in the same image that hung the engine for five minutes, twice.
+
+  The release additionally **asserts** both architectures are in the published
+  manifest. The runner is amd64, so running the image only ever proved amd64,
+  and an arm64 variant silently going missing is exactly the regression nobody
+  would notice until a Mac pulled it.
+
+### Changed
+
+- **Supported platforms are stated plainly**: Linux and macOS, amd64 and arm64
+  — including Apple Silicon and ARM servers. Windows is not supported and there
+  is no plan for it. `docs/deployment.md` and `docs/development.md` say so, and
+  say what an architecture mismatch looks like when it happens, because "healthy
+  stack, every tool call times out" is not a symptom anyone would trace back to
+  an image manifest.
+
 ## [0.4.2] - 2026-08-16
 
 Both of these were found by cutting 0.4.1 for real — the first version tag this

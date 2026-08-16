@@ -10,7 +10,7 @@ chatbot'lara ve CI'a açar. Kendi sunucunuzda çalışır, takım bazlı izolasy
 sağlar.
 
 [![License](https://img.shields.io/badge/license-MIT-1da27e.svg)](LICENSE)
-[![Sürüm](https://img.shields.io/badge/s%C3%BCr%C3%BCm-0.4.2-1c8585.svg)](CHANGELOG.md)
+[![Sürüm](https://img.shields.io/badge/s%C3%BCr%C3%BCm-0.4.3-1c8585.svg)](CHANGELOG.md)
 [![CI](https://img.shields.io/github/actions/workflow/status/emrezdemir/repo-mcp/ci.yml?branch=dev&label=CI&color=1da27e)](https://github.com/emrezdemir/repo-mcp/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.11+-1c8585.svg)](https://www.python.org/)
 [![MCP](https://img.shields.io/badge/MCP-JSON--RPC-1da27e.svg)](https://modelcontextprotocol.io/)

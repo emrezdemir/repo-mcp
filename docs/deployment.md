@@ -2,15 +2,26 @@
 
 ## Requirements
 
-Linux, with Docker 24+ or Podman 4.1+. Everything else depends on whether you
-**build** the images or **pull** them, and whether you run the bundled model
-backend (LiteLLM + Ollama).
+Linux or macOS, with Docker 24+ or Podman 4.1+. Everything else depends on
+whether you **build** the images or **pull** them, and whether you run the
+bundled model backend (LiteLLM + Ollama).
 
-macOS runs the stack too — Docker Desktop or Podman Desktop — and is a
-supported *development* host (see [development.md](development.md)). It is not
-what a deployment should sit on: the published images are `linux/amd64`, so on
-Apple Silicon `--pull` runs everything under emulation. Build locally instead
-(`make up`, no `--pull`) and the images come out native.
+**Supported platforms.** Linux and macOS, on **x86-64 (amd64)** and **ARM64** —
+including Apple Silicon and ARM servers such as Graviton. The published images
+carry both architectures, so `make up ARGS=--pull` gets a native image either
+way. Windows is not supported and there is no plan for it.
+
+The architectures are not cosmetic: an image of the wrong one **does not work**
+here, and it fails in a way that looks like a hang rather than an error. The
+container starts, a shell in it runs — and the engine binary then blocks
+forever under emulation, which is the one thing the image exists to carry. That
+is why both the release workflow and CI publish a manifest with both, and why
+the release asserts both are present rather than assuming the build honoured
+the list.
+
+macOS is a first-class *development* host (see [development.md](development.md))
+and will run the stack, but a deployment still belongs on Linux — that is where
+the memory limits, the storage topology and the Helm chart are aimed.
 
 | Setup | CPU | RAM | Free disk |
 | --- | --- | --- | --- |
