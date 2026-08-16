@@ -96,10 +96,9 @@ tests** — only CI did, and that is precisely the shape of the defect session 1
 found when a capability gate left CI's `web interface` job red for a session
 with nobody looking. It runs them now, skipping with a message when Node or
 `node_modules` is absent so a Python-only checkout is unaffected. And the
-published images are **`linux/amd64` only** (no `platforms:` in either
-workflow), so on Apple Silicon `make up ARGS=--pull` runs the whole stack under
-emulation — left as it is and documented, because adding arm64 to the matrix
-roughly doubles every image build in CI and that is the maintainer's call.
+published images were **`linux/amd64` only** (no `platforms:` in either
+workflow). That was written up as "Apple Silicon runs it emulated, slower" and
+left as a cost decision — which turned out to be **wrong**, see below.
 
 Afterwards `make verify` passes on macOS in full, and the bash-3.2 rule and the
 `.PHONY` rule are both written into `docs/code-standards.md` §3 — the point
@@ -471,11 +470,16 @@ discusses engine internals — with source references, so claims are checkable.
    Makefile passes, but no container has been started here — so the images
    under emulation, the healthchecks and `make smoke` are all unproven on this
    host. That is the next thing to actually run.
-2. **Multi-arch images, or leave them.** `platforms: linux/amd64,linux/arm64`
-   in both workflows is the real fix and the Dockerfile already selects by
-   architecture; the cost is roughly doubling every image build in CI, which is
-   why session 15 documented the limitation instead of deciding it. The
-   maintainer's call.
+2. **Verify the arm64 image on this Mac.** 0.4.3 publishes
+   `linux/amd64,linux/arm64` from both workflows, and the release asserts both
+   are in the manifest — but the assertion is about the manifest, not about the
+   engine actually running. Pull the arm64 image here and run
+   `codebase-memory-mcp --version` in it: that is the test the amd64 image
+   failed, and it is the only thing that proves the fix.
+
+   The **supported platforms are now stated**: Linux and macOS, amd64 and
+   arm64. Windows is not supported and there is no plan for it — nothing in the
+   tree ever targeted it, so this cost no removal, only a sentence.
 
 After that, roughly in order of value per unit of effort:
 
