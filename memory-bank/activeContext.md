@@ -110,8 +110,30 @@ layer, because `make test` now covers something they did not list.
 The work was **cut as 0.4.1** — a fix release, by the standing rule that a
 change bumps the version if it warrants one. `scripts/version.sh --set` did
 `VERSION`, the three `pyproject.toml`s and the chart; the README badges and the
-changelog were done by hand, as always. The tag itself is the maintainer's to
-push from `main`.
+changelog were done by hand, as always.
+
+*And then the release itself was cut, which found two more.* `v0.4.1` is the
+**first version tag this project has ever pushed** — `git push origin dev:main`
+then the tag, as `branching.md` describes. All four release jobs went green:
+the guard, both images at `:v0.4.1` and `:latest`, and the chart to
+`oci://ghcr.io/emrezdemir/charts`. A flawless release — and the upgrade path it
+feeds was dead at both ends.
+
+`release.yml` published images and a chart and stopped. But a pushed tag is not
+a release to anything that asks GitHub: `/releases/latest` answers **404**
+until a Release object exists, and two things we ship read exactly that
+endpoint — the interface's update banner and `make upgrade`. Worse, `make
+upgrade` did not say so: with no `tag_name` in the body, `grep` exits 1 and
+`set -e` with `pipefail` ends the script *at the assignment*, before the line
+its author wrote to explain precisely that situation. It exited 1 in silence.
+
+Both are fixed in **0.4.2**: `release.yml` has a `release` job that builds the
+notes from the changelog's own section, and the `|| true` in `upgrade.sh` is on
+the pipeline rather than only the `curl`. 0.4.1's Release object was created by
+hand to close the gap for the version already out. The lesson is the one this
+memory bank keeps relearning: a path nobody has run is not a path that works,
+and "the release went perfectly" is a claim about the jobs, not about what the
+release was for.
 
 **Session 14 — the READMEs, the docs site on Docusaurus, and setup on a real
 server.** The READMEs were reshaped to what a reader expects of a landing page:

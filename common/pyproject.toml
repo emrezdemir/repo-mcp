@@ -1,6 +1,6 @@
 [project]
 name = "repo-mcp-common"
-version = "0.4.1"
+version = "0.4.2"
 description = "Shared database, configuration and bootstrap layer for repo-mcp"
 readme = "README.md"
 requires-python = ">=3.11"

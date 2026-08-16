@@ -2,8 +2,8 @@ apiVersion: v2
 name: repo-mcp
 description: Centralized code intelligence over MCP, with LDAP-backed tenancy
 type: application
-version: 0.4.1
-appVersion: "0.4.1"
+version: 0.4.2
+appVersion: "0.4.2"
 keywords:
   - mcp
   - code-intelligence
