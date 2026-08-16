@@ -22,7 +22,7 @@ for arg in "$@"; do
   case "$arg" in
     --no-venv) CREATE_VENV=0 ;;
     --config-only) CONFIG_ONLY=1; CREATE_VENV=0 ;;
-    -h|--help) sed -n '2,14p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    -h|--help) sed -n '2,14p' "$0" | sed -E 's/^# ?//'; exit 0 ;;
     *) die "unknown argument: $arg (try --help)" ;;
   esac
 done

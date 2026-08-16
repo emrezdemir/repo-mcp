@@ -74,9 +74,27 @@ and audit what is already tracked with `make check-secrets`.
 ## Running locally
 
 ```bash
-make dev                 # both services, auto-reload
+make dev                 # both services, auto-reload, in the foreground
 scripts/dev.sh gateway   # just one
 ```
+
+`make dev` holds the terminal, which is what you want while writing code. For
+the other loop — bring it up, poke it, tear it down — there is a background
+form, and it takes about two seconds:
+
+```bash
+make dev-start           # returns once /healthz answers
+make smoke               # or curl, or the browser at :8080/ui
+make dev-stop
+make dev-logs            # follow the background log
+make dev ARGS=--status   # is it up?
+```
+
+`--stop` signals the supervisor and lets its existing exit trap take the
+services down with it, so there is one process to signal and nothing can be
+orphaned. It also checks the command line behind the recorded PID before
+signalling anything: a PID file outlives its process and numbers get reused,
+and a convenience script must not kill a stranger that inherited one.
 
 JWT verification is switched off (`DEV_INSECURE_AUTH`) and a static token is
 accepted, so there is no Keycloak dependency. The script prints the token and

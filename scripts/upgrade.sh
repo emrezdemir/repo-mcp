@@ -27,7 +27,7 @@ for arg in "$@"; do
   case "$arg" in
     --check)   CHECK_ONLY=1 ;;
     --yes|-y)  ASSUME_YES=1 ;;
-    -h|--help) sed -n '2,20p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    -h|--help) sed -n '2,20p' "$0" | sed -E 's/^# ?//'; exit 0 ;;
     *) die "unknown argument: $arg (try --help)" ;;
   esac
 done

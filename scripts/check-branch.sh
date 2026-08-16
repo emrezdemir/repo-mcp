@@ -13,7 +13,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 case "${1:-}" in
-  -h|--help) sed -n '2,11p' "$0" | sed 's/^# \?//'; exit 0 ;;
+  -h|--help) sed -n '2,11p' "$0" | sed -E 's/^# ?//'; exit 0 ;;
 esac
 
 BRANCH="${1:-$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")}"

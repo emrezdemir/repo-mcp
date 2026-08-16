@@ -23,8 +23,20 @@ setup: ## Create virtualenvs, install dependencies, choose components, generate 
 	@scripts/setup.sh $(ARGS)
 
 .PHONY: dev
-dev: ## Run both services locally with auto-reload
-	@scripts/dev.sh
+dev: ## Run both services locally with auto-reload, in the foreground (ARGS=--status to check one that is already up)
+	@scripts/dev.sh $(ARGS)
+
+.PHONY: dev-start
+dev-start: ## Start the local services in the background and return
+	@scripts/dev.sh --start $(ARGS)
+
+.PHONY: dev-stop
+dev-stop: ## Stop the local services started by dev-start
+	@scripts/dev.sh --stop
+
+.PHONY: dev-logs
+dev-logs: ## Follow the log of the backgrounded local services
+	@scripts/dev.sh --logs
 
 .PHONY: test
 test: ## Run linting and tests

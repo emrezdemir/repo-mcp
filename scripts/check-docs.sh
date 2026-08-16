@@ -13,7 +13,7 @@ QUIET=0
 for arg in "$@"; do
   case "$arg" in
     --quiet)   QUIET=1 ;;
-    -h|--help) sed -n '2,9p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    -h|--help) sed -n '2,9p' "$0" | sed -E 's/^# ?//'; exit 0 ;;
     *) die "unknown argument: $arg (try --help)" ;;
   esac
 done

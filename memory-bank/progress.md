@@ -1,6 +1,6 @@
 # Progress
 
-**Last updated:** 2026-08-15
+**Last updated:** 2026-08-17
 
 Status vocabulary, used strictly:
 
@@ -105,6 +105,14 @@ away.
 - Argon2id passwords, Fernet-encrypted credentials.
 
 **Tooling**
+- The local no-Docker path has a lifecycle of its own now: `make dev-start`
+  returns once `/healthz` answers (about two seconds), `make dev-stop` takes it
+  down through the supervisor's exit trap, `make dev-logs` follows it. Measured
+  on macOS: 2.1 s up, a real `tools/list` against the real engine, 0.5 s down,
+  no stray process. Starting twice is refused, a stale PID file is recognised
+  rather than signalled, and `--stop` checks the command line behind the PID
+  before killing anything — verified by pointing it at PID 1 and watching it
+  decline.
 - `make setup` / `test` / `verify` / `dev` / `debug` / `stack` / `site` /
   `check-secrets` — all run end to end in a clean checkout **here**. Note the
   qualifier: `make setup` ran cleanly in this sandbox for twelve sessions and
@@ -285,6 +293,7 @@ Not bugs — consequences of decisions, recorded so nobody rediscovers them.
 | A fresh install could not make **one** tool call: the gateway creates the tenant's cache directory but not its repository root, and the engine refuses to start when `CBM_ALLOWED_ROOT` is not there. The directory is made by the indexer on its first clone, so every squad nothing had indexed yet was dead. The image has the same gap — it creates `/var/lib/repo-mcp/repos`, not the per-tenant directory under it | Installing the real engine and running `make dev` | `os.makedirs(repo_root)` beside the cache one, with a test asserting both exist before the process starts |
 | The engine's own reason was read and discarded: stderr went to `log.debug` and nowhere else, so `daemon session context was rejected` became `engine process exited unexpectedly` | The same run — bisecting the environment by hand to recover a message the gateway already had | A bounded tail of the last stderr lines, carried in the error |
 | `make dev` printed "JWT verification disabled" and a token, then answered **401** to that token: it sources `deploy/.env` with `set -a`, and `make setup` writes `DEV_INSECURE_AUTH=false` there by default (the stack's identity is Keycloak), which stopped `dev.sh`'s own `${VAR:-true}` default from applying | Running the documented path — `make setup`, `make dev`, curl — on a machine that had done neither before | The shell's value is captured before `.env` is sourced and still wins; the file's does not. The banner now says what is true |
+| Every script's `--help` printed raw `#` prefixes on macOS. All 17 stripped the comment marker with `sed 's/^# \\?//'`, and `\\?` is a GNU extension: BSD sed reads it as a literal `?`, matches nothing, strips nothing | Reading `dev.sh --help` while adding to it, and noticing `stack.sh` did the same | `sed -E 's/^# ?//'`, which behaves identically on GNU and BSD — checked against both |
 
 ## Never verified in this environment
 

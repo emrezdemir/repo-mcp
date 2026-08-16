@@ -140,7 +140,7 @@ case "${1:-}" in
     apply "${major}.${minor}.${patch}"
     ;;
   -h|--help)
-    sed -n '2,20p' "$0" | sed 's/^# \?//'
+    sed -n '2,20p' "$0" | sed -E 's/^# ?//'
     ;;
   *)
     die "unknown argument: $1 (try --help)"

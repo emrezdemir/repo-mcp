@@ -11,8 +11,17 @@
 # for one machine only; anything shared uses PostgreSQL (docs/environments.md).
 #
 # Usage:
-#   scripts/dev.sh              both services
+#   scripts/dev.sh              both services, in the foreground (Ctrl-C stops)
 #   scripts/dev.sh gateway      one service
+#   scripts/dev.sh --start      start in the background and return
+#   scripts/dev.sh --stop       stop what --start started
+#   scripts/dev.sh --status     say whether it is running, and answer /healthz
+#   scripts/dev.sh --logs       follow the background log
+#
+# The foreground form is what you want while writing code — auto-reload, logs on
+# screen. --start is for the other loop: bring it up, poke it, tear it down,
+# without giving up a terminal. The Docker stack has had up/down/logs since the
+# beginning and the local path had nothing, so this was a pkill by hand.
 #
 # Environment:
 #   DEV_STATIC_TOKEN    bearer token to accept (default: devtoken)
@@ -23,15 +32,121 @@
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-WHICH="${1:-both}"
-case "$WHICH" in
-  gateway|indexer|both) ;;
-  -h|--help) sed -n '2,22p' "$0" | sed 's/^# \?//'; exit 0 ;;
-  *) die "unknown argument: $WHICH (try --help)" ;;
+ACTION=run
+WHICH=both
+for arg in "$@"; do
+  case "$arg" in
+    gateway|indexer|both) WHICH="$arg" ;;
+    --start)   ACTION=start ;;
+    --stop)    ACTION=stop ;;
+    --status)  ACTION=status ;;
+    --logs)    ACTION=logs ;;
+    -h|--help) sed -n '2,31p' "$0" | sed -E 's/^# ?//'; exit 0 ;;
+    *) die "unknown argument: $arg (try --help)" ;;
+  esac
+done
+
+# Resolved before anything else needs it: --stop, --status and --logs act on a
+# run that already exists and must not require configuration, a database or a
+# virtualenv to do it.
+DEV_ROOT="${DEV_ROOT:-$REPO_ROOT/.dev}"
+PID_FILE="$DEV_ROOT/dev.pid"
+LOG_FILE="$DEV_ROOT/dev.log"
+
+#: The recorded process, if it is still alive and still ours. A PID file
+#: outlives its process and PIDs get reused, so the command line is checked
+#: before anything is signalled — killing a stranger that inherited the number
+#: would be a genuinely nasty thing for a convenience script to do.
+running_pid() {
+  [[ -f "$PID_FILE" ]] || return 1
+  local pid
+  pid="$(head -1 "$PID_FILE" 2>/dev/null | tr -dc '0-9')"
+  [[ -n "$pid" ]] || return 1
+  kill -0 "$pid" 2>/dev/null || return 1
+  ps -o command= -p "$pid" 2>/dev/null | grep -q 'dev\.sh' || return 1
+  printf '%s' "$pid"
+}
+
+health() {
+  curl -fsS -o /dev/null --max-time 2 "http://127.0.0.1:$1/healthz" 2>/dev/null
+}
+
+case "$ACTION" in
+  status)
+    if pid="$(running_pid)"; then
+      ok "running in the background (pid $pid)"
+    else
+      [[ -f "$PID_FILE" ]] && dim "      a stale $PID_FILE is left over; --stop clears it"
+      dim "      not running in the background"
+    fi
+    health 8080 && ok "gateway answers on 8080" || dim "      gateway does not answer on 8080"
+    health 8082 && ok "indexer answers on 8082" || dim "      indexer does not answer on 8082"
+    exit 0
+    ;;
+  logs)
+    [[ -f "$LOG_FILE" ]] || die "no log at $LOG_FILE — nothing was started with --start"
+    exec tail -f "$LOG_FILE"
+    ;;
+  stop)
+    if ! pid="$(running_pid)"; then
+      rm -f "$PID_FILE"
+      ok "nothing to stop"
+      exit 0
+    fi
+    log "stopping (pid $pid)"
+    # TERM the supervisor; its EXIT trap kills the uvicorn children it started,
+    # which is why they are not signalled individually here.
+    kill "$pid" 2>/dev/null || true
+    for _ in $(seq 1 25); do
+      kill -0 "$pid" 2>/dev/null || break
+      sleep 0.2
+    done
+    if kill -0 "$pid" 2>/dev/null; then
+      warn "it did not stop on TERM; sending KILL"
+      kill -9 "$pid" 2>/dev/null || true
+    fi
+    rm -f "$PID_FILE"
+    # The ports are the honest test: the supervisor is gone, but a child that
+    # ignored its parent's trap would still be holding one.
+    if health 8080 || health 8082; then
+      warn "something is still answering on 8080 or 8082 — not started by --start"
+    fi
+    ok "stopped"
+    exit 0
+    ;;
 esac
+
+if [[ "$ACTION" == "start" ]] && pid="$(running_pid)"; then
+  die "already running in the background (pid $pid) — 'scripts/dev.sh --stop' first"
+fi
 
 [[ -f "$REPO_ROOT/deploy/tenants.yaml" ]] || die "deploy/tenants.yaml is missing — run scripts/setup.sh"
 [[ -f "$REPO_ROOT/deploy/scan.yaml" ]] || die "deploy/scan.yaml is missing — run scripts/setup.sh"
+
+# --start is this same script again, detached, with its output in a file. Doing
+# it that way rather than backgrounding the two services separately means the
+# supervisor's existing EXIT trap still owns their lifetime, so --stop has one
+# process to signal and no child can be orphaned.
+if [[ "$ACTION" == "start" ]]; then
+  mkdir -p "$DEV_ROOT"
+  nohup "$0" "$WHICH" >"$LOG_FILE" 2>&1 &
+  supervisor=$!
+  echo "$supervisor" > "$PID_FILE"
+  log "starting in the background (pid $supervisor)"
+  for _ in $(seq 1 60); do
+    health 8080 && break
+    kill -0 "$supervisor" 2>/dev/null || { fail "it exited during startup:"; tail -15 "$LOG_FILE"; rm -f "$PID_FILE"; exit 1; }
+    sleep 1
+  done
+  if health 8080; then
+    ok "gateway is up on 8080"
+    health 8082 && ok "indexer is up on 8082" || warn "indexer is not answering yet"
+  else
+    warn "the gateway did not answer within 60s — 'scripts/dev.sh --logs' to see why"
+  fi
+  dim "      logs:  scripts/dev.sh --logs        stop:  scripts/dev.sh --stop"
+  exit 0
+fi
 
 # Captured before deploy/.env is sourced, and only what the *shell* set counts.
 # That file describes the Docker stack, where identity is normally Keycloak, so
