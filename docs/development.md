@@ -42,14 +42,19 @@ Both are supported, on amd64 and arm64 alike: `make setup`, `make test`,
 `make dev` and every check script run on either. Windows is not supported.
 A deployment still belongs on Linux — see [deployment.md](deployment.md).
 
-One thing genuinely differs on macOS, and it needs nothing installed:
+Two things genuinely differ on macOS, and neither needs anything installed.
+Both are version floors set by what Apple ships, and both fail *silently* on a
+Linux host — see [code-standards.md](code-standards.md) §3 for the rules.
 
-**The shell is bash 3.2.** Apple has not shipped a newer one since 2007.
-Anything you add to `scripts/` has to work there, and the rule that actually
-matters is in [code-standards.md](code-standards.md) §3: under `set -u`,
-bash 3.2 treats `"${arr[@]}"` on an *empty* array as a fatal unbound variable.
-Neither CI nor a Linux server will catch it, so this is one of the few places
-where reading the standard beats running the tests.
+**`make` is GNU Make 3.81**, from 2006; Linux is on 4.3 or newer. Both are GNU
+Make, the `Makefile` works on either, and nothing added in 4.x may be used.
+
+**The shell is bash 3.2**, from 2007; Linux is on 5.x. Anything you add to
+`scripts/` has to work there, and the one that actually bites is empty arrays:
+under `set -u`, bash 3.2 treats `"${arr[@]}"` on an empty array as a fatal
+unbound variable. Three `make` targets shipped broken on macOS for exactly
+this, so it is one of the few places where reading the standard beats running
+the tests.
 
 The published images carry **both architectures**, so `make up ARGS=--pull`
 gets a native one on Apple Silicon. This matters more than it sounds: an image

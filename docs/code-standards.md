@@ -161,6 +161,14 @@ test_roles_2                                  useless
 - **A `make` target that is not a file must be `.PHONY`.** `site` was not, a
   `site/` directory exists, and `make site` therefore answered "up to date" and
   built nothing — on every platform, for as long as the target existed.
+- **The `Makefile` targets GNU Make 3.81.** That is what macOS ships, from
+  2006; Linux is on 4.3 or newer. Both are GNU Make and the current file works
+  on either — verified by running the same targets on both — but nothing added
+  in 4.x is available: no `.ONESHELL`, no `$(file ...)`, no `!=` shell
+  assignment, no `.RECIPEPREFIX`, no `undefine`, no `private`. `.DEFAULT_GOAL`
+  is the newest thing in use and it arrived exactly in 3.81. The same trap as
+  the bash rule above: CI and a Linux server will never catch it, and the
+  failure is silent rather than loud.
 
 ## 4. Commits
 
