@@ -6,6 +6,32 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.8] - 2026-08-19
+
+Three things between a local run and the browser interface, which together
+meant `http://localhost:8080/ui` **had never worked outside a container**. The
+setup output, both READMEs and `docs/deployment.md` all send people to that URL.
+
+### Fixed
+
+- **`/ui` answered a bare `Internal Server Error` when the interface was not
+  built.** Serving a missing `index.html` raised inside Starlette, so a
+  condition with an exact cause and a one-line fix arrived as five words that
+  name neither. It returns **503** and a page that says what is missing, which
+  directory was checked, and what to run.
+- **Nothing connected the build output to where the gateway looks.** Vite
+  writes to `gateway/webui/dist`; the gateway serves `gateway/app/ui` unless
+  `REPO_MCP_UI_DIR` says otherwise. CI copies one to the other and the image
+  sets the variable — the local path did neither, so following the documented
+  `npm run build` still left `/ui` broken. `scripts/dev.sh` sets the variable
+  when it finds a build; an explicit one still wins. The comment in `webui.py`
+  claiming `npm run build` "puts the output here" was wrong and is corrected.
+- **`scripts/dev.sh --start` did not show the development token.** The banner
+  carrying it goes to the log, since the point of `--start` is not to hold the
+  terminal — while the interface's sign-in screen asks for that token and says
+  "the token `make dev` prints is the one to use", which helps nobody who
+  started it any other way. `--start` repeats the banner, and points at `/ui`.
+
 ## [0.4.7] - 2026-08-19
 
 ### Fixed
