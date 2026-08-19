@@ -21,6 +21,16 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_ROOT="/$(printf '%s' "$REPO_ROOT" | sed 's#^/*##')"
 export REPO_ROOT
 
+# Every script runs from the repository root, whatever directory it was invoked
+# from. Several of them embed Python that reads "deploy/tenants.yaml" and puts
+# "gateway" on sys.path — relative paths, which silently mean something else
+# when the caller is somewhere in the tree. Run from scripts/, dev.sh died with
+# FileNotFoundError, and debug.sh did worse: it reported "tenants.yaml is
+# invalid" one line after confirming the file exists, which sends whoever reads
+# it off to edit a file that was fine. Nothing here uses the caller's directory
+# for anything, so pinning it once is the fix rather than auditing each path.
+cd "$REPO_ROOT" || { printf 'cannot enter %s\n' "$REPO_ROOT" >&2; exit 1; }
+
 log()   { printf '%s==>%s %s\n' "$C_BLUE" "$C_RESET" "$*"; }
 ok()    { printf '%s  ok%s %s\n' "$C_GREEN" "$C_RESET" "$*"; }
 warn()  { printf '%swarn%s %s\n' "$C_YELLOW" "$C_RESET" "$*" >&2; }
