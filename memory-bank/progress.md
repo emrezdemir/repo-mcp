@@ -1,6 +1,6 @@
 # Progress
 
-**Last updated:** 2026-08-17
+**Last updated:** 2026-08-19
 
 Status vocabulary, used strictly:
 
@@ -113,6 +113,9 @@ away.
   rather than signalled, and `--stop` checks the command line behind the PID
   before killing anything — verified by pointing it at PID 1 and watching it
   decline.
+- **`make smoke` passes 14 of 14** against the real engine and a real graph
+  (macOS). It had never been run against a real engine before, and two of its
+  own defects were hiding behind that — see Fixed along the way.
 - `make setup` / `test` / `verify` / `dev` / `debug` / `stack` / `site` /
   `check-secrets` — all run end to end in a clean checkout **here**. Note the
   qualifier: `make setup` ran cleanly in this sandbox for twelve sessions and
@@ -294,6 +297,8 @@ Not bugs — consequences of decisions, recorded so nobody rediscovers them.
 | The engine's own reason was read and discarded: stderr went to `log.debug` and nowhere else, so `daemon session context was rejected` became `engine process exited unexpectedly` | The same run — bisecting the environment by hand to recover a message the gateway already had | A bounded tail of the last stderr lines, carried in the error |
 | `make dev` printed "JWT verification disabled" and a token, then answered **401** to that token: it sources `deploy/.env` with `set -a`, and `make setup` writes `DEV_INSECURE_AUTH=false` there by default (the stack's identity is Keycloak), which stopped `dev.sh`'s own `${VAR:-true}` default from applying | Running the documented path — `make setup`, `make dev`, curl — on a machine that had done neither before | The shell's value is captured before `.env` is sourced and still wins; the file's does not. The banner now says what is true |
 | Every script's `--help` printed raw `#` prefixes on macOS. All 17 stripped the comment marker with `sed 's/^# \\?//'`, and `\\?` is a GNU extension: BSD sed reads it as a literal `?`, matches nothing, strips nothing | Reading `dev.sh --help` while adding to it, and noticing `stack.sh` did the same | `sed -E 's/^# ?//'`, which behaves identically on GNU and BSD — checked against both |
+| `make smoke` sent `"params":{\}` on macOS: its default was `${2:-{\}}`, and bash 3.2 keeps the backslash that escapes the brace where bash 4.4+ drops it. Three assertions failed on `-32700 invalid JSON` without naming it | Running `make smoke` against the real engine for the first time | The default is assigned on its own line, which needs no escaping |
+| The smoke test's graph queries had always asked about a project called `projects` — it took the project name with `grep -oE '[A-Za-z0-9._-]{3,}' \| head -1` over a JSON answer, and that first match is the key. Not platform-specific; it would fail anywhere the engine actually ran | The same run — the three query assertions failed and the log said `querying project: projects` | Read the name with `jq`, which the script already requires; the grep stays as a fallback for a non-JSON answer |
 
 ## Never verified in this environment
 
