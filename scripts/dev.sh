@@ -129,7 +129,9 @@ fi
 # process to signal and no child can be orphaned.
 if [[ "$ACTION" == "start" ]]; then
   mkdir -p "$DEV_ROOT"
-  nohup "$0" "$WHICH" >"$LOG_FILE" 2>&1 &
+  # An absolute path, not "$0": lib.sh moves us to the repository root, so a
+  # relative "./dev.sh" from the caller's directory no longer resolves here.
+  nohup "$REPO_ROOT/scripts/dev.sh" "$WHICH" >"$LOG_FILE" 2>&1 &
   supervisor=$!
   echo "$supervisor" > "$PID_FILE"
   log "starting in the background (pid $supervisor)"

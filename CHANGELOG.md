@@ -6,6 +6,28 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.7] - 2026-08-19
+
+### Fixed
+
+- **The scripts only worked when run from the repository root.** Four of them
+  embed Python that reads `deploy/tenants.yaml` and puts `gateway` on
+  `sys.path` — relative paths, which mean something else entirely when the
+  caller is anywhere else in the tree. `setup.sh` and `test.sh` happened to
+  survive because they `cd` to the root for another reason; `dev.sh` and
+  `debug.sh` did not.
+
+  Run from `scripts/`, `scripts/dev.sh` died with
+  `FileNotFoundError: 'deploy/tenants.yaml'`. `scripts/debug.sh` did something
+  worse than dying: it reported **`tenants.yaml is invalid`** one line after
+  confirming the file exists, which sends whoever reads it off to edit a file
+  that was fine — a diagnostic tool misdiagnosing the thing it exists to check.
+
+  `lib.sh` moves to the repository root once, for every script, rather than
+  auditing each path. Nothing in `scripts/` used the caller's directory for
+  anything. Verified from three working directories — `scripts/`, `/tmp` and the
+  root — with both the foreground and the background form.
+
 ## [0.4.6] - 2026-08-19
 
 Both found by running `make smoke` against the real engine for the first time.
