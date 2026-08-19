@@ -58,7 +58,12 @@ assert() {
 }
 
 mcp() {
-  local method="$1" params="${2:-{\}}"
+  # Not ${2:-{\}}: bash 3.2 keeps the backslash that escapes the closing brace,
+  # so the default came out as {\} and every call without explicit params sent
+  # invalid JSON. bash 4.4 and newer drop it, which is why this only ever failed
+  # on macOS. Assigning the default separately needs no escaping at all.
+  local method="$1" params="${2:-}"
+  [[ -n "$params" ]] || params='{}'
   local headers=(-H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json')
   [[ -n "$TENANT" ]] && headers+=(-H "X-Tenant: $TENANT")
   curl -sS --max-time 180 "$GATEWAY_URL/mcp" "${headers[@]}" \
@@ -146,7 +151,15 @@ projects_text="$(tool_text "$projects")"
 assert "list_projects succeeds" \
   "$(jq -e '.result != null and (.result.isError | not)' <<<"$projects" >/dev/null && echo true || echo false)"
 
-FIRST_PROJECT="$(grep -oE '[A-Za-z0-9._-]{3,}' <<<"$projects_text" | head -1 || true)"
+# The engine answers list_projects as JSON, so read the name out of it. The
+# grep that was here took the first alphanumeric run of three or more
+# characters, which is the key "projects" rather than any project — so every
+# query assertion below asked about a project that does not exist, on every
+# platform. The grep survives as a fallback for a non-JSON answer.
+FIRST_PROJECT="$(jq -r '.projects[]?.name // empty' <<<"$projects_text" 2>/dev/null | head -1 || true)"
+if [[ -z "$FIRST_PROJECT" ]]; then
+  FIRST_PROJECT="$(grep -oE '[A-Za-z0-9._-]{3,}' <<<"$projects_text" | head -1 || true)"
+fi
 if [[ -z "$FIRST_PROJECT" ]]; then
   warn "no indexed project found; skipping the query assertions"
   warn "index something first: curl -X POST $INDEXER_URL/rescan -H \"Authorization: Bearer \$CI_TRIGGER_TOKEN\""

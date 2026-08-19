@@ -6,6 +6,35 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-08-19
+
+Both found by running `make smoke` against the real engine for the first time.
+It reported 6 of 14 assertions failing, and neither cause was the platform being
+tested.
+
+### Fixed
+
+- **`make smoke` sent invalid JSON on macOS.** Its `mcp()` helper defaulted the
+  params with `${2:-{\}}`, where the backslash escapes the closing brace so the
+  expansion does not end early. bash 4.4 and newer drop that backslash; **bash
+  3.2 keeps it**, so the default came out as `{\}` and every call that did not
+  pass params explicitly sent `"params":{\}` — answered, correctly, with
+  `-32700 invalid JSON`. Three assertions failed for this and none of them named
+  the reason. Assigning the default on its own line needs no escaping and reads
+  the same on every bash.
+- **The smoke test asked about a project that does not exist — on every
+  platform.** It picked the project to query with
+  `grep -oE '[A-Za-z0-9._-]{3,}' | head -1` over the `list_projects` answer.
+  That answer is JSON, so the first match of three or more characters is the key
+  `projects`, not any project. The three graph-query assertions had therefore
+  always been asking about `projects`, and would have failed anywhere the engine
+  actually ran. It reads the name with `jq` now — `jq` is already a hard
+  requirement of the script — and keeps the grep as a fallback for a non-JSON
+  answer.
+
+With both fixed, `make smoke` passes **14 of 14** against the real engine and a
+real graph.
+
 ## [0.4.5] - 2026-08-17
 
 ### Added
