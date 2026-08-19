@@ -73,10 +73,18 @@ def settings(**overrides) -> Settings:
 
 #: The interface is built, not committed, so a checkout that has not run the
 #: build has nothing for these to serve. Skipping with the command to run
-#: beats a stack of FileNotFoundError that says nothing about the cause.
+#: beats a stack of FileNotFoundError that says nothing about the cause. The
+#: build lands in gateway/webui/dist, which is why the reason names
+#: REPO_MCP_UI_DIR too — running the build alone leaves the gateway looking
+#: somewhere else, which is exactly the defect test_ui_says_when_it_is_not_built
+#: exists for.
 built = pytest.mark.skipif(
     not (UI_DIR / "index.html").is_file(),
-    reason="the interface is not built — run: cd gateway/webui && npm ci && npm run build",
+    reason=(
+        "the interface is not built — npm --prefix gateway/webui ci && "
+        "npm --prefix gateway/webui run build, then point REPO_MCP_UI_DIR at "
+        "gateway/webui/dist"
+    ),
 )
 
 
@@ -265,3 +273,22 @@ def test_the_interface_is_served_without_a_token():
     """It is the sign-in screen; it cannot require having signed in."""
     asset = sorted((UI_DIR / "assets").glob("*.js"))[0]
     assert client().get(f"/ui/assets/{asset.name}").status_code == 200
+
+
+def test_ui_says_when_it_is_not_built(tmp_path, monkeypatch):
+    """/ui explains itself rather than raising a bare 500.
+
+    Serving a missing index.html raised inside Starlette, so the operator got
+    "Internal Server Error" for a condition with an exact cause and a one-line
+    fix — and this is the URL the setup output, both READMEs and deployment.md
+    all send people to, so it is the first thing a new install shows.
+    """
+    monkeypatch.setattr("app.webui.UI_DIR", tmp_path)
+    response = client().get("/ui")
+    assert response.status_code == 503
+    body = response.text
+    assert "not built" in body
+    # It must name the directory it looked in: the usual cause is that the
+    # build went somewhere else, and that is invisible without it.
+    assert str(tmp_path) in body
+    assert "REPO_MCP_UI_DIR" in body

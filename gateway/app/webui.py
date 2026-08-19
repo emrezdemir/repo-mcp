@@ -26,7 +26,7 @@ from pathlib import Path
 
 import httpx
 from fastapi import APIRouter, Header, Response
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 
 from .audit import AuditEvent, emit
 from .auth import Authenticator, AuthError
@@ -36,10 +36,12 @@ from .roles import TOOL_CAPABILITY, Capability
 
 log = logging.getLogger(__name__)
 
-#: The built interface. `gateway/webui/` is the source; `npm run build` puts
-#: the output here, and the image build puts it somewhere else entirely —
-#: hence the override. Committing the build output would make review
-#: meaningless, so it is produced rather than stored.
+#: The built interface. `gateway/webui/` is the source and `npm run build`
+#: writes to `gateway/webui/dist` — *not* here, which this comment claimed for
+#: as long as it existed, so following it left /ui answering 500. Point
+#: REPO_MCP_UI_DIR at the build output: scripts/dev.sh does it for a local run,
+#: and the image sets it to where it copied dist. Committing the build output
+#: would make review meaningless, so it is produced rather than stored.
 UI_DIR = Path(os.getenv("REPO_MCP_UI_DIR") or (Path(__file__).parent / "ui")).resolve()
 
 #: What the interface is made of. Everything under `ui/` is served without
@@ -47,6 +49,44 @@ UI_DIR = Path(os.getenv("REPO_MCP_UI_DIR") or (Path(__file__).parent / "ui")).re
 #: it reveals anything about a codebase. The extension list is what keeps a
 #: stray file in that directory from becoming a download.
 SERVED_SUFFIXES = {".html", ".css", ".js", ".svg", ".map"}
+
+
+def _not_built_page(where: Path) -> str:
+    """What /ui says when the interface is not where it was told to look.
+
+    Plain HTML with the palette of the interface itself, so it reads as this
+    platform rather than a stack trace. It names the directory that was
+    checked, because the usual cause is that the build went somewhere else.
+    """
+    return f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>repo-mcp — interface not built</title>
+<style>
+  body {{ margin:0; min-height:100vh; display:grid; place-items:center;
+         background:#0a161a; color:#e0eded;
+         font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif; }}
+  .card {{ width:min(560px,92vw); background:#0f2229; border:1px solid #1a3a40;
+           border-radius:14px; padding:28px; }}
+  h1 {{ font-size:19px; margin:0 0 10px; }}
+  p {{ color:#6a9e9e; font-size:13.5px; }}
+  code, pre {{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px; }}
+  pre {{ background:#071216; border:1px solid #1a3a40; border-radius:8px;
+         padding:12px; overflow-x:auto; color:#e0eded; }}
+</style></head><body><div class="card">
+<h1>The interface is not built</h1>
+<p>The gateway is running — this is only the browser interface. It was looked
+for in <code>{where}</code> and is not there.</p>
+<p>Build it and point the gateway at the output:</p>
+<pre>npm --prefix gateway/webui ci
+npm --prefix gateway/webui run build
+export REPO_MCP_UI_DIR="$PWD/gateway/webui/dist"</pre>
+<p><code>scripts/dev.sh</code> sets that variable for you when the build output
+is there, so restarting it after a build is enough. The container images build
+the interface themselves and never take this path.</p>
+<p>Everything else works meanwhile: <code>POST /mcp</code>,
+<code>/healthz</code>, <code>/readyz</code> and <code>/metrics</code>.</p>
+</div></body></html>"""
 
 
 def build_router(
@@ -320,7 +360,16 @@ def build_router(
         # first-run page rather than the interface, which cannot sign anyone in.
         if needs_setup():
             return RedirectResponse("/setup", status_code=303)
-        return FileResponse(UI_DIR / "index.html")
+        index = UI_DIR / "index.html"
+        if not index.is_file():
+            # Serving a missing file raised inside Starlette, so the operator
+            # got "Internal Server Error" and nothing else — for a condition
+            # with an exact cause and a one-line fix. The setup output, both
+            # READMEs and deployment.md all point people at this URL, so this
+            # is the first thing a new install sees when the interface has not
+            # been built.
+            return HTMLResponse(_not_built_page(UI_DIR), status_code=503)
+        return FileResponse(index)
 
     return router
 

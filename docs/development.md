@@ -103,6 +103,25 @@ the LDAP groups it impersonates — it picks the first tenant's groups from your
 
 Data lives in `.dev/` and is safe to delete.
 
+### The browser interface locally
+
+`make setup` installs no Node, so a fresh checkout has no built interface and
+`http://localhost:8080/ui` answers **503** with a page saying so and what to
+run. Build it once:
+
+```bash
+npm --prefix gateway/webui ci
+npm --prefix gateway/webui run build
+```
+
+`scripts/dev.sh` points the gateway at `gateway/webui/dist` when it finds a
+build there, so restarting is enough — no environment variable to remember.
+`REPO_MCP_UI_DIR` still overrides it. The container images build the interface
+themselves and never take this path.
+
+`--start` prints the development token after the services come up, because the
+interface's sign-in screen asks for it.
+
 The engine binary is not bundled for local runs. Without it on `PATH`,
 everything except tool execution works — and a tool call returns a clear
 `engine binary not found` error rather than a 500.

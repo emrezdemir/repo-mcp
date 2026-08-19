@@ -146,6 +146,14 @@ if [[ "$ACTION" == "start" ]]; then
   else
     warn "the gateway did not answer within 60s — 'scripts/dev.sh --logs' to see why"
   fi
+  # The banner with the token went to the log, because the services own the
+  # terminal the caller did not want to give up. Repeat it here: the interface
+  # asks for that token on its sign-in screen and tells you `make dev` prints
+  # it, which is no help at all to someone who started it this way.
+  if [[ -f "$LOG_FILE" ]]; then
+    sed -n '/Development mode/,/^$/p' "$LOG_FILE"
+  fi
+  dim "      interface:  http://127.0.0.1:8080/ui"
   dim "      logs:  scripts/dev.sh --logs        stop:  scripts/dev.sh --stop"
   exit 0
 fi
@@ -178,6 +186,14 @@ export CBM_CACHE_ROOT="$DEV_ROOT/cache"
 export CBM_REPO_ROOT="$DEV_ROOT/repos"
 export CBM_BINARY="${CBM_BINARY:-codebase-memory-mcp}"
 export SMART_TOOLS_ENABLED="${SMART_TOOLS_ENABLED:-false}"
+
+# Vite writes to gateway/webui/dist; the gateway looks in gateway/app/ui unless
+# told otherwise, and nothing connected the two — so /ui answered 500 on every
+# local run while working perfectly in the image, which sets this itself. An
+# explicit REPO_MCP_UI_DIR still wins.
+if [[ -z "${REPO_MCP_UI_DIR:-}" && -f "$REPO_ROOT/gateway/webui/dist/index.html" ]]; then
+  export REPO_MCP_UI_DIR="$REPO_ROOT/gateway/webui/dist"
+fi
 export ENVIRONMENT="${ENVIRONMENT:-local}"
 
 # ── database ──────────────────────────────────────────────────────────
