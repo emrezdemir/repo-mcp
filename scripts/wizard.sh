@@ -28,7 +28,10 @@
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-ENV_FILE="$REPO_ROOT/deploy/.env"
+# Overridable so the consistency check in test.sh can generate throwaway
+# answer sets without overwriting the .env a developer is actually using.
+# Nothing else sets it, and deploy/.env stays the answer for every real run.
+ENV_FILE="${REPO_MCP_ENV_FILE:-$REPO_ROOT/deploy/.env}"
 
 IDENTITY=""
 MODELS=""
@@ -229,6 +232,40 @@ if (( ${#PROFILES[@]} )); then
   PROFILE_LIST="$(IFS=,; echo "${PROFILES[*]}")"
 fi
 
+# headroom sits in front of a model proxy, so its upstream is whichever proxy
+# the models answer selected. Hardcoding the bundled one pointed it at
+# http://litellm:4000/v1 even when `--models external` left that container out
+# of the profile list — a compression service aimed at a hostname the stack was
+# told not to start, which fails at request time rather than at `make up`.
+HEADROOM_UPSTREAM=""
+HEADROOM_UPSTREAM_NOTE=""
+if [[ "$COMPRESSION" == on ]]; then
+  if [[ "$MODELS" == bundled ]]; then
+    HEADROOM_UPSTREAM="http://litellm:4000/v1"
+    HEADROOM_UPSTREAM_NOTE="# The bundled proxy, which the litellm profile above starts."
+  else
+    # An example hostname, so it is the same string whether it arrived as the
+    # answer, as the accepted default, or from a run with no terminal to ask.
+    HEADROOM_EXAMPLE="https://litellm.internal/v1"
+    (( ASK )) && HEADROOM_UPSTREAM="$(ask_value \
+      "OpenAI-compatible URL headroom should sit in front of (can be filled in later)" \
+      "$HEADROOM_EXAMPLE")"
+    HEADROOM_UPSTREAM="${HEADROOM_UPSTREAM:-$HEADROOM_EXAMPLE}"
+    # The note is not an inline "# CHANGEME" on the value: Compose interpolates
+    # this out of .env, and whether a trailing comment is stripped or becomes
+    # part of the value differs between docker compose and podman-compose, both
+    # of which this stack supports. It goes on its own line instead. Which note
+    # is right depends on the value, not on whether a prompt ran — pressing
+    # Enter at the prompt accepts the example, and calling that "your proxy"
+    # would be the same kind of confident wrong answer this fix is about.
+    if [[ "$HEADROOM_UPSTREAM" == "$HEADROOM_EXAMPLE" ]]; then
+      HEADROOM_UPSTREAM_NOTE="# Replace this: it is an example, not a reachable proxy."
+    else
+      HEADROOM_UPSTREAM_NOTE="# Your own proxy, as given during setup."
+    fi
+  fi
+fi
+
 DATABASE_URL_LINE="# DATABASE_URL is unset: the bundled PostgreSQL is used."
 if [[ "$DATABASE" == external ]]; then
   EXTERNAL_URL=""
@@ -378,8 +415,12 @@ EOF
 # Deployed but not used until it is turned on:
 #   repo-mcp-admin set headroom.base_url '"http://headroom:8787/v1"'
 #   repo-mcp-admin set headroom.enabled true
+# The upstream is the proxy the models answer chose (${MODELS}). headroom
+# forwards every request to it, so a wrong value here fails at request time,
+# not at 'make up'.
 HEADROOM_VERSION=latest
-HEADROOM_UPSTREAM_URL=http://litellm:4000/v1
+${HEADROOM_UPSTREAM_NOTE}
+HEADROOM_UPSTREAM_URL=${HEADROOM_UPSTREAM}
 HEADROOM_OUTPUT_SHAPER=1
 EOF
   fi
