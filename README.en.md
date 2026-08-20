@@ -9,7 +9,7 @@ exposes the resulting code graph over **MCP** to coding agents, chatbots and
 CI. It is self-hosted and enforces squad-level isolation.
 
 [![License](https://img.shields.io/badge/license-MIT-1da27e.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.4.8-1c8585.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.4.9-1c8585.svg)](CHANGELOG.md)
 [![CI](https://img.shields.io/github/actions/workflow/status/emrezdemir/repo-mcp/ci.yml?branch=dev&label=CI&color=1da27e)](https://github.com/emrezdemir/repo-mcp/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.11+-1c8585.svg)](https://www.python.org/)
 [![MCP](https://img.shields.io/badge/MCP-JSON--RPC-1da27e.svg)](https://modelcontextprotocol.io/)
@@ -62,12 +62,27 @@ groups are mapped to a role and a squad.
 
 ## Install in five minutes
 
-Docker Engine 24+ and Compose v2 — or Podman — is all it needs.
+One command is enough to try it. Nothing but Python 3.11+ is required — it
+installs the dependencies, the configuration, the indexing engine and the
+interface itself:
 
 ```bash
 git clone https://github.com/emrezdemir/repo-mcp
-cd repo-mcp && make setup     # four questions -> deploy/.env
-make up                       # schema and services; create the admin in /ui
+cd repo-mcp && ./repo-mcp start
+```
+
+It prints the address and the sign-in token when it is up; open
+`http://localhost:8080/ui`. Stop it with `./repo-mcp stop`, and if something is
+wrong, `./repo-mcp doctor` reports every finding rather than the first.
+
+That runs the services directly on your machine — for trying it and developing
+against it. A **deployment** is the container stack, which needs Docker Engine
+24+ and Compose v2 (or Podman) and is described in
+[deployment](https://emrezdemir.github.io/repo-mcp/docs/deployment/).
+
+```bash
+make setup     # four questions -> deploy/.env
+make up        # schema and services; create the admin in /ui
 ```
 
 Then define a connector — from the terminal or from the console at

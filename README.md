@@ -10,7 +10,7 @@ chatbot'lara ve CI'a açar. Kendi sunucunuzda çalışır, takım bazlı izolasy
 sağlar.
 
 [![License](https://img.shields.io/badge/license-MIT-1da27e.svg)](LICENSE)
-[![Sürüm](https://img.shields.io/badge/s%C3%BCr%C3%BCm-0.4.8-1c8585.svg)](CHANGELOG.md)
+[![Sürüm](https://img.shields.io/badge/s%C3%BCr%C3%BCm-0.4.9-1c8585.svg)](CHANGELOG.md)
 [![CI](https://img.shields.io/github/actions/workflow/status/emrezdemir/repo-mcp/ci.yml?branch=dev&label=CI&color=1da27e)](https://github.com/emrezdemir/repo-mcp/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.11+-1c8585.svg)](https://www.python.org/)
 [![MCP](https://img.shields.io/badge/MCP-JSON--RPC-1da27e.svg)](https://modelcontextprotocol.io/)
@@ -63,12 +63,25 @@ grupları bir role ve bir takıma çevrilir.
 
 ## Beş dakikada kurulum
 
-Docker Engine 24+ ve Compose v2 — ya da Podman — yeterli.
+Denemek için tek komut yeter. Python 3.11+ dışında bir şey gerekmez — bağımlılıkları,
+yapılandırmayı, indeksleme motorunu ve arayüzü kendisi kurar:
 
 ```bash
 git clone https://github.com/emrezdemir/repo-mcp
-cd repo-mcp && make setup     # dört soru -> deploy/.env
-make up                       # şema ve servisler; admini /ui'da oluşturursunuz
+cd repo-mcp && ./repo-mcp start
+```
+
+Adresi ve giriş token'ını çıktının sonunda yazar; `http://localhost:8080/ui`
+adresini açın. Durdurmak için `./repo-mcp stop`, sorun çıkarsa `./repo-mcp doctor`.
+
+Bu, servisleri doğrudan makinenizde çalıştırır — denemek ve geliştirmek için.
+**Kurulum** ise container yığını: Docker Engine 24+ ve Compose v2 (ya da Podman)
+ister ve [kurulum belgesinde](https://emrezdemir.github.io/repo-mcp/docs/deployment/)
+anlatılır.
+
+```bash
+make setup     # dört soru -> deploy/.env
+make up        # şema ve servisler; admini /ui'da oluşturursunuz
 ```
 
 Ardından bir connector tanımlayın — terminalden ya da

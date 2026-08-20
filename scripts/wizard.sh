@@ -323,7 +323,14 @@ EOF
 # warning on every start while this is true.
 DEV_INSECURE_AUTH=true
 DEV_STATIC_TOKEN=$(gen_secret)
-DEV_STATIC_GROUPS=platform-admins
+# Both an admin group and a squad group, and the squad one is what matters:
+# a caller whose groups match no tenant is refused every call with "none of
+# your LDAP groups map to a squad; contact the platform team" — advice with
+# nobody to follow it on a one-machine evaluation. platform-admins alone gave
+# the admin role and membership of nothing, so the evaluation identity could
+# sign in and then do exactly nothing. These names come from
+# deploy/tenants.example.yaml; change them with the squads.
+DEV_STATIC_GROUPS=platform-admins,squad-payments
 EOF
       ;;
   esac

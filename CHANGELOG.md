@@ -6,6 +6,51 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.9] - 2026-08-20
+
+### Added
+
+- **`./repo-mcp` — one command.** Trying this out meant knowing `make setup`,
+  answering four questions, finding the engine release for your platform,
+  building the interface, knowing which environment variable points at it, and
+  reading the token out of a log. Now:
+
+  ```
+  git clone … && cd repo-mcp && ./repo-mcp start
+  ```
+
+  40 seconds from a fresh clone to a working sign-in, measured. `start` does
+  only what is still missing — dependencies, configuration, engine, interface —
+  so re-running is cheap. `stop`, `status`, `logs` and `doctor` complete it.
+
+  It calls the existing scripts rather than repeating them; `make` stays the
+  developer and CI surface that `AGENTS.md` is a contract for. The scripts name
+  `./repo-mcp` back when it is what you invoked, so one front door does not turn
+  back into three.
+
+### Fixed
+
+Four found by running the new entry point on genuinely fresh clones.
+
+- **The evaluation identity mapped to no squad.** `--identity dev` wrote
+  `DEV_STATIC_GROUPS=platform-admins`, which is the admin *role* group in
+  `tenants.example.yaml` and a member of nothing — so a first run signed in and
+  was then refused every call with *"none of your LDAP groups map to a squad;
+  contact the platform team"*, advice with nobody to follow it on one machine.
+  It now names a squad as well.
+- **`make debug` and `make smoke` read the token before the file that defines
+  it.** The wizard generates `DEV_STATIC_TOKEN` into `deploy/.env`, which both
+  scripts source *after* defaulting `TOKEN` to the literal `devtoken` — so
+  `debug` reported `authentication failed (HTTP 401)` against a healthy gateway,
+  and every authenticated smoke assertion would have failed. Same shape as the
+  `DEV_INSECURE_AUTH` defect in 0.4.4.
+- **`make debug` could not find the engine it was diagnosing.** It looked only
+  on `PATH`, while `./repo-mcp` installs to `.dev/bin` and `dev.sh` prefers it.
+- **The smoke test's JSON fallback reintroduced its own bug.** With nothing
+  indexed, `list_projects` answers `{"projects":[]}`; the grep fallback added in
+  0.4.6 then picked the key `projects` again. A JSON answer is authoritative
+  now, including when it lists nothing — the query assertions skip, as intended.
+
 ## [0.4.8] - 2026-08-19
 
 Three things between a local run and the browser interface, which together

@@ -1,0 +1,182 @@
+#!/usr/bin/env bash
+#
+# repo-mcp — one command to run this platform on your own machine.
+#
+# Everything a first run needs is done by `start`, in order and only when it is
+# missing: dependencies, configuration, the indexing engine, the browser
+# interface. Nothing to export, nothing to remember, no questions asked.
+#
+# Usage:
+#   ./repo-mcp start     bring it up (does whatever setup is still missing)
+#   ./repo-mcp stop      shut it down
+#   ./repo-mcp status    is it running, and does it answer
+#   ./repo-mcp logs      follow the log
+#   ./repo-mcp doctor    diagnose a broken setup, reporting every finding
+#
+# This is the front door. `make` is the developer and CI surface — the targets
+# under it are the contract that AGENTS.md documents, and this calls the same
+# scripts rather than repeating them. Use whichever you prefer; they are the
+# same machinery.
+#
+# `start` runs the services directly on this machine, with a static development
+# token and a local SQLite database. That is for trying it and for developing
+# against it. A deployment is the container stack — `make up`, or the Helm
+# chart — see docs/deployment.md.
+
+source "$(dirname "${BASH_SOURCE[0]}")/scripts/lib.sh"
+
+usage() { sed -n '2,27p' "$0" | sed -E 's/^# ?//'; }
+
+# So the scripts underneath name this command back, rather than themselves.
+export REPO_MCP_ENTRY="./repo-mcp"
+
+# ── the pieces `start` makes sure of ──────────────────────────────────
+
+ensure_python() {
+  need python3 "Python 3.11 or newer is required." || exit 1
+  python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' \
+    || die "Python 3.11+ is required, found $(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
+}
+
+# Configuration first, so the setup below does not stop to ask about it. The
+# choices are the evaluation ones — no Keycloak, no model backend — because a
+# first run should end at a working sign-in rather than at an identity provider
+# waiting to be configured. Re-running never overwrites an existing answer.
+ensure_config() {
+  if [[ -f deploy/.env ]]; then
+    return
+  fi
+  log "writing configuration (evaluation defaults)"
+  # Both streams: the wizard closes by explaining the *container* stack it just
+  # configured — "make up", "make smoke" — which is not what is about to
+  # happen here and reads as a contradiction.
+  scripts/wizard.sh --identity dev --models none --compression off \
+    --database bundled --provider none >/dev/null 2>&1
+  ok "configuration written to deploy/.env"
+  dim "      authentication is disabled: a static token, for this machine only"
+  dim "      'make wizard' changes what the container stack runs"
+}
+
+ensure_deps() {
+  local missing=0 service
+  for service in common gateway indexer; do
+    [[ -x "$service/.venv/bin/python" ]] || missing=1
+  done
+  (( missing )) || return 0
+  log "installing dependencies (first run only, a few minutes)"
+  scripts/setup.sh >/dev/null || die "setup failed — run scripts/setup.sh to see why"
+  ok "dependencies installed"
+}
+
+#: The engine is a released binary rather than a dependency, and without it
+#: every tool call fails. Fetching the build for *this* machine is three lines
+#: of platform arithmetic that nobody should have to do by hand.
+engine_asset() {
+  local os arch variant=""
+  case "$(uname -s)" in
+    Darwin) os=darwin ;;
+    Linux)  os=linux; variant="-portable" ;;   # statically linked; no glibc floor
+    *) return 1 ;;
+  esac
+  case "$(uname -m)" in
+    arm64|aarch64) arch=arm64 ;;
+    x86_64|amd64)  arch=amd64 ;;
+    *) return 1 ;;
+  esac
+  # The -ui edition: the graph page needs the layout server only it carries.
+  printf 'codebase-memory-mcp-ui-%s-%s%s.tar.gz' "$os" "$arch" "$variant"
+}
+
+sha256_of() {
+  if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}'
+  else shasum -a 256 "$1" | awk '{print $1}'; fi
+}
+
+ensure_engine() {
+  local target=".dev/bin/codebase-memory-mcp"
+  [[ -x "$target" ]] && return 0
+  if command -v codebase-memory-mcp >/dev/null 2>&1; then
+    ok "engine already on PATH"
+    return 0
+  fi
+
+  local asset base tmp published actual
+  asset="$(engine_asset)" || {
+    warn "no engine build published for $(uname -s)/$(uname -m)"
+    dim "      everything except tool execution will work; see NOTICE"
+    return 0
+  }
+  need curl "the engine is downloaded over HTTPS." || return 0
+  base="https://github.com/DeusData/codebase-memory-mcp/releases/latest/download"
+
+  log "downloading the indexing engine ($asset)"
+  tmp="$(mktemp -d)"
+  if ! curl -fsSL --retry 3 "$base/$asset" -o "$tmp/engine.tar.gz"; then
+    rm -rf "$tmp"
+    warn "could not download the engine — tool calls will fail until it is installed"
+    dim "      everything else works; see docs/development.md"
+    return 0
+  fi
+  # Verified against the release's own checksums, not a number pasted in here:
+  # that covers every architecture and cannot go stale.
+  if curl -fsSL "$base/checksums.txt" -o "$tmp/checksums.txt" 2>/dev/null; then
+    published="$(awk -v a="$asset" '$2 == a { print $1 }' "$tmp/checksums.txt")"
+    actual="$(sha256_of "$tmp/engine.tar.gz")"
+    if [[ -n "$published" && "$published" != "$actual" ]]; then
+      rm -rf "$tmp"
+      die "the downloaded engine does not match its published checksum — refusing to use it"
+    fi
+  else
+    warn "no checksums.txt published; the engine download is unverified"
+  fi
+
+  mkdir -p .dev/bin
+  tar -xzf "$tmp/engine.tar.gz" -C "$tmp"
+  local binary
+  binary="$(find "$tmp" -maxdepth 3 -type f -name codebase-memory-mcp | head -1)"
+  [[ -n "$binary" ]] || { rm -rf "$tmp"; die "no codebase-memory-mcp inside $asset"; }
+  mv "$binary" "$target"
+  chmod +x "$target"
+  rm -rf "$tmp"
+  ok "engine installed in .dev/bin ($("$target" --version 2>&1 | head -1))"
+}
+
+#: Without this the interface answers 503 and says so. Node is not a dependency
+#: of this platform, so a machine without it gets the message rather than an
+#: error — everything except the browser interface still works.
+ensure_interface() {
+  [[ -f gateway/webui/dist/index.html ]] && return 0
+  if ! command -v npm >/dev/null 2>&1; then
+    warn "Node is not installed, so the browser interface cannot be built"
+    dim "      the MCP endpoint, the API and the CLI all work without it"
+    return 0
+  fi
+  log "building the browser interface (first run only)"
+  npm --prefix gateway/webui ci --no-audit --no-fund >/dev/null 2>&1 \
+    || { warn "npm ci failed; skipping the interface"; return 0; }
+  npm --prefix gateway/webui run build >/dev/null 2>&1 \
+    || { warn "the interface build failed; /ui will say so"; return 0; }
+  ok "interface built"
+}
+
+# ── commands ──────────────────────────────────────────────────────────
+
+COMMAND="${1:-help}"
+shift || true
+
+case "$COMMAND" in
+  start)
+    ensure_python
+    ensure_config
+    ensure_deps
+    ensure_engine
+    ensure_interface
+    exec scripts/dev.sh --start "$@"
+    ;;
+  stop)    exec scripts/dev.sh --stop ;;
+  status)  exec scripts/dev.sh --status ;;
+  logs)    exec scripts/dev.sh --logs ;;
+  doctor)  exec scripts/debug.sh "$@" ;;
+  -h|--help|help) usage ;;
+  *) fail "unknown command: $COMMAND"; echo; usage; exit 1 ;;
+esac

@@ -15,7 +15,12 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 GATEWAY_URL="${GATEWAY_URL:-http://127.0.0.1:8080}"
 INDEXER_URL="${INDEXER_URL:-http://127.0.0.1:8082}"
-TOKEN="${DEV_STATIC_TOKEN:-devtoken}"
+# Resolved after deploy/.env is sourced, below: the wizard generates a
+# DEV_STATIC_TOKEN for the evaluation identity, and reading the variable before
+# the file that defines it meant this always used the literal "devtoken" — so
+# it reported "authentication failed (HTTP 401)" against a perfectly healthy
+# gateway. An explicit --token still wins over both.
+TOKEN_EXPLICIT=""
 TENANT="${TENANT:-}"
 MODE=local
 
@@ -24,7 +29,7 @@ while [[ $# -gt 0 ]]; do
     --docker)  MODE=docker ;;
     --gateway) GATEWAY_URL="$2"; shift ;;
     --indexer) INDEXER_URL="$2"; shift ;;
-    --token)   TOKEN="$2"; shift ;;
+    --token)   TOKEN_EXPLICIT="$2"; shift ;;
     --tenant)  TENANT="$2"; shift ;;
     -h|--help) sed -n '2,13p' "$0" | sed -E 's/^# ?//'; exit 0 ;;
     *) die "unknown argument: $1 (try --help)" ;;
@@ -34,6 +39,8 @@ done
 
 # shellcheck disable=SC1091
 [[ -f "$REPO_ROOT/deploy/.env" ]] && set -a && source "$REPO_ROOT/deploy/.env" && set +a
+
+TOKEN="${TOKEN_EXPLICIT:-${DEV_STATIC_TOKEN:-devtoken}}"
 
 ISSUES=()
 note_issue() { ISSUES+=("$1"); fail "$1"; }
@@ -59,6 +66,13 @@ fi
 # ── 2. engine ─────────────────────────────────────────────────────────
 
 log "indexing engine"
+# ./repo-mcp installs the engine here when it is not on PATH, and dev.sh
+# prefers it — so looking only at PATH reported "engine binary not on PATH"
+# about an engine that was installed and working. A diagnostic that cannot
+# find what the thing it diagnoses is using is worse than no diagnostic.
+if [[ -z "${CBM_BINARY:-}" && -x "$REPO_ROOT/.dev/bin/codebase-memory-mcp" ]]; then
+  CBM_BINARY="$REPO_ROOT/.dev/bin/codebase-memory-mcp"
+fi
 CBM="${CBM_BINARY:-codebase-memory-mcp}"
 if command -v "$CBM" >/dev/null 2>&1; then
   ok "binary $(command -v "$CBM")"

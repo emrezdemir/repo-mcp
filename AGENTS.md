@@ -45,6 +45,12 @@ Then read, in this order:
 
 ## 3. Commands
 
+`./repo-mcp` is the **user-facing front door** — `start`, `stop`, `status`,
+`logs`, `doctor` — and `start` does whatever setup is still missing, including
+downloading the engine and building the interface. It calls the scripts below
+rather than repeating them. The `make` targets are the developer and CI
+surface, and they are what this document is a contract for.
+
 Every one of these is a script in `scripts/`. Use them rather than
 reinventing the invocation.
 
