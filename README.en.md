@@ -9,7 +9,7 @@ exposes the resulting code graph over **MCP** to coding agents, chatbots and
 CI. It is self-hosted and enforces squad-level isolation.
 
 [![License](https://img.shields.io/badge/license-MIT-1da27e.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.4.9-1c8585.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.4.10-1c8585.svg)](CHANGELOG.md)
 [![CI](https://img.shields.io/github/actions/workflow/status/emrezdemir/repo-mcp/ci.yml?branch=dev&label=CI&color=1da27e)](https://github.com/emrezdemir/repo-mcp/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.11+-1c8585.svg)](https://www.python.org/)
 [![MCP](https://img.shields.io/badge/MCP-JSON--RPC-1da27e.svg)](https://modelcontextprotocol.io/)
