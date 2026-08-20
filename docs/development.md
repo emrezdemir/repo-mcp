@@ -14,6 +14,19 @@ conflict over environment values. See [branching.md](branching.md).
 
 ## Setup
 
+One command does everything a first run needs, and skips whatever is already
+there — dependencies, configuration, the indexing engine, the browser interface:
+
+```bash
+./repo-mcp start        # then stop / status / logs / doctor
+```
+
+It exists because the alternative was a sequence nobody should have to
+memorise: `make setup`, then the four wizard questions, then finding the engine
+release for your platform, then building the interface, then knowing which
+environment variable points at it, then reading the token out of a log. The
+steps below are that sequence, and they still work — `./repo-mcp` calls them.
+
 ```bash
 make setup
 ```

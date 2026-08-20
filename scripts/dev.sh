@@ -154,7 +154,14 @@ if [[ "$ACTION" == "start" ]]; then
     sed -n '/Development mode/,/^$/p' "$LOG_FILE"
   fi
   dim "      interface:  http://127.0.0.1:8080/ui"
-  dim "      logs:  scripts/dev.sh --logs        stop:  scripts/dev.sh --stop"
+  # Named after whatever the caller actually typed. Telling someone who ran
+  # ./repo-mcp start to stop it with scripts/dev.sh --stop is how a single
+  # front door turns back into three.
+  if [[ -n "${REPO_MCP_ENTRY:-}" ]]; then
+    dim "      logs:  $REPO_MCP_ENTRY logs        stop:  $REPO_MCP_ENTRY stop"
+  else
+    dim "      logs:  scripts/dev.sh --logs        stop:  scripts/dev.sh --stop"
+  fi
   exit 0
 fi
 
@@ -184,6 +191,11 @@ export DEV_STATIC_TOKEN="${DEV_STATIC_TOKEN:-devtoken}"
 export SCAN_CONFIG="$REPO_ROOT/deploy/scan.yaml"
 export CBM_CACHE_ROOT="$DEV_ROOT/cache"
 export CBM_REPO_ROOT="$DEV_ROOT/repos"
+# ./repo-mcp downloads the engine here when it is not on PATH; prefer it, so
+# neither entry point needs CBM_BINARY exported by hand. An explicit one wins.
+if [[ -z "${CBM_BINARY:-}" && -x "$REPO_ROOT/.dev/bin/codebase-memory-mcp" ]]; then
+  CBM_BINARY="$REPO_ROOT/.dev/bin/codebase-memory-mcp"
+fi
 export CBM_BINARY="${CBM_BINARY:-codebase-memory-mcp}"
 export SMART_TOOLS_ENABLED="${SMART_TOOLS_ENABLED:-false}"
 

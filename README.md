@@ -63,12 +63,25 @@ grupları bir role ve bir takıma çevrilir.
 
 ## Beş dakikada kurulum
 
-Docker Engine 24+ ve Compose v2 — ya da Podman — yeterli.
+Denemek için tek komut yeter. Python 3.11+ dışında bir şey gerekmez — bağımlılıkları,
+yapılandırmayı, indeksleme motorunu ve arayüzü kendisi kurar:
 
 ```bash
 git clone https://github.com/emrezdemir/repo-mcp
-cd repo-mcp && make setup     # dört soru -> deploy/.env
-make up                       # şema ve servisler; admini /ui'da oluşturursunuz
+cd repo-mcp && ./repo-mcp start
+```
+
+Adresi ve giriş token'ını çıktının sonunda yazar; `http://localhost:8080/ui`
+adresini açın. Durdurmak için `./repo-mcp stop`, sorun çıkarsa `./repo-mcp doctor`.
+
+Bu, servisleri doğrudan makinenizde çalıştırır — denemek ve geliştirmek için.
+**Kurulum** ise container yığını: Docker Engine 24+ ve Compose v2 (ya da Podman)
+ister ve [kurulum belgesinde](https://emrezdemir.github.io/repo-mcp/docs/deployment/)
+anlatılır.
+
+```bash
+make setup     # dört soru -> deploy/.env
+make up        # şema ve servisler; admini /ui'da oluşturursunuz
 ```
 
 Ardından bir connector tanımlayın — terminalden ya da
