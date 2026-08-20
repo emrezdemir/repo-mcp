@@ -1,6 +1,6 @@
 # Progress
 
-**Last updated:** 2026-08-19
+**Last updated:** 2026-08-20
 
 Status vocabulary, used strictly:
 
@@ -314,6 +314,7 @@ Not bugs — consequences of decisions, recorded so nobody rediscovers them.
 | `make debug` and `make smoke` resolved `TOKEN` before sourcing the `.env` that defines it, so both used the literal `devtoken` — `debug` reported a false 401 against a healthy gateway | The same fresh-clone run | Resolved after the source; an explicit `--token` still wins. Same shape as the `DEV_INSECURE_AUTH` defect in 0.4.4 |
 | `make debug` looked for the engine only on `PATH`, while `./repo-mcp` installs to `.dev/bin` — so it reported "engine binary not on PATH" about an engine that was installed and working | The same run | It checks `.dev/bin` too, as `dev.sh` does |
 | The smoke test's JSON fallback reintroduced the bug it replaced: with nothing indexed, `{"projects":[]}` sent it back to the grep, which picked the key again | The same run | A JSON answer is authoritative, including when empty |
+| `make setup` with `--models external --compression on` selected the `headroom` profile without `litellm`, then wrote `HEADROOM_UPSTREAM_URL=http://litellm:4000/v1` — compression aimed at a hostname the same file said not to start, failing on the first request rather than at `make up`. The maintainer's own `deploy/.env` was exactly this combination | Reading the wizard while looking for something else, then confirming it against the live `.env` | The upstream follows the models answer, and `make test` asserts the general rule: no generated `.env` names an optional service unless its profile is on. Confirmed by reintroducing the defect and watching the check fail |
 
 ## Never verified in this environment
 

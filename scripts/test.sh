@@ -155,6 +155,50 @@ else
   dim "      no container compose available, skipping the Compose check"
 fi
 
+# Every answer set the wizard accepts has to produce a .env that agrees with
+# itself. The defect this checks for shipped: --models external --compression on
+# wrote HEADROOM_UPSTREAM_URL=http://litellm:4000/v1 while leaving litellm out
+# of COMPOSE_PROFILES, so headroom pointed at a container the same file told the
+# stack not to start. That fails at request time, which is far from the wizard
+# that caused it.
+#
+# The assertion is the general rule rather than that one variable: no value may
+# name an optional service unless the profile that starts it is selected.
+log "the wizard's answers agree with themselves"
+WIZARD_TMP="$(mktemp -d)"
+trap 'rm -rf "$WIZARD_TMP"' EXIT
+wizard_ok=1
+for models in bundled external none; do
+  for compression in off on; do
+    # Refused by the wizard on purpose: compression sits in front of a model
+    # backend, so "on" with no backend is not an answer set.
+    [[ "$compression" == on && "$models" == none ]] && continue
+    env_out="$WIZARD_TMP/env-$models-$compression"
+    if ! REPO_MCP_ENV_FILE="$env_out" "$REPO_ROOT/scripts/wizard.sh" --force \
+        --identity dev --models "$models" --compression "$compression" \
+        --database bundled --provider none >/dev/null 2>&1; then
+      fail "the wizard failed for --models $models --compression $compression"
+      wizard_ok=0
+      continue
+    fi
+    profiles="$(grep -m1 '^COMPOSE_PROFILES=' "$env_out" | cut -d= -f2- || true)"
+    # These hostnames only resolve when the profile of the same name is on.
+    for service in litellm ollama headroom keycloak; do
+      grep -E "^[A-Z_]+=.*//$service:" "$env_out" >/dev/null 2>&1 || continue
+      if [[ ",$profiles," != *",$service,"* ]]; then
+        fail "--models $models --compression $compression points at http://$service but does not start it"
+        grep -nE "^[A-Z_]+=.*//$service:" "$env_out" | sed 's/^/        /'
+        wizard_ok=0
+      fi
+    done
+  done
+done
+if (( wizard_ok )); then
+  ok "no generated .env names a service its profiles leave out"
+else
+  FAILURES+=("wizard answer sets")
+fi
+
 # The shell scripts are part of the contract too, and CI lints them. Running
 # the same check here means a warning is a local failure rather than a
 # surprise on a push. Same severity as .github/workflows/ci.yml.

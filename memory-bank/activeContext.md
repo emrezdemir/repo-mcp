@@ -104,12 +104,20 @@ front door does not quietly become three. Measured from a genuinely fresh clone:
 0.4.9's four fixes, none of which reproduce in a working tree that already has
 everything.
 
-*Still open.* The wizard writes `HEADROOM_UPSTREAM_URL=http://litellm:4000/v1`
-for `--models external --compression on` while leaving the `litellm` profile
-off, so the compression backend points at a container the stack was told not to
-run. Flagged to the maintainer, not yet fixed. And `make up` — the container
-path — has still never been run on this Mac; every claim about it here comes
-from CI and from the maintainer's Ubuntu server.
+*The wizard defect, found by reading and fixed after.* `--models external
+--compression on` selected the `headroom` profile without `litellm` — correctly,
+since that answer says the proxy is yours — and then wrote
+`HEADROOM_UPSTREAM_URL=http://litellm:4000/v1` anyway. The maintainer's own
+`deploy/.env` turned out to be exactly that combination. The upstream follows
+the models answer now, and the regression check asserts the **general** rule
+(no generated `.env` names an optional service unless its profile is on) rather
+than this one variable; it was confirmed by reintroducing the defect. The
+wizard's output path became overridable through `REPO_MCP_ENV_FILE` so the check
+can run without overwriting a developer's `.env` — nothing else sets it.
+
+*Still open.* `make up` — the container path — has still never been run on this
+Mac; every claim about it here comes from CI and from the maintainer's Ubuntu
+server.
 
 **Session 15 — the first run on macOS, and four commits nobody had recorded.**
 Two halves.

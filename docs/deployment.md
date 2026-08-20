@@ -481,6 +481,13 @@ docker compose --profile headroom up -d
 # told, silently.
 ```
 
+Headroom forwards to a model proxy, and `HEADROOM_UPSTREAM_URL` in `deploy/.env`
+is which one. With the bundled LiteLLM that is `http://litellm:4000/v1`, and
+`make setup` writes it. With your own proxy the wizard asks for the URL, because
+the container name resolves to nothing outside the stack — a wrong value here
+does not fail at `make up`, it fails on the first request that reaches the
+model.
+
 Deploying it is not the same as using it. Point the platform at it and turn it
 on, which is also how it is turned off:
 

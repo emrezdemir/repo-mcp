@@ -6,6 +6,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Prompt compression pointed at a container the same file said not to
+  start.** `make setup` with `--models external --compression on` selected the
+  `headroom` profile and left `litellm` out — correctly, since the models answer
+  says the proxy is your own — and then wrote
+  `HEADROOM_UPSTREAM_URL=http://litellm:4000/v1` anyway. That hostname resolves
+  to nothing in that stack, so compression failed on the first request that
+  reached the model rather than at `make up`, a long way from the wizard that
+  caused it. The upstream now follows the models answer: the bundled proxy when
+  it is bundled, and a URL the wizard asks for when it is yours.
+
+  `scripts/test.sh` gained the general assertion rather than a check for this
+  one variable: **no generated `.env` may name an optional service unless the
+  profile that starts it is selected.** It was confirmed by reintroducing the
+  defect and watching it fail.
+
+
 ## [0.4.9] - 2026-08-20
 
 ### Added
