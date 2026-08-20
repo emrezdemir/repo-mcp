@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.10] - 2026-08-20
+
 ### Fixed
 
 - **Prompt compression pointed at a container the same file said not to
