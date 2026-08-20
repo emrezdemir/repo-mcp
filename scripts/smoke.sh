@@ -21,7 +21,12 @@ need jq "smoke assertions need jq" || exit 1
 
 GATEWAY_URL="${GATEWAY_URL:-http://127.0.0.1:8080}"
 INDEXER_URL="${INDEXER_URL:-http://127.0.0.1:8082}"
-TOKEN="${DEV_STATIC_TOKEN:-devtoken}"
+# Resolved after deploy/.env is sourced, below: the wizard generates a
+# DEV_STATIC_TOKEN for the evaluation identity, and reading the variable before
+# the file that defines it meant this always used the literal "devtoken" — so
+# it reported "authentication failed (HTTP 401)" against a perfectly healthy
+# gateway. An explicit --token still wins over both.
+TOKEN_EXPLICIT=""
 TENANT="${TENANT:-}"
 # Small, permissively licensed and stable — indexes in seconds.
 SAMPLE_REPO="${SAMPLE_REPO:-https://github.com/pallets/click}"
@@ -33,7 +38,7 @@ while [[ $# -gt 0 ]]; do
     --repo)   SAMPLE_REPO="$2"; shift ;;
     --name)   SAMPLE_NAME="$2"; shift ;;
     --tenant) TENANT="$2"; shift ;;
-    --token)  TOKEN="$2"; shift ;;
+    --token)  TOKEN_EXPLICIT="$2"; shift ;;
     -h|--help) sed -n '2,17p' "$0" | sed -E 's/^# ?//'; exit 0 ;;
     *) die "unknown argument: $1 (try --help)" ;;
   esac
@@ -42,6 +47,8 @@ done
 
 # shellcheck disable=SC1091
 [[ -f "$REPO_ROOT/deploy/.env" ]] && set -a && source "$REPO_ROOT/deploy/.env" && set +a
+
+TOKEN="${TOKEN_EXPLICIT:-${DEV_STATIC_TOKEN:-devtoken}}"
 
 PASSED=0
 FAILED=0
@@ -156,8 +163,12 @@ assert "list_projects succeeds" \
 # characters, which is the key "projects" rather than any project — so every
 # query assertion below asked about a project that does not exist, on every
 # platform. The grep survives as a fallback for a non-JSON answer.
-FIRST_PROJECT="$(jq -r '.projects[]?.name // empty' <<<"$projects_text" 2>/dev/null | head -1 || true)"
-if [[ -z "$FIRST_PROJECT" ]]; then
+if jq -e . >/dev/null 2>&1 <<<"$projects_text"; then
+  # A JSON answer is authoritative, including when it lists nothing: falling
+  # back to the grep here picked the key "projects" out of an empty result and
+  # sent the assertions below off to query a project that cannot exist.
+  FIRST_PROJECT="$(jq -r '.projects[]?.name // empty' <<<"$projects_text" | head -1 || true)"
+else
   FIRST_PROJECT="$(grep -oE '[A-Za-z0-9._-]{3,}' <<<"$projects_text" | head -1 || true)"
 fi
 if [[ -z "$FIRST_PROJECT" ]]; then
