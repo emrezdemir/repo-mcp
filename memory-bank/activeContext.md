@@ -1,7 +1,7 @@
 # Active context
 
-**Last updated:** 2026-08-19
-**Branch:** `dev`
+**Last updated:** 2026-08-20
+**Branch:** `feature/one-command-entry-point`
 
 ## Where things stand
 
@@ -25,8 +25,12 @@ environments, and configuration is never promoted. CI publishes `:dev-<sha>`
 from `dev`; a version tag publishes `:vX.Y.Z` and packages the chart. The
 publish half is **no longer theoretical**: `ghcr.io/emrezdemir/repo-mcp-gateway`
 and `-indexer` carry `dev-latest` plus a dozen `dev-<sha>` tags, and both pull
-anonymously — verified against the registry API. No release tag has been cut,
-so there is no `:latest` and no `:vX.Y.Z`; nothing defaults to either.
+anonymously — verified against the registry API. Eight release tags have been
+cut since (`v0.4.1` through `v0.4.8`), so `:latest` and `:vX.Y.Z` exist and are
+what a deployment pulls. Both images are **multi-architecture**
+(`linux/amd64` and `linux/arm64`), which is not a convenience: the engine binary
+inside an emulated amd64 image hangs indefinitely on Apple Silicon rather than
+running slowly, so a single-arch image would be unusable there.
 
 The repository is **public** on GitHub (`emrezdemir/repo-mcp`, MIT, default
 branch `dev`). Every push is world-readable the moment it lands — the secret
@@ -35,10 +39,11 @@ forbidden paths came back clean.
 
 ### Branch state, as of this writing
 
-- `dev` is the **default branch** and carries everything. Head: `58f25bf`.
+- `dev` is the **default branch** and carries everything. Head: `a447908`,
+  which is `v0.4.8`.
 - `main`, `dev` and `origin/dev` are all at that same commit — zero ahead, zero
-  behind. The earlier note here ("main is behind and its CI is red") stopped
-  being true and stayed; it is fixed now.
+  behind. Keeping that true is the release procedure, not a coincidence: the
+  fast-forward is the merge.
 - The maintainer merges `dev` into `main` (a fast-forward, `git push origin
   dev:main`, keeps the two identical) and deletes branches. There is **no
   automatic main→dev sync** any more — `sync-dev.yml` was removed at the
@@ -54,6 +59,57 @@ Do not start translating without that answer: two hand-maintained copies drift,
 which `AGENTS.md` forbids.
 
 ## What the last sessions did
+
+**Session 16 — one front door, and seven releases that each found something.**
+The session began with a review of the whole repository on macOS and ended with
+`./repo-mcp`. Between those two points sit **0.4.3 through 0.4.9**, and the
+thread running through all of them is that *nothing verified by reading is
+verified*. Every defect below survived code review and was found by running
+something.
+
+*What running it found.* A fresh install could make **zero tool calls** — the
+bridge never created `repo_root`, and the engine's own stderr was swallowed, so
+the failure arrived with nothing to act on (0.4.4). Every `--help` in
+`scripts/` printed its comment markers on macOS, because `sed 's/^# \?//'` uses
+a GNU extension BSD sed reads literally (0.4.5). `make smoke` reported 6 of 14
+assertions failing and neither cause was the platform: `${2:-{\}}` keeps its
+backslash on bash 3.2, so half the calls sent invalid JSON, and the project to
+query was picked with a grep that returned the JSON key `projects` (0.4.6). The
+scripts only worked from the repository root, and `debug.sh` — the diagnostic
+tool — reported `tenants.yaml is invalid` one line after confirming the file
+exists (0.4.7). And `http://localhost:8080/ui`, the URL the setup output and
+both READMEs send people to, **had never worked outside a container**: vite
+writes to `gateway/webui/dist`, the gateway serves `gateway/app/ui`, and only CI
+and the image connected them — the failure being a bare
+`Internal Server Error` (0.4.8).
+
+*Multi-architecture, which was a correction.* Session 15 wrote up amd64-only
+images as "Apple Silicon runs it emulated, slower" and left it as a cost
+decision. That was **wrong**, and testing it is what showed so: the engine
+binary inside an emulated amd64 image does not run slowly, it hangs
+indefinitely. Both images are `linux/amd64,linux/arm64` now. The lesson is
+narrower than "test more" — it is that a plausible cost/benefit sentence about
+behaviour nobody has observed is a guess wearing the clothes of a decision.
+
+*And then the front door.* The maintainer's summary of the surface was accurate:
+`make` targets, `sh` scripts, environment variables, a wizard, a token in a log
+— *"karman çorman"*. The chosen answer was **one CLI, with `make` kept as the
+developer and CI surface**: `./repo-mcp start|stop|status|logs|doctor`, where
+`start` does whatever is still missing — dependencies, configuration, the engine
+downloaded and checksum-verified for this platform, the interface built — and
+prints the URL and the token. It calls the existing scripts rather than
+duplicating them, and they name it back when it is what you invoked, so one
+front door does not quietly become three. Measured from a genuinely fresh clone:
+**about 40 seconds** to a working sign-in. Testing it that way is what produced
+0.4.9's four fixes, none of which reproduce in a working tree that already has
+everything.
+
+*Still open.* The wizard writes `HEADROOM_UPSTREAM_URL=http://litellm:4000/v1`
+for `--models external --compression on` while leaving the `litellm` profile
+off, so the compression backend points at a container the stack was told not to
+run. Flagged to the maintainer, not yet fixed. And `make up` — the container
+path — has still never been run on this Mac; every claim about it here comes
+from CI and from the maintainer's Ubuntu server.
 
 **Session 15 — the first run on macOS, and four commits nobody had recorded.**
 Two halves.

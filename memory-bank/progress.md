@@ -105,6 +105,14 @@ away.
 - Argon2id passwords, Fernet-encrypted credentials.
 
 **Tooling**
+- **`./repo-mcp start` takes a fresh clone to a working sign-in in about 40
+  seconds**, measured on macOS by cloning and running it — dependencies,
+  configuration, the engine downloaded and checksum-verified for this platform,
+  the interface built, services up, URL and token printed. `stop`, `status`,
+  `logs` and `doctor` complete it, and the scripts underneath name it back.
+  Re-running only does what is missing. Four defects were found by running it on
+  fresh clones rather than on this working tree; that is the whole reason to
+  test it that way.
 - The local no-Docker path has a lifecycle of its own now: `make dev-start`
   returns once `/healthz` answers (about two seconds), `make dev-stop` takes it
   down through the supervisor's exit trap, `make dev-logs` follows it. Measured
@@ -302,6 +310,10 @@ Not bugs — consequences of decisions, recorded so nobody rediscovers them.
 | The scripts only worked from the repository root: four embed Python with relative paths (`deploy/tenants.yaml`, `sys.path.insert(0, "gateway")`). `dev.sh` died with FileNotFoundError; `debug.sh` reported `tenants.yaml is invalid` one line after confirming it exists, which is a diagnostic tool misdiagnosing its own subject | The maintainer running `./dev.sh` from inside `scripts/` | `lib.sh` moves to the root once for every script; nothing there used the caller's directory. Verified from `scripts/`, `/tmp` and the root |
 | `http://localhost:8080/ui` had never worked outside a container: vite builds to `gateway/webui/dist`, the gateway serves `gateway/app/ui`, and only CI (which copies) and the image (which sets `REPO_MCP_UI_DIR`) connected them. Following the documented `npm run build` left it broken, and the failure arrived as a bare `Internal Server Error` | Being asked which URL the interface comes up on, and opening it | `dev.sh` sets `REPO_MCP_UI_DIR` when a build is there; `/ui` returns 503 naming the directory and the command; the comment that claimed the build lands in `app/ui` is corrected |
 | `dev.sh --start` never showed the development token, while the sign-in screen asks for it and says `make dev` prints it | The maintainer reaching the sign-in screen with no token to enter | `--start` repeats the banner after the services answer |
+| The evaluation identity mapped to no squad: `--identity dev` wrote `DEV_STATIC_GROUPS=platform-admins`, the admin *role* group, a member of nothing — so a first run signed in and was refused every call with "contact the platform team" | Running `./repo-mcp start` on a genuinely fresh clone | The dev identity names a squad as well as the admin group |
+| `make debug` and `make smoke` resolved `TOKEN` before sourcing the `.env` that defines it, so both used the literal `devtoken` — `debug` reported a false 401 against a healthy gateway | The same fresh-clone run | Resolved after the source; an explicit `--token` still wins. Same shape as the `DEV_INSECURE_AUTH` defect in 0.4.4 |
+| `make debug` looked for the engine only on `PATH`, while `./repo-mcp` installs to `.dev/bin` — so it reported "engine binary not on PATH" about an engine that was installed and working | The same run | It checks `.dev/bin` too, as `dev.sh` does |
+| The smoke test's JSON fallback reintroduced the bug it replaced: with nothing indexed, `{"projects":[]}` sent it back to the grep, which picked the key again | The same run | A JSON answer is authoritative, including when empty |
 
 ## Never verified in this environment
 
